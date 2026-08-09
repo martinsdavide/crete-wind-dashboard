@@ -92,8 +92,9 @@ export const BestSpot: React.FC<BestSpotProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Ultra-legible Regime Badge (e.g. Westerly Flow, Strong Meltemi) */}
             {regimeLabel && (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-500/20 text-sky-200 border border-sky-400/40">
+              <span className="badge-regime px-3 py-0.5 rounded-full text-[11px] font-extrabold shadow-sm border">
                 {regimeLabel}
               </span>
             )}
@@ -126,7 +127,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
 
               {/* High-Contrast Sailing Style Badge */}
               <div className="flex items-center gap-2 self-start">
-                <span className="badge-wave inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-sky-950/80 border border-sky-400/60 text-sky-200 text-xs font-extrabold tracking-wide shadow-sm">
+                <span className="badge-wave inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-extrabold tracking-wide shadow-sm border">
                   <Waves className="w-3.5 h-3.5 text-sky-400" />
                   <span>{styleLabels[sailingStyle] || sailingStyle}</span>
                   <span className="text-[9px] opacity-75 font-medium">(ESTIMATED)</span>
