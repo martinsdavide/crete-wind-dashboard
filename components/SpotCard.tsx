@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { SpotResult } from "@/types/weather";
 import { WindArrow } from "./WindArrow";
 import { ConfidenceBadge } from "./ConfidenceBadge";
-import { ChevronDown, ChevronUp, AlertTriangle, Waves, ShieldCheck, ShieldAlert, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, Waves } from "lucide-react";
 
 interface SpotCardProps {
   result: SpotResult;
@@ -41,11 +41,23 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
   const forecast = result.data;
   const { spot, current } = forecast;
 
-  const eligibilityBadges: Record<string, { bg: string; text: string; border: string; label: string }> = {
-    IDEAL: { bg: "bg-emerald-500/15", text: "text-emerald-300", border: "border-emerald-500/40", label: "IDEAL CONDITIONS" },
-    SUITABLE: { bg: "bg-cyan-500/15", text: "text-cyan-300", border: "border-cyan-500/40", label: "SUITABLE" },
-    MARGINAL: { bg: "bg-amber-500/15", text: "text-amber-300", border: "border-amber-500/40", label: "MARGINAL" },
-    UNSUITABLE: { bg: "bg-rose-500/15", text: "text-rose-300", border: "border-rose-500/40", label: "UNSUITABLE" },
+  const eligibilityBadges: Record<string, { className: string; label: string }> = {
+    IDEAL: {
+      className: "badge-ideal bg-emerald-950/80 text-emerald-200 border-emerald-400/60",
+      label: "IDEAL CONDITIONS",
+    },
+    SUITABLE: {
+      className: "badge-suitable bg-sky-950/80 text-sky-200 border-sky-400/60",
+      label: "SUITABLE",
+    },
+    MARGINAL: {
+      className: "badge-marginal bg-amber-950/80 text-amber-200 border-amber-400/60",
+      label: "MARGINAL",
+    },
+    UNSUITABLE: {
+      className: "badge-unsuitable bg-rose-950/80 text-rose-200 border-rose-400/60",
+      label: "UNSUITABLE",
+    },
   };
 
   const elig = eligibilityBadges[current.eligibility] || eligibilityBadges.MARGINAL;
@@ -79,7 +91,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
 
         <div className="flex flex-col items-end gap-1.5">
           <span
-            className={`text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full border ${elig.bg} ${elig.text} ${elig.border}`}
+            className={`text-[10px] font-extrabold tracking-wider px-2.5 py-0.5 rounded-full border shadow-sm ${elig.className}`}
           >
             {elig.label}
           </span>
@@ -159,14 +171,14 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
 
       {/* Style & Details Toggle */}
       <div className="flex items-center justify-between pt-1">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-surf-dark/80 text-cyan-300 border border-surf-border">
-          <Waves className="w-3 h-3" />
+        <span className="badge-style inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-sky-950/80 text-sky-200 border border-sky-400/60 shadow-sm">
+          <Waves className="w-3.5 h-3.5 text-sky-400" />
           <span>{styleLabels[current.waterState] || current.waterState}</span>
         </span>
 
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors px-2 py-1 rounded-md hover:bg-surf-cardHover"
+          className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors px-2 py-1 rounded-md hover:bg-surf-cardHover font-medium"
           aria-expanded={showDetails}
         >
           <span>{showDetails ? "Less" : "Quality Details"}</span>
