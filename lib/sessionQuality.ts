@@ -1,7 +1,7 @@
 import { SpotId } from "@/types/spot";
 import {
+  DailyWindSummary,
   SpotEligibility,
-  SpotForecast,
   WaterState,
   WindDirection,
   WindRegime,
@@ -138,25 +138,34 @@ export function calculateSessionQualityScore(
 }
 
 /**
- * Generates clear, human-readable explanations for why the best spot was selected.
+ * Generates clear, human-readable explanations using the exact evaluated day summaries (avoiding days[0] assumptions).
  */
 export function explainRecommendation(
   bestSpot: SpotId | null,
   regime: WindRegime,
-  spotsForecasts: Record<SpotId, SpotForecast | null>
+  summaries: {
+    kToday?: DailyWindSummary | null;
+    tToday?: DailyWindSummary | null;
+    xToday?: DailyWindSummary | null;
+  }
 ): string[] {
+  const { kToday, tToday, xToday } = summaries;
+
   if (!bestSpot) {
-    return ["Light or variable winds across all spots today."];
+    const allWinds = [
+      kToday?.maxWind ?? 0,
+      tToday?.maxWind ?? 0,
+      xToday?.maxWind ?? 0,
+    ];
+    const maxAcrossSpots = Math.max(...allWinds);
+
+    if (maxAcrossSpots < 11) {
+      return ["Light or insufficient wind across all spots today for windsurfing."];
+    }
+    return ["No spot currently offers suitable windsurfing conditions."];
   }
 
   const explanations: string[] = [];
-  const kForecast = spotsForecasts.kouremenos;
-  const tForecast = spotsForecasts.tenda;
-  const xForecast = spotsForecasts.xerokampos;
-
-  const kToday = kForecast?.days?.[0];
-  const tToday = tForecast?.days?.[0];
-  const xToday = xForecast?.days?.[0];
 
   if (bestSpot === "tenda") {
     if (regime === "MELTEMI_STRONG" || regime === "MELTEMI_MODERATE" || regime === "WESTERLY") {

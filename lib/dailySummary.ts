@@ -12,7 +12,7 @@ import { findBestWindow } from "./bestWindow";
 import { getConditionLabel } from "./windScore";
 import { getAthensTimeComponents } from "./localWind";
 import { SCORING_CONFIG } from "@/config/windProfiles";
-import { detectWindRegime } from "./windRegime";
+import { calculateRegionalReferenceFlow } from "./windRegime";
 import { explainRecommendation } from "./sessionQuality";
 
 /**
@@ -91,7 +91,7 @@ export function calculateDailySummaries(hourlyItems: HourlyWind[]): DailyWindSum
     const { degrees: dominantDirectionDegrees, label: dominantDirection } =
       getDominantDirection(directionDegreesList);
 
-    // Dominant eligibility & style
+    // Dominant eligibility & style (for UI display purposes only, NOT a hard gate)
     const eligCount: Record<SpotEligibility, number> = {
       IDEAL: 0,
       SUITABLE: 0,
@@ -145,6 +145,38 @@ export function calculateDailySummaries(hourlyItems: HourlyWind[]): DailyWindSum
 }
 
 /**
+ * Checks if a spot has sufficient valid daytime hours to qualify as a candidate.
+ */
+function isSpotEligibleCandidate(
+  forecast: SpotForecast | null,
+  summary: DailyWindSummary | null,
+  dateKey: string
+): boolean {
+  if (!forecast || !summary) return false;
+
+  // 1. If a valid Best Window exists (>=70 session score for >=2 consecutive eligible hours), it's eligible!
+  if (summary.bestWindow && summary.bestWindow.meanScore >= 70) {
+    return true;
+  }
+
+  // 2. Alternatively, check if there are >= 2 daytime eligible hours with score >= 60
+  const dayItems = forecast.hourly.filter((h) => {
+    const isTargetDate = getAthensDateKey(h.timestamp) === dateKey;
+    const { hour } = getAthensTimeComponents(h.timestamp);
+    const isDaytime =
+      hour >= SCORING_CONFIG.daytime.startHour &&
+      hour <= SCORING_CONFIG.daytime.endHour;
+    return isTargetDate && isDaytime;
+  });
+
+  const eligibleHours = dayItems.filter(
+    (h) => h.eligibility !== "UNSUITABLE" && h.sessionQualityScore >= 60
+  );
+
+  return eligibleHours.length >= 2 && summary.score >= 60;
+}
+
+/**
  * Evaluates all available spot forecasts to produce the overall session quality recommendation for today.
  * Supports 3 spots: Kouremenos, Tenda, Xerokampos.
  */
@@ -156,40 +188,78 @@ export function calculateBestSpotRecommendation(
 ): Recommendation {
   const todayAthensKey = getAthensDateKey(referenceDate);
 
-  const kToday = kouremenosForecast?.days?.find((d) => d.date === todayAthensKey) ?? kouremenosForecast?.days?.[0];
-  const tToday = tendaForecast?.days?.find((d) => d.date === todayAthensKey) ?? tendaForecast?.days?.[0];
-  const xToday = xerokamposForecast?.days?.find((d) => d.date === todayAthensKey) ?? xerokamposForecast?.days?.[0];
+  const kToday = kouremenosForecast?.days?.find((d) => d.date === todayAthensKey) ?? kouremenosForecast?.days?.[0] ?? null;
+  const tToday = tendaForecast?.days?.find((d) => d.date === todayAthensKey) ?? tendaForecast?.days?.[0] ?? null;
+  const xToday = xerokamposForecast?.days?.find((d) => d.date === todayAthensKey) ?? xerokamposForecast?.days?.[0] ?? null;
 
-  const kScore = kToday && kToday.dominantEligibility !== "UNSUITABLE" ? kToday.score : (kouremenosForecast ? 0 : null);
-  const tScore = tToday && tToday.dominantEligibility !== "UNSUITABLE" ? tToday.score : (tendaForecast ? 0 : null);
-  const xScore = xToday && xToday.dominantEligibility !== "UNSUITABLE" ? xToday.score : (xerokamposForecast ? 0 : null);
+  const kScore = kToday ? kToday.score : null;
+  const tScore = tToday ? tToday.score : null;
+  const xScore = xToday ? xToday.score : null;
 
-  const candidates: { spotId: SpotId; name: string; score: number; todaySummary: DailyWindSummary | null; forecast: SpotForecast | null }[] = [];
+  // True regional synoptic flow (derived from uncorrected Kouremenos + Tenda model wind & direction)
+  const kModelWind = kouremenosForecast?.current?.modelWind ?? null;
+  const kModelDir = kouremenosForecast?.current?.directionDegrees ?? null;
+  const tModelWind = tendaForecast?.current?.modelWind ?? null;
+  const tModelDir = tendaForecast?.current?.directionDegrees ?? null;
 
-  if (kouremenosForecast && kToday && kToday.dominantEligibility !== "UNSUITABLE") {
-    candidates.push({ spotId: "kouremenos", name: "Kouremenos", score: kToday.score, todaySummary: kToday, forecast: kouremenosForecast });
+  const { regime, label: regimeLabel } = calculateRegionalReferenceFlow(
+    kModelWind,
+    kModelDir,
+    tModelWind,
+    tModelDir,
+    xerokamposForecast?.current?.modelWind ?? 0,
+    xerokamposForecast?.current?.directionDegrees ?? 315
+  );
+
+  const candidates: {
+    spotId: SpotId;
+    name: string;
+    score: number;
+    todaySummary: DailyWindSummary;
+    forecast: SpotForecast;
+  }[] = [];
+
+  if (isSpotEligibleCandidate(kouremenosForecast, kToday, todayAthensKey)) {
+    candidates.push({
+      spotId: "kouremenos",
+      name: "Kouremenos",
+      score: kToday!.score,
+      todaySummary: kToday!,
+      forecast: kouremenosForecast!,
+    });
   }
-  if (tendaForecast && tToday && tToday.dominantEligibility !== "UNSUITABLE") {
-    candidates.push({ spotId: "tenda", name: "Tenda", score: tToday.score, todaySummary: tToday, forecast: tendaForecast });
-  }
-  if (xerokamposForecast && xToday && xToday.dominantEligibility !== "UNSUITABLE") {
-    candidates.push({ spotId: "xerokampos", name: "Xerokampos", score: xToday.score, todaySummary: xToday, forecast: xerokamposForecast });
+
+  if (isSpotEligibleCandidate(tendaForecast, tToday, todayAthensKey)) {
+    candidates.push({
+      spotId: "tenda",
+      name: "Tenda",
+      score: tToday!.score,
+      todaySummary: tToday!,
+      forecast: tendaForecast!,
+    });
   }
 
-  // Detect regional wind regime
-  const primaryForecast = tendaForecast || kouremenosForecast || xerokamposForecast;
-  const regionalWind = primaryForecast?.current?.modelWind ?? 0;
-  const regionalDir = primaryForecast?.current?.directionDegrees ?? 315;
-  const { regime, label: regimeLabel } = detectWindRegime(regionalWind, regionalDir);
+  if (isSpotEligibleCandidate(xerokamposForecast, xToday, todayAthensKey)) {
+    candidates.push({
+      spotId: "xerokampos",
+      name: "Xerokampos",
+      score: xToday!.score,
+      todaySummary: xToday!,
+      forecast: xerokamposForecast!,
+    });
+  }
 
+  // If no candidate spot meets window or session eligibility criteria, return bestSpot: null
   if (candidates.length === 0) {
-    const fallbackForecast = kouremenosForecast || tendaForecast || xerokamposForecast;
-    const fallbackSpotId = fallbackForecast?.spot?.id ?? null;
-    const fallbackName = fallbackForecast?.spot?.name ?? null;
+    const explanation = explainRecommendation(null, regime, {
+      kToday,
+      tToday,
+      xToday,
+    });
 
     return {
-      bestSpot: fallbackSpotId,
-      bestSpotName: fallbackName,
+      bestSpot: null,
+      bestSpotName: null,
       bestWindow: null,
       score: 0,
       dayScoreKouremenos: kScore,
@@ -198,21 +268,22 @@ export function calculateBestSpotRecommendation(
       regime,
       regimeLabel,
       sailingStyle: "FLAT",
-      explanation: ["No spot meets session eligibility criteria today (calm or unsuitable wind conditions)."],
+      explanation,
     };
   }
 
-  // Sort candidates by highest dailySessionQualityScore
+  // Sort candidate spots by highest dailySessionQualityScore
   candidates.sort((a, b) => b.score - a.score);
 
   const winner = candidates[0];
-  const bestWindow = winner.todaySummary?.bestWindow ?? null;
-  const sailingStyle = bestWindow?.sailingStyle || winner.todaySummary?.dominantStyle || "BUMP_AND_JUMP";
+  const bestWindow = winner.todaySummary.bestWindow ?? null;
+  const sailingStyle =
+    bestWindow?.sailingStyle || winner.todaySummary.dominantStyle || "BUMP_AND_JUMP";
 
   const explanation = explainRecommendation(winner.spotId, regime, {
-    kouremenos: kouremenosForecast,
-    tenda: tendaForecast,
-    xerokampos: xerokamposForecast,
+    kToday,
+    tToday,
+    xToday,
   });
 
   return {

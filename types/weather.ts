@@ -41,6 +41,14 @@ export type SpotEligibility =
   | "MARGINAL"
   | "UNSUITABLE";
 
+export type SpotEligibilityReason =
+  | "IDEAL_CONDITIONS"
+  | "ACCEPTABLE_CONDITIONS"
+  | "TOO_LIGHT"
+  | "TOO_STRONG"
+  | "WRONG_DIRECTION"
+  | "OFFSHORE_MELTEMI";
+
 export type WaterState =
   | "FLAT"
   | "CHOP"
@@ -74,6 +82,7 @@ export interface HourlyWind {
 
   // Domain V2: Eligibility, Water State & Session Quality
   eligibility: SpotEligibility;
+  eligibilityReason?: SpotEligibilityReason;
   waterState: WaterState;
   spotWindQuality: number; // 0-100 (spot specific non-monotonic quality)
   directionQuality: number; // 0-100
@@ -164,6 +173,11 @@ export interface Recommendation {
 export interface WindApiResponse {
   generatedAt: string; // ISO timestamp
   model: string;
+  models?: {
+    kouremenos: string;
+    tenda: string;
+    xerokampos: string;
+  };
   timezone: string; // "Europe/Athens"
   spots: {
     kouremenos: SpotResult;

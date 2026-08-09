@@ -90,7 +90,7 @@ export function normalizeSpotForecast(
 
     // 3. Regime & Eligibility
     const { regime } = detectWindRegime(modelWind, directionDegrees);
-    const eligibility = calculateSpotEligibility(
+    const { eligibility, reason: eligibilityReason } = calculateSpotEligibility(
       spot.id,
       directionDegrees,
       directionLabel,
@@ -150,6 +150,7 @@ export function normalizeSpotForecast(
       confidence,
       confidenceLevel,
       eligibility,
+      eligibilityReason,
       waterState,
       spotWindQuality,
       directionQuality,
@@ -246,7 +247,7 @@ export function calculateCurrentConditions(
   const localGust = calculateLocalGust(modelGust, localWind, modelWind);
 
   const { regime } = detectWindRegime(modelWind, directionDegrees);
-  const eligibility = calculateSpotEligibility(
+  const { eligibility, reason: eligibilityReason } = calculateSpotEligibility(
     spot.id,
     directionDegrees,
     directionLabel,
@@ -300,6 +301,7 @@ export function calculateCurrentConditions(
     confidence,
     confidenceLevel,
     eligibility,
+    eligibilityReason,
     waterState,
     spotWindQuality,
     directionQuality,

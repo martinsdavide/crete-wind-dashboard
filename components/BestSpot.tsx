@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Recommendation, SpotResult } from "@/types/weather";
-import { Compass, Clock, Award, Flame, Wind, Sparkles, Waves, Info } from "lucide-react";
+import { Compass, Clock, Award, Flame, Wind, Sparkles, Waves, AlertCircle } from "lucide-react";
 
 interface BestSpotProps {
   recommendation: Recommendation;
@@ -35,7 +35,9 @@ export const BestSpot: React.FC<BestSpotProps> = ({
       ? kouremenosResult
       : bestSpot === "tenda"
       ? tendaResult
-      : xerokamposResult;
+      : bestSpot === "xerokampos"
+      ? xerokamposResult
+      : null;
 
   const chosenForecast = chosenResult?.status === "ok" ? chosenResult.data : null;
   const todaySummary = chosenForecast?.days[0];
@@ -49,7 +51,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
   };
 
   const currentCondition = todaySummary?.condition || (score !== null && score >= 75 ? "VERY GOOD" : "OK");
-  const gradientClass = conditionGradients[currentCondition] || conditionGradients.OK;
+  const gradientClass = bestSpotName ? (conditionGradients[currentCondition] || conditionGradients.OK) : "from-slate-800/40 to-surf-dark/80 border-surf-border text-slate-300";
 
   const styleLabels: Record<string, string> = {
     WAVE: "WAVE / RAMPS",
@@ -68,7 +70,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
         {/* Top Badges */}
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/30">
+            <span className={`flex items-center justify-center w-7 h-7 rounded-lg ${bestSpot ? "bg-sky-500/20 text-sky-400 border border-sky-500/30" : "bg-slate-700/40 text-slate-400 border border-slate-600"}`}>
               <Award className="w-4 h-4" />
             </span>
             <div>
@@ -98,7 +100,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
           </div>
         </div>
 
-        {bestSpotName ? (
+        {bestSpot && bestSpotName ? (
           <div>
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-4">
               <div>
@@ -206,10 +208,38 @@ export const BestSpot: React.FC<BestSpotProps> = ({
             </div>
           </div>
         ) : (
-          <div className="py-4 text-center">
-            <p className="text-sm text-slate-400">
-              Low wind conditions across all spots today.
-            </p>
+          /* NO RECOMMENDED SPOT STATE */
+          <div className="py-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-slate-700/40 border border-slate-600 text-amber-400">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight">
+                  NO RECOMMENDED SPOT TODAY
+                </h3>
+                <p className="text-xs text-slate-400">
+                  No spot meets the required &ge;60 session quality criteria or minimum continuous window
+                </p>
+              </div>
+            </div>
+
+            {explanation && explanation.length > 0 && (
+              <div className="p-3 rounded-xl bg-surf-dark/70 border border-surf-border/60 text-xs text-slate-300">
+                {explanation.map((item, idx) => (
+                  <p key={idx} className="leading-relaxed text-[12px]">{item}</p>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-surf-border/40">
+              <span>
+                Day Session Scores:{" "}
+                <strong className="text-slate-200">Kouremenos ({dayScoreKouremenos ?? 0})</strong> •{" "}
+                <strong className="text-slate-200">Tenda ({dayScoreTenda ?? 0})</strong> •{" "}
+                <strong className="text-slate-200">Xerokampos ({dayScoreXerokampos ?? 0})</strong>
+              </span>
+            </div>
           </div>
         )}
       </div>

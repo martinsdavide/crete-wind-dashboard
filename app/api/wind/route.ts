@@ -103,15 +103,18 @@ export async function GET() {
     currentTime
   );
 
-  const activeModel =
-    kouremenosForecast?.providerModel ||
-    tendaForecast?.providerModel ||
-    xerokamposForecast?.providerModel ||
-    "ECMWF IFS HRES (via Open-Meteo)";
+  const kModel = kouremenosForecast?.providerModel || "ECMWF IFS HRES (via Open-Meteo)";
+  const tModel = tendaForecast?.providerModel || "ECMWF IFS HRES (via Open-Meteo)";
+  const xModel = xerokamposForecast?.providerModel || "ECMWF IFS HRES (via Open-Meteo)";
 
   const response: WindApiResponse = {
     generatedAt: currentTime.toISOString(),
-    model: activeModel,
+    model: kModel || tModel || xModel,
+    models: {
+      kouremenos: kModel,
+      tenda: tModel,
+      xerokampos: xModel,
+    },
     timezone: "Europe/Athens",
     spots: {
       kouremenos: kouremenosResult,
