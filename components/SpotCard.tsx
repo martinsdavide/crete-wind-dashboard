@@ -111,7 +111,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
           <div className="flex flex-col">
             <span className="text-sm font-bold text-sky-400">KNOTS</span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider">
-              LOCAL EST.
+              SPOT WIND
             </span>
           </div>
         </div>
@@ -154,14 +154,14 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
               isUnsuitable ? "text-rose-400" : "text-emerald-400"
             }`}
           >
-            {current.sessionQualityScore}{" "}
+            {Math.round(current.sessionQualityScore)}{" "}
             <span className="text-xs font-normal text-slate-400">/100</span>
           </span>
         </div>
 
         <div className="p-2.5 rounded-xl bg-surf-dark/60 border border-surf-border/40 text-center">
           <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block mb-0.5">
-            MODEL
+            RAW MODEL
           </span>
           <span className="text-base font-extrabold font-mono text-slate-300">
             {Math.round(current.modelWind)} <span className="text-xs font-normal">kt</span>
@@ -202,13 +202,13 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
           <div className="flex justify-between">
             <span className="text-slate-400">Spot Wind Quality:</span>
             <span className="font-mono font-bold text-slate-200">
-              {current.spotWindQuality}/100
+              {Math.round(current.spotWindQuality)}/100
             </span>
           </div>
           <div className="flex justify-between">
             <span className="text-slate-400">Rider Preference Score:</span>
             <span className="font-mono font-bold text-slate-200">
-              {current.preferenceScore}/100
+              {Math.round(current.preferenceScore)}/100
             </span>
           </div>
           <div className="flex justify-between">
