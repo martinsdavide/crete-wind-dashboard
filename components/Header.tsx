@@ -39,8 +39,11 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div>
             <div className="flex items-center gap-2 md:gap-3">
-              <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black tracking-tight text-white flex items-center">
-                <span>SpotPilot</span>
+              <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black tracking-tight flex items-center">
+                <span className="text-white">Spot</span>
+                <span className="text-cyan-400 [data-theme='daylight']_:text-sky-600 ml-0.5">
+                  Pilot
+                </span>
               </h1>
               <span className="text-[10px] md:text-xs font-extrabold tracking-wider px-2 py-0.5 md:px-3 md:py-1 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 uppercase hidden sm:inline-block">
                 Eastern Crete

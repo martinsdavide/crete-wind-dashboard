@@ -7,8 +7,11 @@ export const LoadingSkeleton: React.FC = () => {
       {/* Brand Loading Splash Indicator */}
       <div className="flex flex-col items-center justify-center py-6 text-center space-y-2">
         <SpotPilotLogo variant="mark" size="large" alt="" />
-        <span className="text-sm font-black text-white tracking-tight block">
-          SpotPilot
+        <span className="text-base font-black tracking-tight block">
+          <span className="text-white">Spot</span>
+          <span className="text-cyan-400 [data-theme='daylight']_:text-sky-600 ml-0.5">
+            Pilot
+          </span>
         </span>
         <span className="text-xs text-sky-400 font-medium animate-pulse">
           Loading calibrated forecast...
