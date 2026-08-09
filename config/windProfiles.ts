@@ -44,21 +44,25 @@ export const KOUREMENOS_PROFILE: SpotCorrectionProfile = {
 
 export const TENDA_PROFILE: SpotCorrectionProfile = {
   directionFactors: {
-    N: 1.05,
-    NNW: 1.10,
-    NW: 1.10,
-    WNW: 1.05,
+    NW: 1.15,
+    NNW: 1.15,
+    N: 1.10,
+    NNE: 1.10,
+    WNW: 1.10,
+    NE: 1.05,
     default: 1.00,
   },
   applyThermal: false,
   minCorrectionFactor: 0.90,
-  maxCorrectionFactor: 1.20,
+  maxCorrectionFactor: 1.25,
   gustAdjustmentFactor: 0.60,
   directionScores: {
     NW: 100,
     NNW: 100,
-    N: 90,
-    WNW: 85,
+    N: 100,
+    WNW: 95,
+    NNE: 95,
+    NE: 85,
     default: 40,
   },
 };

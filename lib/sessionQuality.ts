@@ -80,13 +80,13 @@ export function calculatePreferenceScore(
   let bonus = 0;
   let penalty = 0;
 
-  // Wave bonus for Tenda in Meltemi
-  if (spotId === "tenda" && waterState === "WAVE" && localWind >= 22) {
-    const isMeltemi = ["N", "NNW", "NW", "WNW"].includes(directionLabel);
+  // Wave / Bump-and-jump bonus for Tenda in Meltemi / northerly / WNW
+  if (spotId === "tenda" && (waterState === "WAVE" || waterState === "BUMP_AND_JUMP") && localWind >= 18) {
+    const isMeltemi = ["N", "NNW", "NW", "WNW", "NNE", "NE"].includes(directionLabel);
     if (isMeltemi) {
       const progressiveBonus = Math.min(
         riderPrefs.waveBonusMax,
-        (localWind - 22) * 1.5 + 4
+        (localWind - 18) * 1.5 + (waterState === "WAVE" ? 5 : 2)
       );
       bonus += progressiveBonus;
     }
@@ -159,33 +159,30 @@ export function explainRecommendation(
   const xToday = xForecast?.days?.[0];
 
   if (bestSpot === "tenda") {
-    if (regime === "MELTEMI_STRONG") {
+    if (regime === "MELTEMI_STRONG" || regime === "MELTEMI_MODERATE" || regime === "WESTERLY") {
       explanations.push(
-        "Strong Meltemi flow is active. Tenda provides the best session quality with wave / bump & jump conditions matching your preferences."
+        "Tenda provides ideal conditions today with clean exposed airflow and wave / bump & jump ramps matching your preferences."
       );
       if (kToday && kToday.maxWind >= 26) {
         explanations.push(
           `Kouremenos is heavily penalized because local gusts (${kToday.maxGust} kt) exceed your comfortable wind ceiling.`
         );
       }
-      explanations.push("Xerokampos is excluded due to hazardous offshore Meltemi flow.");
+      if (xToday && xToday.dominantEligibility === "UNSUITABLE") {
+        explanations.push("Xerokampos is excluded due to hazardous offshore Meltemi flow.");
+      }
     } else {
       explanations.push(
-        "Tenda is delivering clean northerly wind within its ideal 20–30 kt range with superior water state."
+        "Tenda is delivering clean northerly wind within its ideal range with superior water state."
       );
     }
   } else if (bestSpot === "kouremenos") {
-    if (regime === "MELTEMI_MODERATE" || regime === "MELTEMI_LIGHT") {
+    if (regime === "MELTEMI_LIGHT") {
       explanations.push(
-        "Moderate Meltemi conditions favour Kouremenos. Local thermal and orographic acceleration place the wind squarely in its sweet spot (18–23 kt)."
+        "Light Meltemi conditions favour Kouremenos. Local thermal and orographic acceleration place the wind squarely in its sweet spot (18–23 kt) while other spots remain marginal."
       );
-      if (tToday && tToday.maxWind < 18) {
-        explanations.push(
-          `Tenda is lighter (${tToday.minWind}–${tToday.maxWind} kt) and below its optimal wave-generation threshold.`
-        );
-      }
     } else {
-      explanations.push("Kouremenos provides the most consistent local conditions today.");
+      explanations.push("Kouremenos provides consistent local conditions in its moderate sweet spot.");
     }
   } else if (bestSpot === "xerokampos") {
     explanations.push(

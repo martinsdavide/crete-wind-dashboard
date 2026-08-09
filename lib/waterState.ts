@@ -13,12 +13,12 @@ export function estimateWaterState(
   const safeWind = Math.max(0, isNaN(localWind) ? 0 : localWind);
 
   if (spotId === "tenda") {
-    // Tenda windward area generates ramps & waves under strong northerly Meltemi
-    const isMeltemiDir = ["N", "NNW", "NW", "WNW"].includes(directionLabel);
-    if (isMeltemiDir && safeWind >= 22) {
+    // Tenda windward area generates ramps & waves under northerly Meltemi & exposed WNW/NNE
+    const isMeltemiDir = ["N", "NNW", "NW", "WNW", "NNE", "NE"].includes(directionLabel);
+    if (isMeltemiDir && safeWind >= 20) {
       return "WAVE";
     }
-    if (safeWind >= 17) {
+    if (safeWind >= 16) {
       return "BUMP_AND_JUMP";
     }
     return "FLAT";

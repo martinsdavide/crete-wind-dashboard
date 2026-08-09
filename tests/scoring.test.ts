@@ -18,9 +18,9 @@ describe("Windsurfing Scoring Engine", () => {
       expect(calculateWindStrengthScore(15)).toBe(50);
       expect(calculateWindStrengthScore(18)).toBe(80);
       expect(calculateWindStrengthScore(22)).toBe(100);
-      expect(calculateWindStrengthScore(25)).toBe(95); // (22->100, 28->90) -> halfway is 95
+      expect(calculateWindStrengthScore(25)).toBe(95);
       expect(calculateWindStrengthScore(28)).toBe(90);
-      expect(calculateWindStrengthScore(30)).toBe(80); // (28->90, 32->70) -> halfway is 80
+      expect(calculateWindStrengthScore(30)).toBe(80);
       expect(calculateWindStrengthScore(32)).toBe(70);
       expect(calculateWindStrengthScore(36)).toBe(40);
     });
@@ -39,8 +39,9 @@ describe("Windsurfing Scoring Engine", () => {
     it("scores Tenda directions correctly", () => {
       expect(calculateDirectionScore("tenda", "NW")).toBe(100);
       expect(calculateDirectionScore("tenda", "NNW")).toBe(100);
-      expect(calculateDirectionScore("tenda", "N")).toBe(90);
-      expect(calculateDirectionScore("tenda", "WNW")).toBe(85);
+      expect(calculateDirectionScore("tenda", "N")).toBe(100);
+      expect(calculateDirectionScore("tenda", "WNW")).toBe(95);
+      expect(calculateDirectionScore("tenda", "NNE")).toBe(95);
       expect(calculateDirectionScore("tenda", "SE")).toBe(40);
     });
   });
