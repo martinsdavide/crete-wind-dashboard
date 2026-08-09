@@ -1,7 +1,9 @@
 import { WindDirection } from "./weather";
 
+export type SpotId = "kouremenos" | "tenda" | "xerokampos";
+
 export interface SpotConfig {
-  id: "kouremenos" | "tenda";
+  id: SpotId;
   name: string;
   subtitle: string;
   latitude: number;
@@ -42,4 +44,54 @@ export interface SpotCorrectionProfile {
   } & {
     default: number;
   };
+}
+
+export interface SpotQualityCurvePoint {
+  wind: number; // knots
+  score: number; // 0-100
+}
+
+export interface SpotQualityProfile {
+  spotId: SpotId;
+  preferredDirections: WindDirection[];
+  acceptableDirections: WindDirection[];
+  excludedDirections: WindDirection[];
+  idealWindRange: {
+    min: number;
+    max: number;
+  };
+  usableWindRange: {
+    min: number;
+    max: number;
+  };
+  strongWindPenaltyStart?: number;
+  hardWindLimit?: number;
+  qualityCurve: SpotQualityCurvePoint[];
+  sailingStyle: {
+    flatWater: number;
+    bumpAndJump: number;
+    wave: number;
+    freestyle: number;
+  };
+}
+
+export interface RiderPreferences {
+  preferredStyles: {
+    wave: number;
+    bumpAndJump: number;
+    freeride: number;
+    freestyle: number;
+    flatWater: number;
+  };
+  spotPreferences: {
+    kouremenos: number;
+    tenda: number;
+    xerokampos: number;
+  };
+  maxComfortWindBySpot: {
+    kouremenos: number;
+    tenda: number;
+    xerokampos: number;
+  };
+  waveBonusMax: number;
 }

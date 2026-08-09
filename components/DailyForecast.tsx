@@ -2,24 +2,31 @@
 
 import React, { useState } from "react";
 import { SpotResult } from "@/types/weather";
+import { SpotId } from "@/types/spot";
 import { WindArrow } from "./WindArrow";
-import { Calendar, Clock, Wind, Flame, AlertTriangle } from "lucide-react";
+import { Calendar, Clock, Wind, Flame, AlertTriangle, Waves } from "lucide-react";
 
 interface DailyForecastProps {
   kouremenosResult: SpotResult;
   tendaResult: SpotResult;
+  xerokamposResult: SpotResult;
 }
 
 export const DailyForecast: React.FC<DailyForecastProps> = ({
   kouremenosResult,
   tendaResult,
+  xerokamposResult,
 }) => {
-  const [activeSpotId, setActiveSpotId] = useState<"kouremenos" | "tenda">("kouremenos");
+  const [activeSpotId, setActiveSpotId] = useState<SpotId>("kouremenos");
 
   const activeResult =
-    activeSpotId === "kouremenos" ? kouremenosResult : tendaResult;
+    activeSpotId === "kouremenos"
+      ? kouremenosResult
+      : activeSpotId === "tenda"
+      ? tendaResult
+      : xerokamposResult;
 
-  const activeForecast = activeResult.status === "ok" ? activeResult.data : null;
+  const activeForecast = activeResult?.status === "ok" ? activeResult.data : null;
 
   const formatDateLabel = (dateStr: string, index: number) => {
     if (index === 0) return "TODAY";
@@ -62,7 +69,7 @@ export const DailyForecast: React.FC<DailyForecastProps> = ({
               <span>4-DAY FORECAST OVERVIEW</span>
             </h2>
             <p className="text-xs text-slate-400">
-              Daytime peak windsurfing conditions (09:00 – 20:00) with circular vector directions
+              Daytime peak windsurfing conditions (09:00 – 20:00) with session quality scores
             </p>
           </div>
 
@@ -87,11 +94,21 @@ export const DailyForecast: React.FC<DailyForecastProps> = ({
             >
               Tenda
             </button>
+            <button
+              onClick={() => setActiveSpotId("xerokampos")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeSpotId === "xerokampos"
+                  ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Xerokampos
+            </button>
           </div>
         </div>
 
         {/* Unavailable State */}
-        {activeResult.status === "error" || !activeForecast ? (
+        {activeResult?.status === "error" || !activeForecast ? (
           <div className="py-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-400" />
             <span>Daily forecast currently unavailable for this spot.</span>
@@ -100,8 +117,7 @@ export const DailyForecast: React.FC<DailyForecastProps> = ({
           /* 4 Days Grid */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {activeForecast.days.slice(0, 4).map((day, index) => {
-              const badgeClass =
-                conditionColors[day.condition] || conditionColors.OK;
+              const badgeClass = conditionColors[day.condition] || conditionColors.OK;
               const arrowRotation = (day.dominantDirectionDegrees + 180) % 360;
 
               return (
@@ -145,7 +161,7 @@ export const DailyForecast: React.FC<DailyForecastProps> = ({
                       </div>
                     </div>
 
-                    {/* Gust & Score */}
+                    {/* Gust & Session Score */}
                     <div className="flex items-center justify-between text-xs py-2 text-slate-400">
                       <span className="flex items-center gap-1">
                         <Wind className="w-3.5 h-3.5 text-slate-500" />
@@ -166,8 +182,13 @@ export const DailyForecast: React.FC<DailyForecastProps> = ({
                     </span>
                     <div className="text-xs font-bold font-mono text-white">
                       {day.bestWindow ? (
-                        <span className="text-emerald-400">
-                          {day.bestWindow.start} – {day.bestWindow.end}
+                        <span className="text-emerald-400 flex items-center justify-between">
+                          <span>
+                            {day.bestWindow.start} – {day.bestWindow.end}
+                          </span>
+                          <span className="text-[10px] text-cyan-300 font-normal">
+                            {day.bestWindow.sailingStyle}
+                          </span>
                         </span>
                       ) : (
                         <span className="text-slate-500 font-normal">

@@ -1,3 +1,5 @@
+import { SpotId, SpotConfig } from "./spot";
+
 export type WindDirection =
   | "N"
   | "NNE"
@@ -33,6 +35,26 @@ export type ConditionLabel =
   | "VERY GOOD"
   | "EXCELLENT";
 
+export type SpotEligibility =
+  | "IDEAL"
+  | "SUITABLE"
+  | "MARGINAL"
+  | "UNSUITABLE";
+
+export type WaterState =
+  | "FLAT"
+  | "CHOP"
+  | "BUMP_AND_JUMP"
+  | "WAVE";
+
+export type WindRegime =
+  | "MELTEMI_STRONG"
+  | "MELTEMI_MODERATE"
+  | "MELTEMI_LIGHT"
+  | "WESTERLY"
+  | "SOUTHWESTERLY"
+  | "OTHER";
+
 export interface HourlyWind {
   timestamp: string; // ISO 8601 UTC string (e.g. 2026-08-09T12:00:00.000Z)
 
@@ -50,7 +72,17 @@ export interface HourlyWind {
   confidence: number; // 0-100
   confidenceLevel: ForecastConfidenceLevel;
 
-  score: number; // 0-100
+  // Domain V2: Eligibility, Water State & Session Quality
+  eligibility: SpotEligibility;
+  waterState: WaterState;
+  spotWindQuality: number; // 0-100 (spot specific non-monotonic quality)
+  directionQuality: number; // 0-100
+  preferenceScore: number; // 0-100 (wave bonus, comfort limit)
+  sessionQualityScore: number; // 0-100 (primary recommendation score)
+
+  score: number; // legacy alias mapped to sessionQualityScore
+  windScore?: number; // legacy generic wind score
+
   classification: WindClassification;
   condition: ConditionLabel;
 
@@ -67,18 +99,17 @@ export interface BestWindow {
   minWind: number;
   maxWind: number;
   dominantDirection: WindDirection;
-  meanScore: number;
+  meanScore: number; // session quality mean
+  sailingStyle: WaterState;
   condition: ConditionLabel;
 }
 
 export interface DailyWindSummary {
   date: string; // YYYY-MM-DD in Europe/Athens
 
-  // 24h ranges
   minWind: number;
   maxWind: number;
 
-  // Daytime 09:00 - 20:00 ranges (ideal for windsurfing focus)
   daytimeMinWind: number;
   daytimeMaxWind: number;
 
@@ -89,18 +120,13 @@ export interface DailyWindSummary {
 
   bestWindow?: BestWindow | null;
 
-  score: number; // daily spot score (average of top 3 hourly daytime scores)
+  score: number; // daily spot score (average of top 3 eligible hourly session quality scores)
   condition: ConditionLabel;
+  dominantEligibility: SpotEligibility;
+  dominantStyle: WaterState;
 }
 
-export interface WindSpot {
-  id: string;
-  name: string;
-  subtitle: string;
-  latitude: number;
-  longitude: number;
-  localCorrectionEnabled: boolean;
-}
+export interface WindSpot extends SpotConfig {}
 
 export interface SpotForecast {
   spot: WindSpot;
@@ -122,21 +148,27 @@ export type SpotResult =
     };
 
 export interface Recommendation {
-  bestSpot: string | null; // spot ID e.g. 'kouremenos' or 'tenda'
+  bestSpot: SpotId | null;
   bestSpotName: string | null;
   bestWindow: BestWindow | null;
-  score: number | null;
+  score: number | null; // Top session quality score
   dayScoreKouremenos: number | null;
   dayScoreTenda: number | null;
+  dayScoreXerokampos: number | null;
+  regime: WindRegime;
+  regimeLabel: string;
+  sailingStyle: WaterState;
+  explanation: string[];
 }
 
 export interface WindApiResponse {
   generatedAt: string; // ISO timestamp
-  model: string; // Dynamic provider model e.g. "ECMWF IFS HRES (via Open-Meteo)"
+  model: string;
   timezone: string; // "Europe/Athens"
   spots: {
     kouremenos: SpotResult;
     tenda: SpotResult;
+    xerokampos: SpotResult;
   };
   recommendation: Recommendation;
 }

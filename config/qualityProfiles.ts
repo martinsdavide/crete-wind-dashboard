@@ -1,0 +1,101 @@
+import { SpotId, SpotQualityProfile } from "@/types/spot";
+
+export const SPOT_QUALITY_PROFILES: Record<SpotId, SpotQualityProfile> = {
+  kouremenos: {
+    spotId: "kouremenos",
+    preferredDirections: ["NW", "NNW", "WNW", "N"],
+    acceptableDirections: ["W"],
+    excludedDirections: ["S", "SSE", "SE", "ESE", "E", "ENE", "NE", "NNE", "SSW", "SW", "WSW"],
+    idealWindRange: {
+      min: 16,
+      max: 23,
+    },
+    usableWindRange: {
+      min: 13,
+      max: 26,
+    },
+    strongWindPenaltyStart: 24,
+    hardWindLimit: 32,
+    qualityCurve: [
+      { wind: 10, score: 10 },
+      { wind: 13, score: 45 },
+      { wind: 16, score: 75 },
+      { wind: 19, score: 95 },
+      { wind: 22, score: 100 },
+      { wind: 24, score: 90 },
+      { wind: 26, score: 65 },
+      { wind: 28, score: 35 },
+      { wind: 30, score: 15 },
+      { wind: 32, score: 5 },
+    ],
+    sailingStyle: {
+      flatWater: 0.8,
+      bumpAndJump: 0.9,
+      wave: 0.2,
+      freestyle: 0.7,
+    },
+  },
+  tenda: {
+    spotId: "tenda",
+    preferredDirections: ["N", "NNW", "NW", "WNW"],
+    acceptableDirections: ["NE"],
+    excludedDirections: ["S", "SSE", "SE", "ESE", "E", "ENE", "SSW", "SW", "WSW", "W"],
+    idealWindRange: {
+      min: 20,
+      max: 30,
+    },
+    usableWindRange: {
+      min: 16,
+      max: 34,
+    },
+    strongWindPenaltyStart: 32,
+    hardWindLimit: 40,
+    qualityCurve: [
+      { wind: 10, score: 10 },
+      { wind: 13, score: 35 },
+      { wind: 16, score: 65 },
+      { wind: 20, score: 85 },
+      { wind: 26, score: 100 },
+      { wind: 31, score: 95 },
+      { wind: 34, score: 80 },
+      { wind: 38, score: 40 },
+    ],
+    sailingStyle: {
+      flatWater: 0.5,
+      bumpAndJump: 0.9,
+      wave: 0.95,
+      freestyle: 0.4,
+    },
+  },
+  xerokampos: {
+    spotId: "xerokampos",
+    preferredDirections: ["SW", "WSW", "W"],
+    acceptableDirections: ["SSW"],
+    excludedDirections: ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "NW", "NNW", "WNW"],
+    idealWindRange: {
+      min: 16,
+      max: 24,
+    },
+    usableWindRange: {
+      min: 13,
+      max: 28,
+    },
+    strongWindPenaltyStart: 27,
+    hardWindLimit: 35,
+    qualityCurve: [
+      { wind: 10, score: 10 },
+      { wind: 14, score: 50 },
+      { wind: 18, score: 85 },
+      { wind: 22, score: 100 },
+      { wind: 26, score: 85 },
+      { wind: 30, score: 60 },
+      { wind: 35, score: 30 },
+    ],
+    sailingStyle: {
+      flatWater: 0.6,
+      bumpAndJump: 0.8,
+      wave: 0.5,
+      freestyle: 0.5,
+    },
+  },
+};

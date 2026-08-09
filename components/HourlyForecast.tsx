@@ -2,28 +2,42 @@
 
 import React, { useState } from "react";
 import { HourlyWind, SpotResult } from "@/types/weather";
+import { SpotId } from "@/types/spot";
 import { WindArrow } from "./WindArrow";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { formatTimeHHMM } from "@/lib/bestWindow";
-import { X, Clock, AlertTriangle } from "lucide-react";
+import { X, Clock, AlertTriangle, Waves } from "lucide-react";
 
 interface HourlyForecastProps {
   kouremenosResult: SpotResult;
   tendaResult: SpotResult;
+  xerokamposResult: SpotResult;
 }
 
 export const HourlyForecast: React.FC<HourlyForecastProps> = ({
   kouremenosResult,
   tendaResult,
+  xerokamposResult,
 }) => {
-  const [selectedSpotId, setSelectedSpotId] = useState<"kouremenos" | "tenda">("kouremenos");
+  const [selectedSpotId, setSelectedSpotId] = useState<SpotId>("kouremenos");
   const [activeItem, setActiveItem] = useState<HourlyWind | null>(null);
 
   const activeResult =
-    selectedSpotId === "kouremenos" ? kouremenosResult : tendaResult;
+    selectedSpotId === "kouremenos"
+      ? kouremenosResult
+      : selectedSpotId === "tenda"
+      ? tendaResult
+      : xerokamposResult;
 
-  const activeForecast = activeResult.status === "ok" ? activeResult.data : null;
+  const activeForecast = activeResult?.status === "ok" ? activeResult.data : null;
   const displayItems = activeForecast?.hourly.slice(0, 36) || [];
+
+  const styleLabels: Record<string, string> = {
+    WAVE: "WAVE",
+    BUMP_AND_JUMP: "B&J",
+    FLAT: "FLAT",
+    CHOP: "CHOP",
+  };
 
   return (
     <section aria-labelledby="hourly-forecast-heading" className="w-full">
@@ -36,14 +50,14 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
               className="text-base font-extrabold uppercase tracking-tight text-white flex items-center gap-2"
             >
               <Clock className="w-4 h-4 text-sky-400" />
-              <span>HOURLY FORECAST</span>
+              <span>HOURLY SESSION FORECAST</span>
             </h2>
             <p className="text-xs text-slate-400">
-              Tap any hour to inspect detailed model vs local metrics
+              Tap any hour to inspect session quality, eligibility, and water state
             </p>
           </div>
 
-          {/* Spot Toggle Pill */}
+          {/* 3-Spot Toggle Pill */}
           <div className="inline-flex p-1 rounded-xl bg-surf-dark border border-surf-border self-start sm:self-auto">
             <button
               onClick={() => setSelectedSpotId("kouremenos")}
@@ -65,11 +79,21 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
             >
               Tenda
             </button>
+            <button
+              onClick={() => setSelectedSpotId("xerokampos")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                selectedSpotId === "xerokampos"
+                  ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Xerokampos
+            </button>
           </div>
         </div>
 
         {/* Unavailable State */}
-        {activeResult.status === "error" ? (
+        {activeResult?.status === "error" ? (
           <div className="py-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-400" />
             <span>Forecast currently unavailable for this spot.</span>
@@ -80,15 +104,18 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
             <div className="flex items-stretch gap-2.5 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-surf-border scrollbar-track-transparent">
               {displayItems.map((item, index) => {
                 const timeLabel = index === 0 ? "NOW" : formatTimeHHMM(item.timestamp);
-                const isPrimeTime = item.score >= 75;
-                const isGoodTime = item.score >= 60 && item.score < 75;
+                const isPrimeTime = item.sessionQualityScore >= 75;
+                const isGoodTime = item.sessionQualityScore >= 60 && item.sessionQualityScore < 75;
+                const isUnsuitable = item.eligibility === "UNSUITABLE";
 
                 return (
                   <button
                     key={item.timestamp}
                     onClick={() => setActiveItem(item)}
                     className={`flex-shrink-0 flex flex-col items-center justify-between p-3 w-20 rounded-xl border transition-all text-center focus:outline-none focus:ring-2 focus:ring-sky-400 ${
-                      isPrimeTime
+                      isUnsuitable
+                        ? "bg-rose-950/20 border-rose-900/30 opacity-70 hover:border-rose-700"
+                        : isPrimeTime
                         ? "bg-gradient-to-b from-sky-500/20 to-surf-dark/80 border-sky-500/50 hover:border-sky-400"
                         : isGoodTime
                         ? "bg-surf-dark/80 border-emerald-500/30 hover:border-emerald-400"
@@ -103,11 +130,11 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
                       {timeLabel}
                     </span>
 
-                    <div className="my-2">
+                    <div className="my-1.5">
                       <span className="text-xl font-black font-mono text-white block">
                         {Math.round(item.localWind)}
                       </span>
-                      <span className="text-[10px] text-slate-400 uppercase font-mono">
+                      <span className="text-[9px] text-slate-400 uppercase font-mono">
                         kt
                       </span>
                     </div>
@@ -118,24 +145,28 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
                         directionLabel={item.directionLabel}
                         size="sm"
                       />
-                      <span className="text-[11px] font-bold font-mono text-slate-300">
+                      <span className="text-[10px] font-bold font-mono text-slate-300">
                         {item.directionLabel}
                       </span>
                     </div>
 
-                    {/* Tiny Score Bar Indicator */}
+                    {/* Style & Score Indicator */}
                     <div className="w-full mt-2 pt-1 border-t border-surf-border/40 flex items-center justify-between text-[9px] font-mono text-slate-400">
-                      <span>G:{Math.round(item.localGust)}</span>
+                      <span className="text-[8px] text-cyan-400 uppercase font-semibold">
+                        {styleLabels[item.waterState] || item.waterState}
+                      </span>
                       <span
                         className={`font-bold ${
-                          isPrimeTime
+                          isUnsuitable
+                            ? "text-rose-400"
+                            : isPrimeTime
                             ? "text-cyan-400"
                             : isGoodTime
                             ? "text-emerald-400"
                             : "text-slate-400"
                         }`}
                       >
-                        {item.score}
+                        {item.sessionQualityScore}
                       </span>
                     </div>
                   </button>
@@ -153,7 +184,7 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
             <div className="flex items-center justify-between border-b border-surf-border/60 pb-3">
               <div>
                 <span className="text-xs text-sky-400 uppercase font-bold">
-                  {selectedSpotId === "kouremenos" ? "Kouremenos" : "Tenda"}
+                  {selectedSpotId.toUpperCase()}
                 </span>
                 <h4 className="text-lg font-black text-white font-mono">
                   {formatTimeHHMM(activeItem.timestamp)} ATHENS TIME
@@ -180,10 +211,10 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
 
               <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/40">
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">
-                  RAW MODEL WIND
+                  SESSION QUALITY
                 </span>
-                <span className="text-2xl font-black text-slate-300 font-mono">
-                  {Math.round(activeItem.modelWind)} <span className="text-xs">kt</span>
+                <span className="text-2xl font-black text-emerald-400 font-mono">
+                  {activeItem.sessionQualityScore} <span className="text-xs">/100</span>
                 </span>
               </div>
 
@@ -198,15 +229,30 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
 
               <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/40">
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">
-                  WINDSURF SCORE
+                  RAW MODEL WIND
                 </span>
-                <span className="text-2xl font-black text-emerald-400 font-mono">
-                  {activeItem.score} <span className="text-xs">/100</span>
+                <span className="text-2xl font-black text-slate-300 font-mono">
+                  {Math.round(activeItem.modelWind)} <span className="text-xs">kt</span>
                 </span>
               </div>
             </div>
 
             <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/40 space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Spot Eligibility:</span>
+                <span className="font-bold text-white font-mono">
+                  {activeItem.eligibility}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Sailing Style:</span>
+                <span className="font-bold text-cyan-300 flex items-center gap-1">
+                  <Waves className="w-3.5 h-3.5" />
+                  <span>{activeItem.waterState} (ESTIMATED)</span>
+                </span>
+              </div>
+
               <div className="flex justify-between items-center">
                 <span className="text-slate-400">Wind Direction:</span>
                 <span className="font-bold text-white font-mono flex items-center gap-1.5">
@@ -217,20 +263,6 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
                     directionLabel={activeItem.directionLabel}
                     size="sm"
                   />
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Classification:</span>
-                <span className="font-bold text-sky-300">
-                  {activeItem.classification} ({activeItem.condition})
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Correction Factor:</span>
-                <span className="font-mono text-slate-200">
-                  x{activeItem.correctionFactor.toFixed(2)}
                 </span>
               </div>
 

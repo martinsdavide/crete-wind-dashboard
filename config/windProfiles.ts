@@ -63,9 +63,31 @@ export const TENDA_PROFILE: SpotCorrectionProfile = {
   },
 };
 
-export const SPOT_PROFILES: Record<"kouremenos" | "tenda", SpotCorrectionProfile> = {
+export const XEROKAMPOS_PROFILE: SpotCorrectionProfile = {
+  directionFactors: {
+    WSW: 1.15,
+    SW: 1.10,
+    W: 1.10,
+    SSW: 1.05,
+    default: 1.00,
+  },
+  applyThermal: false,
+  minCorrectionFactor: 0.90,
+  maxCorrectionFactor: 1.25,
+  gustAdjustmentFactor: 0.60,
+  directionScores: {
+    WSW: 100,
+    SW: 100,
+    W: 90,
+    SSW: 80,
+    default: 30,
+  },
+};
+
+export const SPOT_PROFILES: Record<"kouremenos" | "tenda" | "xerokampos", SpotCorrectionProfile> = {
   kouremenos: KOUREMENOS_PROFILE,
   tenda: TENDA_PROFILE,
+  xerokampos: XEROKAMPOS_PROFILE,
 };
 
 export const SCORING_CONFIG = {
@@ -74,6 +96,14 @@ export const SCORING_CONFIG = {
     direction: 0.25,
     gustiness: 0.10,
     confidence: 0.10,
+  },
+  sessionWeights: {
+    spotWindQuality: 0.35,
+    directionQuality: 0.20,
+    waterStateQuality: 0.15,
+    personalPreference: 0.15,
+    gustQuality: 0.10,
+    confidence: 0.05,
   },
   windStrengthThresholds: [
     { wind: 0, score: 0 },

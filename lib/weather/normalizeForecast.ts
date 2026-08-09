@@ -1,4 +1,4 @@
-import { HourlyWind, SpotForecast } from "@/types/weather";
+import { HourlyWind, SpotForecast, WaterState } from "@/types/weather";
 import { SpotConfig } from "@/types/spot";
 import { OpenMeteoRawResponse } from "./openMeteo";
 import {
@@ -17,6 +17,15 @@ import {
   getWindClassification,
 } from "../windScore";
 import { calculateDailySummaries } from "../dailySummary";
+import { detectWindRegime } from "../windRegime";
+import { calculateSpotEligibility } from "../spotEligibility";
+import { estimateWaterState } from "../waterState";
+import {
+  calculatePreferenceScore,
+  calculateSessionQualityScore,
+  calculateSpotWindQuality,
+  calculateWaterStateQuality,
+} from "../sessionQuality";
 
 /**
  * Circular angle interpolation from angleA to angleB by fraction t (0.0 - 1.0).
@@ -79,10 +88,24 @@ export function normalizeSpotForecast(
     // 2. Local Gust Calculation
     const localGust = calculateLocalGust(modelGust, localWind, modelWind);
 
-    // 3. Scoring & Confidence
-    const strengthScore = calculateWindStrengthScore(localWind);
-    const directionScore = calculateDirectionScore(spot.id, directionLabel);
+    // 3. Regime & Eligibility
+    const { regime } = detectWindRegime(modelWind, directionDegrees);
+    const eligibility = calculateSpotEligibility(
+      spot.id,
+      directionDegrees,
+      directionLabel,
+      localWind,
+      regime
+    );
+
+    // 4. Water State & Spot-Specific Wind Quality
+    const waterState: WaterState = estimateWaterState(spot.id, directionLabel, localWind);
+    const spotWindQuality = calculateSpotWindQuality(spot.id, localWind);
+    const directionQuality = calculateDirectionScore(spot.id, directionLabel);
+    const waterStateQuality = calculateWaterStateQuality(waterState);
+    const preferenceScore = calculatePreferenceScore(spot.id, waterState, localWind, directionLabel);
     const gustScore = calculateGustinessScore(localWind, localGust);
+
     const { confidence, level: confidenceLevel } = calculateForecastConfidence(
       horizonHours,
       spot.id,
@@ -90,15 +113,29 @@ export function normalizeSpotForecast(
       modelWind
     );
 
-    const score = calculateOverallWindScore(
-      strengthScore,
-      directionScore,
+    // 5. Total Session Quality Score
+    const sessionQualityScore = calculateSessionQualityScore(
+      spot.id,
+      eligibility,
+      spotWindQuality,
+      directionQuality,
+      waterStateQuality,
+      preferenceScore,
+      gustScore,
+      confidence
+    );
+
+    // Legacy generic wind score
+    const legacyStrengthScore = calculateWindStrengthScore(localWind);
+    const legacyScore = calculateOverallWindScore(
+      legacyStrengthScore,
+      directionQuality,
       gustScore,
       confidence
     );
 
     const classification = getWindClassification(localWind);
-    const condition = getConditionLabel(score);
+    const condition = getConditionLabel(sessionQualityScore);
 
     hourly.push({
       timestamp,
@@ -112,7 +149,14 @@ export function normalizeSpotForecast(
       correctionFactor,
       confidence,
       confidenceLevel,
-      score,
+      eligibility,
+      waterState,
+      spotWindQuality,
+      directionQuality,
+      preferenceScore,
+      sessionQualityScore,
+      score: sessionQualityScore,
+      windScore: legacyScore,
       classification,
       condition,
       temperature,
@@ -120,10 +164,10 @@ export function normalizeSpotForecast(
     });
   }
 
-  // 4. Calculate Current "NOW" Conditions via Linear Interpolation
+  // 6. Current Conditions via Linear Interpolation
   const current = calculateCurrentConditions(spot, hourly, currentTime);
 
-  // 5. Calculate Daily Summaries
+  // 7. Daily Summaries
   const days = calculateDailySummaries(hourly);
 
   return {
@@ -149,16 +193,13 @@ export function calculateCurrentConditions(
 
   const targetMs = currentTime.getTime();
 
-  // Find index of first item >= targetMs
   let nextIdx = hourly.findIndex((h) => new Date(h.timestamp).getTime() >= targetMs);
 
   if (nextIdx <= 0) {
-    // Before or at first point
     return { ...hourly[0] };
   }
 
   if (nextIdx === -1) {
-    // After all points
     return { ...hourly[hourly.length - 1] };
   }
 
@@ -172,7 +213,6 @@ export function calculateCurrentConditions(
 
   const t = span > 0 ? Math.max(0, Math.min(1, (targetMs - prevMs) / span)) : 0;
 
-  // Linear interpolation for continuous variables
   const modelWind = prev.modelWind + t * (next.modelWind - prev.modelWind);
   const modelGust = prev.modelGust + t * (next.modelGust - prev.modelGust);
   const directionDegrees = interpolateAngle(
@@ -205,19 +245,44 @@ export function calculateCurrentConditions(
   const correctionFactor = localWindResult.correctionFactor;
   const localGust = calculateLocalGust(modelGust, localWind, modelWind);
 
-  const strengthScore = calculateWindStrengthScore(localWind);
-  const directionScore = calculateDirectionScore(spot.id, directionLabel);
+  const { regime } = detectWindRegime(modelWind, directionDegrees);
+  const eligibility = calculateSpotEligibility(
+    spot.id,
+    directionDegrees,
+    directionLabel,
+    localWind,
+    regime
+  );
+
+  const waterState: WaterState = estimateWaterState(spot.id, directionLabel, localWind);
+  const spotWindQuality = calculateSpotWindQuality(spot.id, localWind);
+  const directionQuality = calculateDirectionScore(spot.id, directionLabel);
+  const waterStateQuality = calculateWaterStateQuality(waterState);
+  const preferenceScore = calculatePreferenceScore(spot.id, waterState, localWind, directionLabel);
   const gustScore = calculateGustinessScore(localWind, localGust);
+
   const { confidence, level: confidenceLevel } = calculateForecastConfidence(
-    0, // NOW horizon is 0h
+    0,
     spot.id,
     directionLabel,
     modelWind
   );
 
-  const score = calculateOverallWindScore(
-    strengthScore,
-    directionScore,
+  const sessionQualityScore = calculateSessionQualityScore(
+    spot.id,
+    eligibility,
+    spotWindQuality,
+    directionQuality,
+    waterStateQuality,
+    preferenceScore,
+    gustScore,
+    confidence
+  );
+
+  const legacyStrengthScore = calculateWindStrengthScore(localWind);
+  const legacyScore = calculateOverallWindScore(
+    legacyStrengthScore,
+    directionQuality,
     gustScore,
     confidence
   );
@@ -234,9 +299,16 @@ export function calculateCurrentConditions(
     correctionFactor,
     confidence,
     confidenceLevel,
-    score,
+    eligibility,
+    waterState,
+    spotWindQuality,
+    directionQuality,
+    preferenceScore,
+    sessionQualityScore,
+    score: sessionQualityScore,
+    windScore: legacyScore,
     classification: getWindClassification(localWind),
-    condition: getConditionLabel(score),
+    condition: getConditionLabel(sessionQualityScore),
     temperature,
     cloudCover,
   };

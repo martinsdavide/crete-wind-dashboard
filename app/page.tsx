@@ -48,7 +48,6 @@ export default function HomePage() {
     }
   }, []);
 
-  // Initial load & 15-min auto-refresh
   useEffect(() => {
     fetchForecast();
 
@@ -67,7 +66,7 @@ export default function HomePage() {
         generatedAt={data?.generatedAt}
       />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 space-y-6">
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6 space-y-6">
         {/* Error Alert */}
         {error && (
           <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start justify-between gap-3 text-rose-300">
@@ -96,21 +95,23 @@ export default function HomePage() {
         {/* Loaded Forecast Content */}
         {data && (
           <>
-            {/* 1. Best Today Hero Card */}
+            {/* 1. Best Today Session Hero Card */}
             <BestSpot
               recommendation={data.recommendation}
               kouremenosResult={data.spots.kouremenos}
               tendaResult={data.spots.tenda}
+              xerokamposResult={data.spots.xerokampos}
             />
 
-            {/* 2. Spot Cards (Stacked on Mobile, Side-by-Side on Desktop) */}
+            {/* 2. 3 Spot Cards (1 col mobile, 3 cols desktop) */}
             <section aria-labelledby="spots-heading" className="space-y-2">
               <h2 id="spots-heading" className="sr-only">
                 Current Spot Conditions
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <SpotCard result={data.spots.kouremenos} />
                 <SpotCard result={data.spots.tenda} />
+                <SpotCard result={data.spots.xerokampos} />
               </div>
             </section>
 
@@ -118,18 +119,21 @@ export default function HomePage() {
             <HourlyForecast
               kouremenosResult={data.spots.kouremenos}
               tendaResult={data.spots.tenda}
+              xerokamposResult={data.spots.xerokampos}
             />
 
             {/* 4. 4-Day Forecast Overview */}
             <DailyForecast
               kouremenosResult={data.spots.kouremenos}
               tendaResult={data.spots.tenda}
+              xerokamposResult={data.spots.xerokampos}
             />
 
-            {/* 5. Wind Chart Evolution & Comparison */}
+            {/* 5. 3-Spot Wind Comparison Chart */}
             <WindChart
               kouremenosResult={data.spots.kouremenos}
               tendaResult={data.spots.tenda}
+              xerokamposResult={data.spots.xerokampos}
             />
 
             {/* 6. Forecast Source Information & Disclaimer */}

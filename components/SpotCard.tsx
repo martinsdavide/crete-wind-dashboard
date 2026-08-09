@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { SpotResult } from "@/types/weather";
 import { WindArrow } from "./WindArrow";
 import { ConfidenceBadge } from "./ConfidenceBadge";
-import { ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, Waves, ShieldCheck, ShieldAlert, Sparkles } from "lucide-react";
 
 interface SpotCardProps {
   result: SpotResult;
@@ -41,22 +41,32 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
   const forecast = result.data;
   const { spot, current } = forecast;
 
-  const classificationColors: Record<string, { bg: string; text: string; border: string }> = {
-    LOW: { bg: "bg-slate-500/10", text: "text-slate-400", border: "border-slate-500/30" },
-    LIGHT: { bg: "bg-sky-500/10", text: "text-sky-400", border: "border-sky-500/30" },
-    GOOD: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/30" },
-    GREAT: { bg: "bg-cyan-500/15", text: "text-cyan-300", border: "border-cyan-500/30" },
-    STRONG: { bg: "bg-amber-500/15", text: "text-amber-400", border: "border-amber-500/30" },
-    "VERY STRONG": { bg: "bg-rose-500/15", text: "text-rose-400", border: "border-rose-500/30" },
+  const eligibilityBadges: Record<string, { bg: string; text: string; border: string; label: string }> = {
+    IDEAL: { bg: "bg-emerald-500/15", text: "text-emerald-300", border: "border-emerald-500/40", label: "IDEAL CONDITIONS" },
+    SUITABLE: { bg: "bg-cyan-500/15", text: "text-cyan-300", border: "border-cyan-500/40", label: "SUITABLE" },
+    MARGINAL: { bg: "bg-amber-500/15", text: "text-amber-300", border: "border-amber-500/40", label: "MARGINAL" },
+    UNSUITABLE: { bg: "bg-rose-500/15", text: "text-rose-300", border: "border-rose-500/40", label: "UNSUITABLE" },
   };
 
-  const classStyle =
-    classificationColors[current.classification] || classificationColors.LOW;
+  const elig = eligibilityBadges[current.eligibility] || eligibilityBadges.MARGINAL;
+
+  const styleLabels: Record<string, string> = {
+    WAVE: "WAVE / RAMPS",
+    BUMP_AND_JUMP: "BUMP & JUMP",
+    FLAT: "FLAT WATER",
+    CHOP: "CHOPPY",
+  };
+
+  const isUnsuitable = current.eligibility === "UNSUITABLE";
 
   return (
-    <div className="w-full rounded-2xl bg-surf-card border border-surf-border hover:border-surf-border/80 shadow-lg p-5 sm:p-6 transition-all">
+    <div
+      className={`w-full rounded-2xl bg-surf-card border ${
+        isUnsuitable ? "border-rose-950/60 opacity-80" : "border-surf-border hover:border-surf-border/80"
+      } shadow-lg p-5 sm:p-6 transition-all`}
+    >
       {/* Card Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-start justify-between mb-3">
         <div>
           <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">
             NOW
@@ -67,10 +77,17 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
           <p className="text-xs text-slate-400">{spot.subtitle}</p>
         </div>
 
-        <ConfidenceBadge
-          level={current.confidenceLevel}
-          confidence={current.confidence}
-        />
+        <div className="flex flex-col items-end gap-1.5">
+          <span
+            className={`text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full border ${elig.bg} ${elig.text} ${elig.border}`}
+          >
+            {elig.label}
+          </span>
+          <ConfidenceBadge
+            level={current.confidenceLevel}
+            confidence={current.confidence}
+          />
+        </div>
       </div>
 
       {/* Main Wind Speed & Direction Display */}
@@ -118,29 +135,33 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
 
         <div className="p-2.5 rounded-xl bg-surf-dark/60 border border-surf-border/40 text-center">
           <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block mb-0.5">
+            SESSION SCORE
+          </span>
+          <span
+            className={`text-base font-extrabold font-mono ${
+              isUnsuitable ? "text-rose-400" : "text-emerald-400"
+            }`}
+          >
+            {current.sessionQualityScore}{" "}
+            <span className="text-xs font-normal text-slate-400">/100</span>
+          </span>
+        </div>
+
+        <div className="p-2.5 rounded-xl bg-surf-dark/60 border border-surf-border/40 text-center">
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block mb-0.5">
             MODEL
           </span>
           <span className="text-base font-extrabold font-mono text-slate-300">
             {Math.round(current.modelWind)} <span className="text-xs font-normal">kt</span>
           </span>
         </div>
-
-        <div className="p-2.5 rounded-xl bg-surf-dark/60 border border-surf-border/40 text-center">
-          <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block mb-0.5">
-            LOCAL
-          </span>
-          <span className="text-base font-extrabold font-mono text-cyan-300">
-            {Math.round(current.localWind)} <span className="text-xs font-normal">kt</span>
-          </span>
-        </div>
       </div>
 
-      {/* Wind Classification & Score Banner */}
+      {/* Style & Details Toggle */}
       <div className="flex items-center justify-between pt-1">
-        <span
-          className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border ${classStyle.bg} ${classStyle.text} ${classStyle.border}`}
-        >
-          {current.classification}
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-surf-dark/80 text-cyan-300 border border-surf-border">
+          <Waves className="w-3 h-3" />
+          <span>{styleLabels[current.waterState] || current.waterState}</span>
         </span>
 
         <button
@@ -148,7 +169,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
           className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors px-2 py-1 rounded-md hover:bg-surf-cardHover"
           aria-expanded={showDetails}
         >
-          <span>{showDetails ? "Less" : "Correction Details"}</span>
+          <span>{showDetails ? "Less" : "Quality Details"}</span>
           {showDetails ? (
             <ChevronUp className="w-3.5 h-3.5" />
           ) : (
@@ -157,7 +178,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
         </button>
       </div>
 
-      {/* Expandable Model Correction Details */}
+      {/* Expandable Model Correction & Quality Breakdown */}
       {showDetails && (
         <div className="mt-3 pt-3 border-t border-surf-border/60 text-xs text-slate-300 space-y-1.5 bg-surf-dark/40 p-3 rounded-xl">
           <div className="flex justify-between">
@@ -167,9 +188,21 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-400">Hourly Surf Score:</span>
-            <span className="font-mono font-bold text-white">
-              {current.score}/100 ({current.condition})
+            <span className="text-slate-400">Spot Wind Quality:</span>
+            <span className="font-mono font-bold text-slate-200">
+              {current.spotWindQuality}/100
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Rider Preference Score:</span>
+            <span className="font-mono font-bold text-slate-200">
+              {current.preferenceScore}/100
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Classification:</span>
+            <span className="font-mono text-slate-200">
+              {current.classification} ({current.condition})
             </span>
           </div>
           {current.temperature !== undefined && (
@@ -180,9 +213,6 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
               </span>
             </div>
           )}
-          <p className="text-[10px] text-slate-500 pt-1">
-            Empirical spot model adjusted for direction, thermal profile, and orography.
-          </p>
         </div>
       )}
     </div>

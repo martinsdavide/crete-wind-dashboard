@@ -1,6 +1,7 @@
 import { SPOT_PROFILES } from "@/config/windProfiles";
 import { degreesToCompass } from "./windDirection";
 import { WindDirection } from "@/types/weather";
+import { SpotId } from "@/types/spot";
 
 /**
  * Returns Athens local month (1-12), day of month (1-31), and fractional hour (0.0-24.0)
@@ -126,7 +127,7 @@ export interface LocalWindResult {
  * Pure calculation function for Spot-specific Local Wind correction.
  */
 export function calculateLocalWind(
-  spotId: "kouremenos" | "tenda",
+  spotId: SpotId,
   modelWind: number,
   directionDegrees: number,
   timestamp: string | Date,
@@ -165,7 +166,6 @@ export function calculateLocalWind(
 
     correctionFactor = 1 + directionBoost + adjustedThermalBoost;
   } else {
-    // Tenda or thermal disabled
     correctionFactor = directionFactor;
   }
 

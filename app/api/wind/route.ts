@@ -10,19 +10,22 @@ export const revalidate = 900; // 15 minutes cache
 export async function GET() {
   const currentTime = new Date();
 
-  // Fetch both spots in parallel with independent failure tolerance (Promise.allSettled)
+  // Fetch all 3 spots in parallel with fault tolerance
   const results = await Promise.allSettled([
     fetchSpotWeather(SPOTS.kouremenos.latitude, SPOTS.kouremenos.longitude, 4),
     fetchSpotWeather(SPOTS.tenda.latitude, SPOTS.tenda.longitude, 4),
+    fetchSpotWeather(SPOTS.xerokampos.latitude, SPOTS.xerokampos.longitude, 4),
   ]);
 
-  const [kouremenosSettled, tendaSettled] = results;
+  const [kouremenosSettled, tendaSettled, xerokamposSettled] = results;
 
   let kouremenosForecast: SpotForecast | null = null;
   let tendaForecast: SpotForecast | null = null;
+  let xerokamposForecast: SpotForecast | null = null;
 
   let kouremenosResult: SpotResult;
   let tendaResult: SpotResult;
+  let xerokamposResult: SpotResult;
 
   if (kouremenosSettled.status === "fulfilled") {
     kouremenosForecast = normalizeSpotForecast(
@@ -62,8 +65,27 @@ export async function GET() {
     };
   }
 
-  // If both spots completely failed, return 503
-  if (!kouremenosForecast && !tendaForecast) {
+  if (xerokamposSettled.status === "fulfilled") {
+    xerokamposForecast = normalizeSpotForecast(
+      SPOTS.xerokampos,
+      xerokamposSettled.value,
+      currentTime
+    );
+    xerokamposResult = { status: "ok", data: xerokamposForecast };
+  } else {
+    console.error("Xerokampos forecast fetch failed:", xerokamposSettled.reason);
+    xerokamposResult = {
+      status: "error",
+      message:
+        xerokamposSettled.reason instanceof Error
+          ? xerokamposSettled.reason.message
+          : "Weather data unavailable",
+      spot: SPOTS.xerokampos,
+    };
+  }
+
+  // If all spots failed, return 503
+  if (!kouremenosForecast && !tendaForecast && !xerokamposForecast) {
     return NextResponse.json(
       {
         error: "Forecast temporarily unavailable",
@@ -77,12 +99,14 @@ export async function GET() {
   const recommendation = calculateBestSpotRecommendation(
     kouremenosForecast,
     tendaForecast,
+    xerokamposForecast,
     currentTime
   );
 
   const activeModel =
     kouremenosForecast?.providerModel ||
     tendaForecast?.providerModel ||
+    xerokamposForecast?.providerModel ||
     "ECMWF IFS HRES (via Open-Meteo)";
 
   const response: WindApiResponse = {
@@ -92,6 +116,7 @@ export async function GET() {
     spots: {
       kouremenos: kouremenosResult,
       tenda: tendaResult,
+      xerokampos: xerokamposResult,
     },
     recommendation,
   };

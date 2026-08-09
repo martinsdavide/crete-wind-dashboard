@@ -4,6 +4,7 @@ import {
   WindClassification,
   WindDirection,
 } from "@/types/weather";
+import { SpotId } from "@/types/spot";
 import { SCORING_CONFIG, SPOT_PROFILES } from "@/config/windProfiles";
 
 /**
@@ -49,7 +50,7 @@ export function calculateWindStrengthScore(
  * Calculates spot-specific direction score (0-100).
  */
 export function calculateDirectionScore(
-  spotId: "kouremenos" | "tenda",
+  spotId: SpotId,
   directionLabel: WindDirection
 ): number {
   const profile = SPOT_PROFILES[spotId];
@@ -75,7 +76,7 @@ export function calculateGustinessScore(localWind: number, localGust: number): n
  */
 export function calculateForecastConfidence(
   forecastHorizonHours: number,
-  spotId: "kouremenos" | "tenda",
+  spotId: SpotId,
   directionLabel: WindDirection,
   modelWind: number
 ): { confidence: number; level: ForecastConfidenceLevel } {

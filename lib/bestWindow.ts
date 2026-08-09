@@ -1,4 +1,4 @@
-import { BestWindow, HourlyWind } from "@/types/weather";
+import { BestWindow, HourlyWind, WaterState } from "@/types/weather";
 import { getConditionLabel } from "./windScore";
 import { getDominantDirection } from "./windDirection";
 
@@ -24,9 +24,10 @@ export function formatTimeHHMM(timestamp: string): string {
 /**
  * Finds the optimal windsurfing window within a given list of hourly forecast items.
  * Evaluates continuous blocks where:
- * 1. score >= minScoreThreshold (default 70)
- * 2. duration >= minDuration (default 2 consecutive hours)
- * 3. adjacent items are strictly 1 hour apart (handles missing/skipped forecast points)
+ * 1. sessionQualityScore >= minScoreThreshold (default 70)
+ * 2. eligibility !== "UNSUITABLE" (hard gate: unsuitable hours cannot be in best window)
+ * 3. duration >= minDuration (default 2 consecutive hours)
+ * 4. adjacent items are strictly 1 hour apart
  */
 export function findBestWindow(
   hourlyItems: HourlyWind[],
@@ -40,19 +41,20 @@ export function findBestWindow(
 
   for (let i = 0; i < hourlyItems.length; i++) {
     const item = hourlyItems[i];
+    const isQualifying =
+      item.sessionQualityScore >= minScoreThreshold &&
+      item.eligibility !== "UNSUITABLE";
 
-    if (item.score >= minScoreThreshold) {
+    if (isQualifying) {
       if (currentSequence.length > 0) {
         const prevItem = currentSequence[currentSequence.length - 1];
         const prevMs = new Date(prevItem.timestamp).getTime();
         const currMs = new Date(item.timestamp).getTime();
 
-        // Check if timestamps are separated by exactly 1 hour (allow ±2 mins margin for minor drift)
         const diffMs = currMs - prevMs;
         const isConsecutive = Math.abs(diffMs - ONE_HOUR_MS) <= 120000;
 
         if (!isConsecutive) {
-          // Gap detected: finalize previous sequence if eligible and start a new sequence
           if (currentSequence.length >= minConsecutiveHours) {
             candidateSequences.push([...currentSequence]);
           }
@@ -86,9 +88,9 @@ export function findBestWindow(
   }
 
   const evaluated: EvaluatedSequence[] = candidateSequences.map((seq) => {
-    const sumScore = seq.reduce((acc, h) => acc + h.score, 0);
+    const sumScore = seq.reduce((acc, h) => acc + h.sessionQualityScore, 0);
     const meanScore = sumScore / seq.length;
-    const minScore = Math.min(...seq.map((h) => h.score));
+    const minScore = Math.min(...seq.map((h) => h.sessionQualityScore));
     const startIndex = hourlyItems.indexOf(seq[0]);
     return {
       sequence: seq,
@@ -142,6 +144,20 @@ export function findBestWindow(
   const directionDegrees = seq.map((h) => h.directionDegrees);
   const dominantDir = getDominantDirection(directionDegrees);
 
+  // Dominant sailing style during window
+  const stylesCount: Record<WaterState, number> = {
+    WAVE: 0,
+    BUMP_AND_JUMP: 0,
+    CHOP: 0,
+    FLAT: 0,
+  };
+  seq.forEach((h) => {
+    stylesCount[h.waterState] = (stylesCount[h.waterState] || 0) + 1;
+  });
+  const dominantStyle = (Object.keys(stylesCount) as WaterState[]).reduce((a, b) =>
+    stylesCount[a] >= stylesCount[b] ? a : b
+  );
+
   const roundedMeanScore = Math.round(best.meanScore);
 
   return {
@@ -154,6 +170,7 @@ export function findBestWindow(
     maxWind,
     dominantDirection: dominantDir.label,
     meanScore: roundedMeanScore,
+    sailingStyle: dominantStyle,
     condition: getConditionLabel(roundedMeanScore),
   };
 }
