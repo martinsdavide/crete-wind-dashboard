@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "Crete Wind Dashboard | Kouremenos & Tenda Windsurfing",
-  description: "Real-time model & spot-calibrated windsurfing forecasts for Kouremenos (Palekastro) and Tenda (Cape Sidero) in eastern Crete.",
+  title: "Crete Wind Dashboard | Eastern Crete Windsurfing",
+  description: "Real-time model & spot-calibrated windsurfing forecasts for Kouremenos, Tenda, and Xerokampos in eastern Crete.",
   applicationName: "Crete Wind",
   appleWebApp: {
     capable: true,
@@ -29,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -38,8 +39,8 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-surf-dark text-slate-100 min-h-screen flex flex-col font-sans selection:bg-sky-500/30 selection:text-sky-200">
-        {children}
+      <body className="min-h-screen flex flex-col font-sans selection:bg-sky-500/30 selection:text-sky-200">
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

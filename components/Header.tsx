@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Wind, RefreshCw } from "lucide-react";
+import { Wind, RefreshCw, Sun, Moon } from "lucide-react";
+import { useTheme } from "./ThemeProvider";
 
 interface HeaderProps {
   onRefresh?: () => void;
@@ -14,6 +15,8 @@ export const Header: React.FC<HeaderProps> = ({
   isRefreshing = false,
   generatedAt,
 }) => {
+  const { theme, toggleTheme } = useTheme();
+
   const formattedTime = generatedAt
     ? new Intl.DateTimeFormat("en-GB", {
         timeZone: "Europe/Athens",
@@ -26,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-30 w-full bg-surf-dark/80 backdrop-blur-md border-b border-surf-border/80 px-4 py-3">
-      <div className="max-w-4xl mx-auto flex items-center justify-between">
+      <div className="max-w-5xl mx-auto flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-400 p-0.5 shadow-lg shadow-sky-500/20 flex items-center justify-center">
             <div className="w-full h-full bg-surf-dark rounded-[10px] flex items-center justify-center">
@@ -37,18 +40,18 @@ export const Header: React.FC<HeaderProps> = ({
             <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
               <span>CRETE WIND</span>
               <span className="text-[10px] font-bold tracking-widest px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30 uppercase">
-                MVP
+                V2
               </span>
             </h1>
             <p className="text-xs text-slate-400 font-medium">
-              Palekastro & Cape Sidero
+              Kouremenos • Tenda • Xerokampos
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {formattedTime && (
-            <div className="hidden sm:flex flex-col items-end text-right">
+            <div className="hidden sm:flex flex-col items-end text-right mr-1">
               <span className="text-[11px] text-slate-400">Athens Time</span>
               <span className="text-xs font-mono font-semibold text-slate-200">
                 {formattedTime}
@@ -56,11 +59,35 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
+          {/* Theme Selector Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-xl bg-surf-card hover:bg-surf-cardHover border border-surf-border text-slate-300 hover:text-white transition-all active:scale-95 flex items-center gap-1.5"
+            title={theme === "dark" ? "Switch to Aegean Daylight Theme (Less Dark)" : "Switch to Deep Surf Theme (Dark)"}
+            aria-label="Toggle theme mode"
+          >
+            {theme === "dark" ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-400" />
+                <span className="text-[11px] font-bold text-slate-300 hidden md:inline">
+                  Daylight
+                </span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-sky-400" />
+                <span className="text-[11px] font-bold text-slate-700 hidden md:inline">
+                  Deep Surf
+                </span>
+              </>
+            )}
+          </button>
+
           {onRefresh && (
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
-              className="p-2 rounded-lg bg-surf-card hover:bg-surf-cardHover border border-surf-border text-slate-300 hover:text-white transition-all active:scale-95 disabled:opacity-50"
+              className="p-2 rounded-xl bg-surf-card hover:bg-surf-cardHover border border-surf-border text-slate-300 hover:text-white transition-all active:scale-95 disabled:opacity-50"
               title="Refresh Forecast"
               aria-label="Refresh forecast"
             >

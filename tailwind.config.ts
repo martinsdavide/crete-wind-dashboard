@@ -6,7 +6,7 @@ const config: Config = {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
-  darkMode: "class",
+  darkMode: ["class", '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
@@ -19,12 +19,16 @@ const config: Config = {
           veryStrong: "#ef4444"// red
         },
         surf: {
-          dark: "#0a0f1d",
-          card: "#131b2e",
-          cardHover: "#1c263f",
-          border: "#23304e",
-          accent: "#38bdf8",
-          accentGlow: "rgba(56, 189, 248, 0.15)",
+          dark: "var(--surf-dark)",
+          card: "var(--surf-card)",
+          cardHover: "var(--surf-card-hover)",
+          border: "var(--surf-border)",
+          accent: "var(--surf-accent)",
+        },
+        theme: {
+          text: "var(--theme-text)",
+          muted: "var(--theme-muted)",
+          sub: "var(--theme-sub)",
         }
       },
       fontFamily: {

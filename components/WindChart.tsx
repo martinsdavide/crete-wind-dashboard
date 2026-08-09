@@ -246,7 +246,7 @@ export const WindChart: React.FC<WindChartProps> = ({
                     y1={y}
                     x2={width - paddingRight}
                     y2={y}
-                    stroke="#1e293b"
+                    stroke="var(--chart-grid)"
                     strokeDasharray="3 3"
                   />
                   <text
@@ -273,7 +273,7 @@ export const WindChart: React.FC<WindChartProps> = ({
                     y1={paddingTop}
                     x2={x}
                     y2={height - paddingBottom}
-                    stroke="#1e293b"
+                    stroke="var(--chart-grid)"
                     strokeDasharray="2 2"
                   />
                   <text
