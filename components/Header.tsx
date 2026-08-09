@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Wind, RefreshCw, Sun, Moon } from "lucide-react";
+import { Compass, RefreshCw, Sun, Moon } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 
 interface HeaderProps {
@@ -33,17 +33,19 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-400 p-0.5 shadow-lg shadow-sky-500/20 flex items-center justify-center">
             <div className="w-full h-full bg-surf-dark rounded-[10px] flex items-center justify-center">
-              <Wind className="w-5 h-5 text-sky-400" />
+              <Compass className="w-5 h-5 text-sky-400" />
             </div>
           </div>
           <div>
-            <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
-              <span>CRETE WIND</span>
-              <span className="text-[10px] font-bold tracking-widest px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30 uppercase">
-                V2
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
+                <span>SpotPilot</span>
+              </h1>
+              <span className="text-[10px] font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 uppercase">
+                Eastern Crete Edition
               </span>
-            </h1>
-            <p className="text-xs text-slate-400 font-medium">
+            </div>
+            <p className="text-xs text-slate-400 font-medium mt-0.5">
               Kouremenos • Tenda • Xerokampos
             </p>
           </div>

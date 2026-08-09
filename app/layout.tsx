@@ -3,13 +3,13 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "Crete Wind Dashboard | Eastern Crete Windsurfing",
-  description: "Real-time model & spot-calibrated windsurfing forecasts for Kouremenos, Tenda, and Xerokampos in eastern Crete.",
-  applicationName: "Crete Wind",
+  title: "SpotPilot | Eastern Crete Edition",
+  description: "SpotPilot: Spot-calibrated windsurfing session quality forecasts for Kouremenos, Tenda, and Xerokampos in Eastern Crete.",
+  applicationName: "SpotPilot",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Crete Wind",
+    title: "SpotPilot",
   },
   formatDetection: {
     telephone: false,

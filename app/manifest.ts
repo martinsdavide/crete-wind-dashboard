@@ -2,9 +2,9 @@ import { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Crete Wind Dashboard",
-    short_name: "Crete Wind",
-    description: "Windsurfing conditions and local wind forecasts for Kouremenos & Tenda in eastern Crete.",
+    name: "SpotPilot — Eastern Crete Edition",
+    short_name: "SpotPilot",
+    description: "Spot-calibrated windsurfing session quality forecasts for Eastern Crete (Kouremenos, Tenda, Xerokampos)",
     start_url: "/",
     display: "standalone",
     background_color: "#0a0f1d",
