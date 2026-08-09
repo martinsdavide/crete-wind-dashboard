@@ -50,13 +50,13 @@ export const SpotPilotLogo: React.FC<SpotPilotLogoProps> = ({
 
   const lightSrc =
     variant === "mark"
-      ? "/branding/spotpilot-mark-light.png?v=4"
-      : "/branding/spotpilot-light.png?v=4";
+      ? "/branding/spotpilot-mark-light.png?v=5"
+      : "/branding/spotpilot-light.png?v=5";
 
   const darkSrc =
     variant === "mark"
-      ? "/branding/spotpilot-mark-dark.png?v=4"
-      : "/branding/spotpilot-dark.png?v=4";
+      ? "/branding/spotpilot-mark-dark.png?v=5"
+      : "/branding/spotpilot-dark.png?v=5";
 
   return (
     <div className={`relative inline-flex items-center select-none bg-transparent ${className}`}>
