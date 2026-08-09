@@ -2,13 +2,36 @@
   <defs>
     <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0a0f1d" />
-      <stop offset="50%" stop-color="#0284c7" />
-      <stop offset="100%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#021a30" />
+    </linearGradient>
+    <linearGradient id="pinGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="needleGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#dc2626" />
     </linearGradient>
   </defs>
-  <rect width="192" height="192" rx="40" fill="url(#bgGrad)" />
-  <!-- Stylized Wind Icon -->
-  <path d="M48 76h64a18 18 0 1 0-18-18" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" />
-  <path d="M40 96h88a16 16 0 1 1-16 16" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" />
-  <path d="M52 116h52a14 14 0 1 0-14-14" fill="none" stroke="#e0f2fe" stroke-width="10" stroke-linecap="round" />
+
+  <!-- Background rounded app icon frame -->
+  <rect width="192" height="192" rx="42" fill="url(#bgGrad)" />
+  <rect width="190" height="190" x="1" y="1" rx="41" fill="none" stroke="#38bdf8" stroke-width="2" stroke-opacity="0.3" />
+
+  <!-- Navigation Pin Outline -->
+  <path d="M96 28 C66 28 42 52 42 82 C42 114 96 164 96 164 C96 164 150 114 150 82 C150 52 126 28 96 28 Z" 
+        fill="#041829" stroke="url(#pinGrad)" stroke-width="8" stroke-linejoin="round" />
+
+  <!-- Inner Water & Windsurfer Waves -->
+  <path d="M54 96 Q96 130 138 96" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" opacity="0.6" />
+  <path d="M62 112 Q96 140 130 112" fill="none" stroke="#0ea5e9" stroke-width="3" stroke-linecap="round" opacity="0.5" />
+
+  <!-- Stylized Windsurf Sail -->
+  <path d="M72 56 L94 88 L74 94 Z" fill="#ffffff" opacity="0.9" />
+  <path d="M72 56 L74 96" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
+
+  <!-- Distinctive Red Compass / Navigation Needle -->
+  <polygon points="120,44 142,20 128,52 114,56" fill="url(#needleGrad)" stroke="#ffffff" stroke-width="1.5" />
+  <circle cx="124" cy="48" r="4.5" fill="#ffffff" />
+  <circle cx="124" cy="48" r="2" fill="#0f172a" />
 </svg>

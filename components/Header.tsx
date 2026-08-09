@@ -1,8 +1,9 @@
 "use client";
 
 import React from "react";
-import { Compass, RefreshCw, Sun, Moon } from "lucide-react";
+import { RefreshCw, Sun, Moon } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
+import { SpotPilotLogo } from "./SpotPilotLogo";
 
 interface HeaderProps {
   onRefresh?: () => void;
@@ -28,34 +29,35 @@ export const Header: React.FC<HeaderProps> = ({
     : null;
 
   return (
-    <header className="sticky top-0 z-30 w-full bg-surf-dark/80 backdrop-blur-md border-b border-surf-border/80 px-4 py-3">
+    <header className="sticky top-0 z-30 w-full bg-surf-dark/85 backdrop-blur-md border-b border-surf-border/80 px-4 py-2.5">
       <div className="max-w-5xl mx-auto flex items-center justify-between">
+        {/* Brand Identity with Official Logo Mark */}
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-400 p-0.5 shadow-lg shadow-sky-500/20 flex items-center justify-center">
-            <div className="w-full h-full bg-surf-dark rounded-[10px] flex items-center justify-center">
-              <Compass className="w-5 h-5 text-sky-400" />
-            </div>
+          <div className="flex-shrink-0 flex items-center justify-center">
+            <SpotPilotLogo variant="mark" size="medium" alt="SpotPilot" />
           </div>
+
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center">
                 <span>SpotPilot</span>
               </h1>
-              <span className="text-[10px] font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 uppercase">
-                Eastern Crete Edition
+              <span className="text-[10px] font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 uppercase hidden sm:inline-block">
+                Eastern Crete
               </span>
             </div>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">
-              Kouremenos • Tenda • Xerokampos
+            <p className="text-[11px] sm:text-xs text-slate-400 font-medium leading-tight">
+              Find your best windsurf session
             </p>
           </div>
         </div>
 
+        {/* Header Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
           {formattedTime && (
-            <div className="hidden sm:flex flex-col items-end text-right mr-1">
-              <span className="text-[11px] text-slate-400">Athens Time</span>
-              <span className="text-xs font-mono font-semibold text-slate-200">
+            <div className="hidden md:flex flex-col items-end text-right mr-1">
+              <span className="text-[10px] text-slate-400 font-medium">Athens Time</span>
+              <span className="text-xs font-mono font-bold text-slate-200">
                 {formattedTime}
               </span>
             </div>
@@ -64,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Theme Selector Toggle */}
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-xl bg-surf-card hover:bg-surf-cardHover border border-surf-border text-slate-300 hover:text-white transition-all active:scale-95 flex items-center gap-1.5"
+            className="p-2 rounded-xl bg-surf-card hover:bg-surf-cardHover border border-surf-border text-slate-300 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
             title={theme === "dark" ? "Switch to Aegean Daylight Theme (Less Dark)" : "Switch to Deep Surf Theme (Dark)"}
             aria-label="Toggle theme mode"
           >
@@ -89,7 +91,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
-              className="p-2 rounded-xl bg-surf-card hover:bg-surf-cardHover border border-surf-border text-slate-300 hover:text-white transition-all active:scale-95 disabled:opacity-50"
+              className="p-2 rounded-xl bg-surf-card hover:bg-surf-cardHover border border-surf-border text-slate-300 hover:text-white transition-all active:scale-95 disabled:opacity-50 shadow-sm"
               title="Refresh Forecast"
               aria-label="Refresh forecast"
             >

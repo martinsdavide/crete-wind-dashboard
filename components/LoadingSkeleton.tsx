@@ -1,8 +1,20 @@
 import React from "react";
+import { SpotPilotLogo } from "./SpotPilotLogo";
 
 export const LoadingSkeleton: React.FC = () => {
   return (
-    <div className="w-full space-y-6 animate-pulse" aria-label="Loading weather forecast...">
+    <div className="w-full space-y-6 animate-pulse" aria-label="Loading SpotPilot forecast...">
+      {/* Brand Loading Splash Indicator */}
+      <div className="flex flex-col items-center justify-center py-6 text-center space-y-2">
+        <SpotPilotLogo variant="mark" size="large" alt="" />
+        <span className="text-sm font-black text-white tracking-tight block">
+          SpotPilot
+        </span>
+        <span className="text-xs text-sky-400 font-medium animate-pulse">
+          Loading calibrated forecast...
+        </span>
+      </div>
+
       {/* Best Spot Hero Skeleton */}
       <div className="h-44 rounded-2xl bg-surf-card/80 border border-surf-border/60 p-6 flex flex-col justify-between">
         <div className="flex justify-between items-center">
@@ -16,9 +28,9 @@ export const LoadingSkeleton: React.FC = () => {
         </div>
       </div>
 
-      {/* Spot Cards Skeleton */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {[1, 2].map((i) => (
+      {/* Spot Cards Skeleton (3 spots) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[1, 2, 3].map((i) => (
           <div
             key={i}
             className="h-64 rounded-2xl bg-surf-card/80 border border-surf-border/60 p-6 flex flex-col justify-between"

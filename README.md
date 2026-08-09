@@ -1,26 +1,29 @@
-# Crete Wind Dashboard 🏄‍♂️💨
+# SpotPilot 🏄‍♂️🧭
 
-A lightweight, mobile-first web application providing spot-calibrated windsurfing forecasts for eastern Crete:
+**SpotPilot — Find your best windsurf session.**
+
+A lightweight, high-performance, mobile-first web application providing spot-calibrated windsurfing session quality forecasts and intelligent spot recommendations for Eastern Crete:
 1. **Kouremenos (Palekastro)**
 2. **Tenda (Cape Sidero)**
+3. **Xerokampos (South-East Crete)**
 
-Built with Next.js 15, TypeScript (strict mode), Tailwind CSS, and Open-Meteo (ECMWF IFS).
+Built with Next.js 15, TypeScript (strict mode), Tailwind CSS, and Open-Meteo (ECMWF IFS HRES).
 
 ---
 
 ## Key Features
 
-- **P0 Core Forecast**: Open-Meteo / ECMWF IFS integration, 4-day hourly forecast in Europe/Athens timezone, linear interpolation for current `NOW` conditions.
-- **P1 Local Wind Corrections & Scoring**:
-  - **Kouremenos**: Spot-specific direction factors, diurnal thermal profile (15 May–30 Sept), cloud cover attenuation, and clamping [0.90, 1.45].
-  - **Tenda**: Conservative direction factor acceleration (max 1.20).
-  - **Local Gust Calculation**: `localGust = modelGust + (localWind - modelWind) * 0.60` (guaranteeing $localGust \ge localWind$).
-  - **Windsurfing Score (0–100)**: Multi-factor scoring (55% strength, 25% direction, 10% gustiness, 10% confidence).
-  - **Best Spot & Best Window**: Automatically answers *"Where should I windsurf today, and when?"* during the 09:00–20:00 Greek daytime period.
-- **P2 Visual Comparison & PWA**:
-  - Interactive 48-hour comparison chart with **Local Estimate vs Raw Model** toggle.
-  - Forecast confidence badges (HIGH / MEDIUM / LOW).
-  - Full PWA support with standalone display and icons for iPhone Home Screen.
+- **Session Quality Recommendation Engine (v2)**: Answers *"Where should I windsurf today, and when?"* by evaluating spot suitability, sailing style (Wave, Bump & Jump, Flat water), non-monotonic wind curves, gustiness, and continuous prime windows ($\ge 70$ session score).
+- **Core Forecast & Regional Flow**: ECMWF IFS HRES integration, 4-day hourly forecast in Europe/Athens timezone, true regional synoptic flow detection (Meltemi / Westerly / Southerly).
+- **Dual Theme Support**:
+  - **Deep Surf (Dark Theme)**: Ocean navy visual aesthetic.
+  - **Aegean Daylight (Light Theme)**: High-contrast, sunlight-optimized outdoor beach mode with persistent toggle.
+- **Spot-Specific Local Wind Corrections**:
+  - **Kouremenos**: Directional acceleration, diurnal thermal sweetspot, and non-monotonic quality curve.
+  - **Tenda**: Cape Sidero wave and Meltemi preference boost.
+  - **Xerokampos**: South-East alternative regime for W/SW and southerly flows.
+- **Visual Comparison & Interactive Chart**: 48-hour comparison chart with **Local Estimate vs Raw Model** toggle.
+- **Full PWA Support**: Installable on iOS/Android Home Screen with official SpotPilot icons.
 
 ---
 
@@ -63,7 +66,7 @@ npm run build
 ## Architecture & Data Flow
 
 ```
-Open-Meteo API (ECMWF IFS)
+Open-Meteo API (ECMWF IFS HRES)
           │
           ▼
 Weather Provider (`/lib/weather/openMeteo.ts`)
@@ -72,10 +75,7 @@ Weather Provider (`/lib/weather/openMeteo.ts`)
 Weather Normalization (`/lib/weather/normalizeForecast.ts`)
           │
           ▼
-Local Wind Correction Engine (`/lib/localWind.ts`)
-          │
-          ▼
-Windsurfing Scoring Engine (`/lib/windScore.ts`)
+Spot Quality Selection Engine (`/lib/sessionQuality.ts`, `/lib/spotEligibility.ts`)
           │
           ▼
 Daily & Best-Window Analysis (`/lib/dailySummary.ts`, `/lib/bestWindow.ts`)
@@ -84,7 +84,7 @@ Daily & Best-Window Analysis (`/lib/dailySummary.ts`, `/lib/bestWindow.ts`)
 Next.js API Route (`/app/api/wind/route.ts` with 15-min revalidation)
           │
           ▼
-Mobile-First UI Dashboard (`/app/page.tsx` + Components)
+Mobile-First UI Dashboard (`/app/page.tsx` + `components/SpotPilotLogo.tsx`)
 ```
 
 ---
