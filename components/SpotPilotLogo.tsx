@@ -23,13 +23,13 @@ export const SpotPilotLogo: React.FC<SpotPilotLogoProps> = ({
   // Dimensions for variant & size combinations
   const dimensions = {
     mark: {
-      small: { width: 32, height: 30, className: "w-8 h-[30px]" },
-      medium: { width: 42, height: 40, className: "w-10 h-[38px]" },
-      large: { width: 80, height: 76, className: "w-20 h-[76px]" },
+      small: { width: 36, height: 30, className: "w-9 h-[30px]" },
+      medium: { width: 48, height: 40, className: "w-12 h-[40px]" },
+      large: { width: 92, height: 76, className: "w-24 h-[76px]" },
       "responsive-header": {
-        width: 80,
-        height: 76,
-        className: "w-10 h-[38px] md:w-20 md:h-[76px] lg:w-22 lg:h-[84px]",
+        width: 96,
+        height: 80,
+        className: "w-11 h-[36px] sm:w-12 sm:h-[40px] md:w-24 md:h-[78px] lg:w-28 lg:h-[88px]",
       },
     },
     full: {
@@ -50,13 +50,13 @@ export const SpotPilotLogo: React.FC<SpotPilotLogoProps> = ({
 
   const lightSrc =
     variant === "mark"
-      ? "/branding/spotpilot-mark-light.png?v=3"
-      : "/branding/spotpilot-light.png?v=3";
+      ? "/branding/spotpilot-mark-light.png?v=4"
+      : "/branding/spotpilot-light.png?v=4";
 
   const darkSrc =
     variant === "mark"
-      ? "/branding/spotpilot-mark-dark.png?v=3"
-      : "/branding/spotpilot-dark.png?v=3";
+      ? "/branding/spotpilot-mark-dark.png?v=4"
+      : "/branding/spotpilot-dark.png?v=4";
 
   return (
     <div className={`relative inline-flex items-center select-none bg-transparent ${className}`}>
