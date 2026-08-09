@@ -1,37 +1,43 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { SpotForecast } from "@/types/weather";
+import { SpotResult } from "@/types/weather";
 import { formatTimeHHMM } from "@/lib/bestWindow";
-import { LineChart, Sliders } from "lucide-react";
+import { LineChart, AlertTriangle } from "lucide-react";
 
 interface WindChartProps {
-  kouremenosForecast: SpotForecast;
-  tendaForecast: SpotForecast;
+  kouremenosResult: SpotResult;
+  tendaResult: SpotResult;
 }
 
 export const WindChart: React.FC<WindChartProps> = ({
-  kouremenosForecast,
-  tendaForecast,
+  kouremenosResult,
+  tendaResult,
 }) => {
   const [dataMode, setDataMode] = useState<"local" | "model">("local");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
-  // Take the first 48 hours for high-fidelity comparison
-  const kHourly = useMemo(() => kouremenosForecast.hourly.slice(0, 48), [kouremenosForecast]);
-  const tHourly = useMemo(() => tendaForecast.hourly.slice(0, 48), [tendaForecast]);
+  const kForecast = kouremenosResult.status === "ok" ? kouremenosResult.data : null;
+  const tForecast = tendaResult.status === "ok" ? tendaResult.data : null;
 
-  const totalPoints = Math.min(kHourly.length, tHourly.length);
+  // Take the first 48 hours for comparison
+  const kHourly = useMemo(() => kForecast?.hourly.slice(0, 48) || [], [kForecast]);
+  const tHourly = useMemo(() => tForecast?.hourly.slice(0, 48) || [], [tForecast]);
+
+  const totalPoints = Math.max(kHourly.length, tHourly.length);
 
   // Determine chart bounds
   const maxWind = useMemo(() => {
     let max = 30; // base scale
     for (let i = 0; i < totalPoints; i++) {
-      const kVal = dataMode === "local" ? kHourly[i].localWind : kHourly[i].modelWind;
-      const tVal = dataMode === "local" ? tHourly[i].localWind : tHourly[i].modelWind;
-      const kGust = kHourly[i].localGust;
-      const tGust = tHourly[i].localGust;
-      max = Math.max(max, kVal, tVal, kGust, tGust);
+      if (kHourly[i]) {
+        const kVal = dataMode === "local" ? kHourly[i].localWind : kHourly[i].modelWind;
+        max = Math.max(max, kVal, kHourly[i].localGust);
+      }
+      if (tHourly[i]) {
+        const tVal = dataMode === "local" ? tHourly[i].localWind : tHourly[i].modelWind;
+        max = Math.max(max, tVal, tHourly[i].localGust);
+      }
     }
     return Math.ceil((max + 4) / 5) * 5; // rounded to next 5
   }, [kHourly, tHourly, totalPoints, dataMode]);
@@ -54,8 +60,8 @@ export const WindChart: React.FC<WindChartProps> = ({
 
   // Build SVG path strings
   const kPath = useMemo(() => {
+    if (kHourly.length === 0) return "";
     return kHourly
-      .slice(0, totalPoints)
       .map((item, idx) => {
         const val = dataMode === "local" ? item.localWind : item.modelWind;
         const x = getX(idx);
@@ -63,11 +69,11 @@ export const WindChart: React.FC<WindChartProps> = ({
         return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
       })
       .join(" ");
-  }, [kHourly, totalPoints, dataMode, maxWind]);
+  }, [kHourly, dataMode, maxWind]);
 
   const tPath = useMemo(() => {
+    if (tHourly.length === 0) return "";
     return tHourly
-      .slice(0, totalPoints)
       .map((item, idx) => {
         const val = dataMode === "local" ? item.localWind : item.modelWind;
         const x = getX(idx);
@@ -75,9 +81,9 @@ export const WindChart: React.FC<WindChartProps> = ({
         return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
       })
       .join(" ");
-  }, [tHourly, totalPoints, dataMode, maxWind]);
+  }, [tHourly, dataMode, maxWind]);
 
-  // Y-axis grid ticks (e.g. 0, 10, 20, 30, 40 kt)
+  // Y-axis grid ticks
   const yTicks = useMemo(() => {
     const step = maxWind <= 30 ? 10 : 15;
     const ticks: number[] = [];
@@ -87,19 +93,31 @@ export const WindChart: React.FC<WindChartProps> = ({
     return ticks;
   }, [maxWind]);
 
-  // X-axis time ticks (every 6 hours)
+  // X-axis time ticks
+  const referenceList = kHourly.length > 0 ? kHourly : tHourly;
   const xTicks = useMemo(() => {
-    const ticks: { index: number; label: string; dateLabel?: string }[] = [];
+    const ticks: { index: number; label: string }[] = [];
     for (let i = 0; i < totalPoints; i += 6) {
-      const item = kHourly[i];
-      const timeStr = formatTimeHHMM(item.timestamp);
-      ticks.push({ index: i, label: timeStr });
+      const item = referenceList[i];
+      if (item) {
+        const timeStr = formatTimeHHMM(item.timestamp);
+        ticks.push({ index: i, label: timeStr });
+      }
     }
     return ticks;
-  }, [kHourly, totalPoints]);
+  }, [referenceList, totalPoints]);
 
-  const activeK = hoverIndex !== null ? kHourly[hoverIndex] : null;
-  const activeT = hoverIndex !== null ? tHourly[hoverIndex] : null;
+  const activeK = hoverIndex !== null && kHourly[hoverIndex] ? kHourly[hoverIndex] : null;
+  const activeT = hoverIndex !== null && tHourly[hoverIndex] ? tHourly[hoverIndex] : null;
+
+  if (totalPoints === 0) {
+    return (
+      <div className="rounded-2xl bg-surf-card border border-surf-border p-5 text-center text-xs text-slate-400">
+        <AlertTriangle className="w-5 h-5 text-amber-400 mx-auto mb-1" />
+        Wind evolution chart data currently unavailable.
+      </div>
+    );
+  }
 
   return (
     <section aria-labelledby="wind-chart-heading" className="w-full">
@@ -154,11 +172,15 @@ export const WindChart: React.FC<WindChartProps> = ({
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-sky-400 inline-block shadow-sm shadow-sky-400/50" />
-              <span className="font-bold text-slate-200">Kouremenos</span>
+              <span className="font-bold text-slate-200">
+                Kouremenos {kouremenosResult.status === "error" ? "(Offline)" : ""}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-emerald-400 inline-block shadow-sm shadow-emerald-400/50" />
-              <span className="font-bold text-slate-200">Tenda</span>
+              <span className="font-bold text-slate-200">
+                Tenda {tendaResult.status === "error" ? "(Offline)" : ""}
+              </span>
             </div>
           </div>
 
@@ -195,17 +217,6 @@ export const WindChart: React.FC<WindChartProps> = ({
               setHoverIndex(Math.max(0, Math.min(totalPoints - 1, idx)));
             }}
           >
-            <defs>
-              <linearGradient id="kGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
-              </linearGradient>
-              <linearGradient id="tGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#34d399" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#34d399" stopOpacity="0.0" />
-              </linearGradient>
-            </defs>
-
             {/* Y Grid lines */}
             {yTicks.map((tick) => {
               const y = getY(tick);
@@ -261,24 +272,28 @@ export const WindChart: React.FC<WindChartProps> = ({
             })}
 
             {/* Kouremenos Line */}
-            <path
-              d={kPath}
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            {kPath && (
+              <path
+                d={kPath}
+                fill="none"
+                stroke="#38bdf8"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
 
             {/* Tenda Line */}
-            <path
-              d={tPath}
-              fill="none"
-              stroke="#34d399"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            {tPath && (
+              <path
+                d={tPath}
+                fill="none"
+                stroke="#34d399"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
 
             {/* Active Hover Guide Line & Dots */}
             {hoverIndex !== null && (
@@ -324,44 +339,48 @@ export const WindChart: React.FC<WindChartProps> = ({
         </div>
 
         {/* Hover / Touch Tooltip Card */}
-        {hoverIndex !== null && activeK && activeT && (
+        {hoverIndex !== null && (activeK || activeT) && (
           <div className="mt-3 p-3 rounded-xl bg-surf-dark border border-surf-border grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
             <div className="text-slate-400 flex items-center justify-between sm:justify-start gap-2 border-b sm:border-b-0 pb-1 sm:pb-0">
               <span>Time:</span>
               <strong className="text-white font-mono">
-                {formatTimeHHMM(activeK.timestamp)} (Athens)
+                {formatTimeHHMM((activeK || activeT)!.timestamp)} (Athens)
               </strong>
             </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1 text-sky-400 font-bold">
-                <span className="w-2 h-2 rounded-full bg-sky-400" /> Kouremenos:
-              </span>
-              <span className="font-mono text-white">
-                <strong>
-                  {Math.round(
-                    dataMode === "local" ? activeK.localWind : activeK.modelWind
-                  )}{" "}
-                  kt
-                </strong>{" "}
-                {activeK.directionLabel} (G: {Math.round(activeK.localGust)})
-              </span>
-            </div>
+            {activeK && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1 text-sky-400 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-sky-400" /> Kouremenos:
+                </span>
+                <span className="font-mono text-white">
+                  <strong>
+                    {Math.round(
+                      dataMode === "local" ? activeK.localWind : activeK.modelWind
+                    )}{" "}
+                    kt
+                  </strong>{" "}
+                  {activeK.directionLabel} (G: {Math.round(activeK.localGust)})
+                </span>
+              </div>
+            )}
 
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" /> Tenda:
-              </span>
-              <span className="font-mono text-white">
-                <strong>
-                  {Math.round(
-                    dataMode === "local" ? activeT.localWind : activeT.modelWind
-                  )}{" "}
-                  kt
-                </strong>{" "}
-                {activeT.directionLabel} (G: {Math.round(activeT.localGust)})
-              </span>
-            </div>
+            {activeT && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" /> Tenda:
+                </span>
+                <span className="font-mono text-white">
+                  <strong>
+                    {Math.round(
+                      dataMode === "local" ? activeT.localWind : activeT.modelWind
+                    )}{" "}
+                    kt
+                  </strong>{" "}
+                  {activeT.directionLabel} (G: {Math.round(activeT.localGust)})
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>

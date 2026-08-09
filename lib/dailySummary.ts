@@ -11,11 +11,11 @@ import { getAthensTimeComponents } from "./localWind";
 import { SCORING_CONFIG } from "@/config/windProfiles";
 
 /**
- * Extracts Athens YYYY-MM-DD date string from timestamp.
+ * Extracts Athens YYYY-MM-DD date key from a UTC ISO timestamp or Date.
  */
-export function getAthensDateKey(timestamp: string): string {
+export function getAthensDateKey(timestamp: string | Date): string {
   try {
-    const date = new Date(timestamp);
+    const date = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
     return new Intl.DateTimeFormat("en-CA", {
       timeZone: "Europe/Athens",
       year: "numeric",
@@ -23,7 +23,8 @@ export function getAthensDateKey(timestamp: string): string {
       day: "2-digit",
     }).format(date);
   } catch {
-    return timestamp.slice(0, 10);
+    const str = typeof timestamp === "string" ? timestamp : timestamp.toISOString();
+    return str.slice(0, 10);
   }
 }
 
@@ -44,7 +45,7 @@ export function calculateDailySummaries(hourlyItems: HourlyWind[]): DailyWindSum
   const summaries: DailyWindSummary[] = [];
 
   for (const [date, items] of groups.entries()) {
-    // Filter daytime items (09:00 - 20:00)
+    // Filter daytime items (09:00 - 20:00 Athens local time)
     const daytimeItems = items.filter((item) => {
       const { hour } = getAthensTimeComponents(item.timestamp);
       return (
@@ -63,10 +64,17 @@ export function calculateDailySummaries(hourlyItems: HourlyWind[]): DailyWindSum
         ? Math.round(top3Scores.reduce((a, b) => a + b, 0) / top3Scores.length)
         : 0;
 
-    // Wind ranges and gusts
-    const windValues = items.map((i) => Math.round(i.localWind));
-    const minWind = Math.min(...windValues);
-    const maxWind = Math.max(...windValues);
+    // 24h Full Day Wind Range
+    const fullDayWindValues = items.map((i) => Math.round(i.localWind));
+    const minWind = Math.min(...fullDayWindValues);
+    const maxWind = Math.max(...fullDayWindValues);
+
+    // Daytime 09:00 - 20:00 Wind Range (priority for windsurfing)
+    const daytimeWindValues = evalItems.map((i) => Math.round(i.localWind));
+    const daytimeMinWind = Math.min(...daytimeWindValues);
+    const daytimeMaxWind = Math.max(...daytimeWindValues);
+
+    // Maximum Gust
     const maxGust = Math.round(Math.max(...items.map((i) => i.localGust)));
 
     // Vector circular dominant direction over daytime period
@@ -85,6 +93,8 @@ export function calculateDailySummaries(hourlyItems: HourlyWind[]): DailyWindSum
       date,
       minWind,
       maxWind,
+      daytimeMinWind,
+      daytimeMaxWind,
       maxGust,
       dominantDirection,
       dominantDirectionDegrees,
@@ -94,42 +104,61 @@ export function calculateDailySummaries(hourlyItems: HourlyWind[]): DailyWindSum
     });
   }
 
-  // Sort chronologically
+  // Sort chronologically by calendar date
   return summaries.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**
- * Evaluates both spots to produce the overall recommendation for today.
+ * Evaluates available spot forecasts to produce the overall recommendation for "today" in Athens.
+ * Explicitly matches the Athens calendar date rather than assuming index 0.
  */
 export function calculateBestSpotRecommendation(
-  kouremenosForecast: SpotForecast,
-  tendaForecast: SpotForecast
+  kouremenosForecast: SpotForecast | null,
+  tendaForecast: SpotForecast | null,
+  referenceDate = new Date()
 ): Recommendation {
-  const kToday = kouremenosForecast.days[0];
-  const tToday = tendaForecast.days[0];
+  const todayAthensKey = getAthensDateKey(referenceDate);
 
-  const kScore = kToday?.score ?? 0;
-  const tScore = tToday?.score ?? 0;
+  const kToday = kouremenosForecast?.days.find((d) => d.date === todayAthensKey) ?? kouremenosForecast?.days[0];
+  const tToday = tendaForecast?.days.find((d) => d.date === todayAthensKey) ?? tendaForecast?.days[0];
 
-  if (kScore === 0 && tScore === 0) {
+  const kScore = kToday?.score ?? (kouremenosForecast ? 0 : null);
+  const tScore = tToday?.score ?? (tendaForecast ? 0 : null);
+
+  if (kScore === null && tScore === null) {
     return {
       bestSpot: null,
       bestSpotName: null,
       bestWindow: null,
       score: null,
+      dayScoreKouremenos: null,
+      dayScoreTenda: null,
+    };
+  }
+
+  const kSafe = kScore ?? -1;
+  const tSafe = tScore ?? -1;
+
+  if (kSafe <= 0 && tSafe <= 0) {
+    const defaultSpot = kouremenosForecast ? "kouremenos" : "tenda";
+    const defaultName = kouremenosForecast ? "Kouremenos" : "Tenda";
+    return {
+      bestSpot: defaultSpot,
+      bestSpotName: defaultName,
+      bestWindow: null,
+      score: 0,
       dayScoreKouremenos: kScore,
       dayScoreTenda: tScore,
     };
   }
 
-  // Select spot with highest daily score
-  const isKouremenosBest = kScore >= tScore;
+  const isKouremenosBest = kSafe >= tSafe;
   const bestSpot = isKouremenosBest ? "kouremenos" : "tenda";
   const bestSpotName = isKouremenosBest ? "Kouremenos" : "Tenda";
-  const bestForecast = isKouremenosBest ? kouremenosForecast : tendaForecast;
+  const chosenTodaySummary = isKouremenosBest ? kToday : tToday;
   const chosenScore = isKouremenosBest ? kScore : tScore;
 
-  const bestWindow = bestForecast.days[0]?.bestWindow ?? null;
+  const bestWindow = chosenTodaySummary?.bestWindow ?? null;
 
   return {
     bestSpot,

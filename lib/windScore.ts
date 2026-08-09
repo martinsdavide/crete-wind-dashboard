@@ -7,41 +7,42 @@ import {
 import { SCORING_CONFIG, SPOT_PROFILES } from "@/config/windProfiles";
 
 /**
- * Calculates wind strength score (0-100) using piecewise linear interpolation.
+ * Calculates wind strength score (0-100) using generic piecewise linear interpolation
+ * directly over the configured thresholds in SCORING_CONFIG.
  */
-export function calculateWindStrengthScore(localWind: number): number {
+export function calculateWindStrengthScore(
+  localWind: number,
+  thresholds = SCORING_CONFIG.windStrengthThresholds
+): number {
   if (isNaN(localWind) || localWind <= 0) return 0;
-  if (localWind < 12) {
-    // Smooth ramp up to 20 at 12 kt
-    return (localWind / 12) * 20;
+  if (!thresholds || thresholds.length === 0) return 0;
+
+  // Below first threshold
+  if (localWind <= thresholds[0].wind) {
+    return thresholds[0].score;
   }
-  if (localWind >= 12 && localWind < 15) {
-    // 12 -> 20, 15 -> 50
-    return 20 + ((localWind - 12) / (15 - 12)) * (50 - 20);
+
+  const last = thresholds[thresholds.length - 1];
+  // Above last threshold (e.g. > 36 kt)
+  if (localWind >= last.wind) {
+    const drop = Math.max(0, last.score - (localWind - last.wind) * 2);
+    return Math.min(last.score, drop);
   }
-  if (localWind >= 15 && localWind < 18) {
-    // 15 -> 50, 18 -> 80
-    return 50 + ((localWind - 15) / (18 - 15)) * (80 - 50);
+
+  // Piecewise linear interpolation between adjacent configured points
+  for (let i = 0; i < thresholds.length - 1; i++) {
+    const t1 = thresholds[i];
+    const t2 = thresholds[i + 1];
+
+    if (localWind >= t1.wind && localWind <= t2.wind) {
+      const span = t2.wind - t1.wind;
+      if (span === 0) return t1.score;
+      const fraction = (localWind - t1.wind) / span;
+      return t1.score + fraction * (t2.score - t1.score);
+    }
   }
-  if (localWind >= 18 && localWind < 22) {
-    // 18 -> 80, 22 -> 100
-    return 80 + ((localWind - 18) / (22 - 18)) * (100 - 80);
-  }
-  if (localWind >= 22 && localWind <= 28) {
-    // Prime sweet spot
-    return 100;
-  }
-  if (localWind > 28 && localWind < 32) {
-    // 28 -> 100, 32 -> 70 (or 28 -> 90)
-    return 100 - ((localWind - 28) / (32 - 28)) * (100 - 70);
-  }
-  if (localWind >= 32 && localWind < 36) {
-    // 32 -> 70, 36 -> 40
-    return 70 - ((localWind - 32) / (36 - 32)) * (70 - 40);
-  }
-  // >= 36 kt
-  const drop = Math.max(0, 40 - (localWind - 36) * 2);
-  return Math.min(40, drop);
+
+  return 0;
 }
 
 /**

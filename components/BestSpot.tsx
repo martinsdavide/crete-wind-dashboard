@@ -1,27 +1,28 @@
 "use client";
 
 import React from "react";
-import { Recommendation, SpotForecast } from "@/types/weather";
+import { Recommendation, SpotResult } from "@/types/weather";
 import { Compass, Clock, Award, Flame, Wind } from "lucide-react";
 
 interface BestSpotProps {
   recommendation: Recommendation;
-  kouremenosForecast: SpotForecast;
-  tendaForecast: SpotForecast;
+  kouremenosResult: SpotResult;
+  tendaResult: SpotResult;
 }
 
 export const BestSpot: React.FC<BestSpotProps> = ({
   recommendation,
-  kouremenosForecast,
-  tendaForecast,
+  kouremenosResult,
+  tendaResult,
 }) => {
   const { bestSpot, bestSpotName, bestWindow, score, dayScoreKouremenos, dayScoreTenda } =
     recommendation;
 
-  const chosenForecast =
-    bestSpot === "kouremenos" ? kouremenosForecast : tendaForecast;
+  const chosenResult =
+    bestSpot === "kouremenos" ? kouremenosResult : tendaResult;
 
-  const todaySummary = chosenForecast.days[0];
+  const chosenForecast = chosenResult.status === "ok" ? chosenResult.data : null;
+  const todaySummary = chosenForecast?.days[0];
 
   // Condition color scheme
   const conditionGradients: Record<string, string> = {
@@ -32,7 +33,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
     POOR: "from-slate-500/20 via-slate-600/10 to-transparent border-slate-600 text-slate-300",
   };
 
-  const currentCondition = todaySummary?.condition || "OK";
+  const currentCondition = todaySummary?.condition || (score !== null && score >= 75 ? "VERY GOOD" : "OK");
   const gradientClass =
     conditionGradients[currentCondition] || conditionGradients.OK;
 
@@ -57,7 +58,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
             </h2>
           </div>
 
-          {score !== null && (
+          {score !== null && score > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surf-dark/60 border border-surf-border">
               <Flame className="w-3.5 h-3.5 text-amber-400" />
               <span className="text-xs font-mono font-bold text-white">
@@ -117,7 +118,9 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                     <span>
                       {bestWindow
                         ? `${bestWindow.minWind}–${bestWindow.maxWind} kt`
-                        : `${todaySummary?.minWind || 0}–${todaySummary?.maxWind || 0} kt`}
+                        : todaySummary
+                        ? `${todaySummary.daytimeMinWind}–${todaySummary.daytimeMaxWind} kt`
+                        : "Calm"}
                     </span>
                     <span className="text-white font-mono text-sm px-1.5 py-0.5 rounded bg-surf-card border border-surf-border">
                       {bestWindow?.dominantDirection || todaySummary?.dominantDirection || "NW"}
@@ -131,8 +134,13 @@ export const BestSpot: React.FC<BestSpotProps> = ({
             <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 px-1">
               <span>
                 Today comparison:{" "}
-                <strong className="text-slate-200">Kouremenos ({dayScoreKouremenos})</strong> vs{" "}
-                <strong className="text-slate-200">Tenda ({dayScoreTenda})</strong>
+                <strong className="text-slate-200">
+                  Kouremenos ({dayScoreKouremenos ?? "N/A"})
+                </strong>{" "}
+                vs{" "}
+                <strong className="text-slate-200">
+                  Tenda ({dayScoreTenda ?? "N/A"})
+                </strong>
               </span>
               {todaySummary?.maxGust ? (
                 <span className="flex items-center gap-1 text-slate-300">

@@ -2,8 +2,10 @@ import { BestWindow, HourlyWind } from "@/types/weather";
 import { getConditionLabel } from "./windScore";
 import { getDominantDirection } from "./windDirection";
 
+const ONE_HOUR_MS = 60 * 60 * 1000;
+
 /**
- * Formats an ISO or timestamp string to HH:MM in Europe/Athens timezone.
+ * Formats an ISO UTC timestamp string to HH:MM in Europe/Athens timezone.
  */
 export function formatTimeHHMM(timestamp: string): string {
   try {
@@ -21,7 +23,10 @@ export function formatTimeHHMM(timestamp: string): string {
 
 /**
  * Finds the optimal windsurfing window within a given list of hourly forecast items.
- * Evaluates continuous blocks where score >= minScoreThreshold (default 70) and duration >= minDuration (default 2).
+ * Evaluates continuous blocks where:
+ * 1. score >= minScoreThreshold (default 70)
+ * 2. duration >= minDuration (default 2 consecutive hours)
+ * 3. adjacent items are strictly 1 hour apart (handles missing/skipped forecast points)
  */
 export function findBestWindow(
   hourlyItems: HourlyWind[],
@@ -33,8 +38,29 @@ export function findBestWindow(
   const candidateSequences: HourlyWind[][] = [];
   let currentSequence: HourlyWind[] = [];
 
-  for (const item of hourlyItems) {
+  for (let i = 0; i < hourlyItems.length; i++) {
+    const item = hourlyItems[i];
+
     if (item.score >= minScoreThreshold) {
+      if (currentSequence.length > 0) {
+        const prevItem = currentSequence[currentSequence.length - 1];
+        const prevMs = new Date(prevItem.timestamp).getTime();
+        const currMs = new Date(item.timestamp).getTime();
+
+        // Check if timestamps are separated by exactly 1 hour (allow ±2 mins margin for minor drift)
+        const diffMs = currMs - prevMs;
+        const isConsecutive = Math.abs(diffMs - ONE_HOUR_MS) <= 120000;
+
+        if (!isConsecutive) {
+          // Gap detected: finalize previous sequence if eligible and start a new sequence
+          if (currentSequence.length >= minConsecutiveHours) {
+            candidateSequences.push([...currentSequence]);
+          }
+          currentSequence = [item];
+          continue;
+        }
+      }
+
       currentSequence.push(item);
     } else {
       if (currentSequence.length >= minConsecutiveHours) {
@@ -94,13 +120,11 @@ export function findBestWindow(
   const lastItem = seq[seq.length - 1];
 
   const startTimeStr = formatTimeHHMM(startItem.timestamp);
-  
-  // For end time: calculate end of the window (add 1 hour to the start of last item if desired, or display last hour)
-  // E.g., if seq is 14:00, 15:00, 16:00, 17:00 -> window is 14:00 - 18:00
+
   let endTimeStr = "";
   try {
     const lastDate = new Date(lastItem.timestamp);
-    const endDate = new Date(lastDate.getTime() + 60 * 60 * 1000);
+    const endDate = new Date(lastDate.getTime() + ONE_HOUR_MS);
     endTimeStr = new Intl.DateTimeFormat("en-GB", {
       timeZone: "Europe/Athens",
       hour: "2-digit",

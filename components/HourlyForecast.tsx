@@ -1,29 +1,29 @@
 "use client";
 
 import React, { useState } from "react";
-import { HourlyWind, SpotForecast } from "@/types/weather";
+import { HourlyWind, SpotResult } from "@/types/weather";
 import { WindArrow } from "./WindArrow";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { formatTimeHHMM } from "@/lib/bestWindow";
-import { X, Clock, Wind, Gauge, Compass, Activity } from "lucide-react";
+import { X, Clock, AlertTriangle } from "lucide-react";
 
 interface HourlyForecastProps {
-  kouremenosForecast: SpotForecast;
-  tendaForecast: SpotForecast;
+  kouremenosResult: SpotResult;
+  tendaResult: SpotResult;
 }
 
 export const HourlyForecast: React.FC<HourlyForecastProps> = ({
-  kouremenosForecast,
-  tendaForecast,
+  kouremenosResult,
+  tendaResult,
 }) => {
   const [selectedSpotId, setSelectedSpotId] = useState<"kouremenos" | "tenda">("kouremenos");
   const [activeItem, setActiveItem] = useState<HourlyWind | null>(null);
 
-  const activeForecast =
-    selectedSpotId === "kouremenos" ? kouremenosForecast : tendaForecast;
+  const activeResult =
+    selectedSpotId === "kouremenos" ? kouremenosResult : tendaResult;
 
-  // Show up to the next 24-36 hourly points for the active day/horizon
-  const displayItems = activeForecast.hourly.slice(0, 36);
+  const activeForecast = activeResult.status === "ok" ? activeResult.data : null;
+  const displayItems = activeForecast?.hourly.slice(0, 36) || [];
 
   return (
     <section aria-labelledby="hourly-forecast-heading" className="w-full">
@@ -68,77 +68,85 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
           </div>
         </div>
 
-        {/* Horizontal Scrollable Hourly Ribbon */}
-        <div className="relative">
-          <div className="flex items-stretch gap-2.5 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-surf-border scrollbar-track-transparent">
-            {displayItems.map((item, index) => {
-              const timeLabel = index === 0 ? "NOW" : formatTimeHHMM(item.timestamp);
-              const isPrimeTime = item.score >= 75;
-              const isGoodTime = item.score >= 60 && item.score < 75;
+        {/* Unavailable State */}
+        {activeResult.status === "error" ? (
+          <div className="py-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-400" />
+            <span>Forecast currently unavailable for this spot.</span>
+          </div>
+        ) : (
+          /* Horizontal Scrollable Hourly Ribbon */
+          <div className="relative">
+            <div className="flex items-stretch gap-2.5 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-surf-border scrollbar-track-transparent">
+              {displayItems.map((item, index) => {
+                const timeLabel = index === 0 ? "NOW" : formatTimeHHMM(item.timestamp);
+                const isPrimeTime = item.score >= 75;
+                const isGoodTime = item.score >= 60 && item.score < 75;
 
-              return (
-                <button
-                  key={item.timestamp}
-                  onClick={() => setActiveItem(item)}
-                  className={`flex-shrink-0 flex flex-col items-center justify-between p-3 w-20 rounded-xl border transition-all text-center focus:outline-none focus:ring-2 focus:ring-sky-400 ${
-                    isPrimeTime
-                      ? "bg-gradient-to-b from-sky-500/20 to-surf-dark/80 border-sky-500/50 hover:border-sky-400"
-                      : isGoodTime
-                      ? "bg-surf-dark/80 border-emerald-500/30 hover:border-emerald-400"
-                      : "bg-surf-dark/50 border-surf-border/60 hover:border-surf-border"
-                  }`}
-                >
-                  <span
-                    className={`text-[11px] font-bold font-mono ${
-                      index === 0 ? "text-sky-400 font-extrabold" : "text-slate-400"
+                return (
+                  <button
+                    key={item.timestamp}
+                    onClick={() => setActiveItem(item)}
+                    className={`flex-shrink-0 flex flex-col items-center justify-between p-3 w-20 rounded-xl border transition-all text-center focus:outline-none focus:ring-2 focus:ring-sky-400 ${
+                      isPrimeTime
+                        ? "bg-gradient-to-b from-sky-500/20 to-surf-dark/80 border-sky-500/50 hover:border-sky-400"
+                        : isGoodTime
+                        ? "bg-surf-dark/80 border-emerald-500/30 hover:border-emerald-400"
+                        : "bg-surf-dark/50 border-surf-border/60 hover:border-surf-border"
                     }`}
                   >
-                    {timeLabel}
-                  </span>
-
-                  <div className="my-2">
-                    <span className="text-xl font-black font-mono text-white block">
-                      {Math.round(item.localWind)}
-                    </span>
-                    <span className="text-[10px] text-slate-400 uppercase font-mono">
-                      kt
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col items-center gap-1">
-                    <WindArrow
-                      rotation={item.arrowRotation}
-                      directionLabel={item.directionLabel}
-                      size="sm"
-                    />
-                    <span className="text-[11px] font-bold font-mono text-slate-300">
-                      {item.directionLabel}
-                    </span>
-                  </div>
-
-                  {/* Tiny Score Bar Indicator */}
-                  <div className="w-full mt-2 pt-1 border-t border-surf-border/40 flex items-center justify-between text-[9px] font-mono text-slate-400">
-                    <span>G:{Math.round(item.localGust)}</span>
                     <span
-                      className={`font-bold ${
-                        isPrimeTime
-                          ? "text-cyan-400"
-                          : isGoodTime
-                          ? "text-emerald-400"
-                          : "text-slate-400"
+                      className={`text-[11px] font-bold font-mono ${
+                        index === 0 ? "text-sky-400 font-extrabold" : "text-slate-400"
                       }`}
                     >
-                      {item.score}
+                      {timeLabel}
                     </span>
-                  </div>
-                </button>
-              );
-            })}
+
+                    <div className="my-2">
+                      <span className="text-xl font-black font-mono text-white block">
+                        {Math.round(item.localWind)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 uppercase font-mono">
+                        kt
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-1">
+                      <WindArrow
+                        rotation={item.arrowRotation}
+                        directionLabel={item.directionLabel}
+                        size="sm"
+                      />
+                      <span className="text-[11px] font-bold font-mono text-slate-300">
+                        {item.directionLabel}
+                      </span>
+                    </div>
+
+                    {/* Tiny Score Bar Indicator */}
+                    <div className="w-full mt-2 pt-1 border-t border-surf-border/40 flex items-center justify-between text-[9px] font-mono text-slate-400">
+                      <span>G:{Math.round(item.localGust)}</span>
+                      <span
+                        className={`font-bold ${
+                          isPrimeTime
+                            ? "text-cyan-400"
+                            : isGoodTime
+                            ? "text-emerald-400"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {item.score}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Hourly Detail Modal / Popover */}
+      {/* Hourly Detail Modal */}
       {activeItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-sm rounded-2xl bg-surf-card border border-surf-border p-5 shadow-2xl space-y-4">

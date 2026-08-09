@@ -16,10 +16,25 @@ export interface OpenMeteoRawResponse {
   timezone_abbreviation: string;
   elevation: number;
   hourly: OpenMeteoHourlyResponse;
+  providerModel: string;
 }
 
 /**
- * Fetches raw forecast data from Open-Meteo API using ECMWF IFS model.
+ * Normalizes Open-Meteo UTC time strings to standard ISO 8601 UTC strings.
+ * e.g. "2026-08-09T12:00" -> "2026-08-09T12:00:00.000Z"
+ */
+export function normalizeUtcTimestamp(rawTime: string): string {
+  if (rawTime.endsWith("Z")) return rawTime;
+  if (rawTime.includes("+") || rawTime.includes("-", 10)) {
+    return new Date(rawTime).toISOString();
+  }
+  // Standard Open-Meteo format YYYY-MM-DDTHH:mm
+  return `${rawTime}:00.000Z`;
+}
+
+/**
+ * Fetches raw forecast data using the dedicated Open-Meteo ECMWF IFS HRES endpoint.
+ * Falls back to Open-Meteo best_match if the dedicated ECMWF endpoint is unreachable.
  */
 export async function fetchSpotWeather(
   latitude: number,
@@ -37,54 +52,50 @@ export async function fetchSpotWeather(
       "cloud_cover",
     ].join(","),
     wind_speed_unit: "kn",
-    timezone: "Europe/Athens",
+    timezone: "UTC", // Strict UTC retrieval
     forecast_days: forecastDays.toString(),
-    models: "ecmwf_ifs025",
   });
 
-  const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+  // Dedicated Open-Meteo ECMWF IFS HRES endpoint (0.1° resolution / ~9km)
+  const primaryUrl = `https://api.open-meteo.com/v1/ecmwf?${params.toString()}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
 
   try {
-    const res = await fetch(url, {
+    const res = await fetch(primaryUrl, {
       signal: controller.signal,
       headers: {
         Accept: "application/json",
         "User-Agent": "CreteWindDashboard/1.0",
       },
-      next: { revalidate: 900 }, // 15 min cache in Next.js
+      next: { revalidate: 900 }, // 15 min cache
     });
 
     clearTimeout(timeoutId);
 
     if (!res.ok) {
-      // If ECMWF IFS model fails or returns error, retry with default high-resolution best_match
       return await fetchFallbackWeather(latitude, longitude, forecastDays);
     }
 
     const data: OpenMeteoRawResponse = await res.json();
     if (!data.hourly || !data.hourly.time || data.hourly.time.length === 0) {
-      throw new Error("Invalid or empty hourly payload from weather API");
+      return await fetchFallbackWeather(latitude, longitude, forecastDays);
     }
 
+    // Normalize all timestamp strings into strict ISO 8601 UTC strings
+    data.hourly.time = data.hourly.time.map(normalizeUtcTimestamp);
+    data.providerModel = "ECMWF IFS HRES (via Open-Meteo)";
+
     return data;
-  } catch (err: unknown) {
+  } catch {
     clearTimeout(timeoutId);
-    // If specific model endpoint fails, attempt best_match fallback before throwing
-    try {
-      return await fetchFallbackWeather(latitude, longitude, forecastDays);
-    } catch {
-      throw new Error(
-        `Weather API request failed: ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
+    return await fetchFallbackWeather(latitude, longitude, forecastDays);
   }
 }
 
 /**
- * Fallback to default Open-Meteo ensemble/best_match if ECMWF specific submodel is unreachable.
+ * Fallback to default Open-Meteo ensemble / best_match if dedicated ECMWF endpoint fails.
  */
 async function fetchFallbackWeather(
   latitude: number,
@@ -102,19 +113,27 @@ async function fetchFallbackWeather(
       "cloud_cover",
     ].join(","),
     wind_speed_unit: "kn",
-    timezone: "Europe/Athens",
+    timezone: "UTC",
     forecast_days: forecastDays.toString(),
   });
 
-  const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
-  const res = await fetch(url, {
+  const fallbackUrl = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+  const res = await fetch(fallbackUrl, {
     headers: { Accept: "application/json" },
     next: { revalidate: 900 },
   });
 
   if (!res.ok) {
-    throw new Error(`Fallback Open-Meteo returned status ${res.status}`);
+    throw new Error(`Weather provider unavailable (HTTP ${res.status})`);
   }
 
-  return (await res.json()) as OpenMeteoRawResponse;
+  const data: OpenMeteoRawResponse = await res.json();
+  if (!data.hourly || !data.hourly.time || data.hourly.time.length === 0) {
+    throw new Error("Invalid payload from fallback weather provider");
+  }
+
+  data.hourly.time = data.hourly.time.map(normalizeUtcTimestamp);
+  data.providerModel = "Open-Meteo Best Match (Fallback)";
+
+  return data;
 }

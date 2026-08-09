@@ -1,17 +1,44 @@
 "use client";
 
 import React, { useState } from "react";
-import { SpotForecast } from "@/types/weather";
+import { SpotResult } from "@/types/weather";
 import { WindArrow } from "./WindArrow";
 import { ConfidenceBadge } from "./ConfidenceBadge";
-import { Info, Gauge, Wind, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 
 interface SpotCardProps {
-  forecast: SpotForecast;
+  result: SpotResult;
 }
 
-export const SpotCard: React.FC<SpotCardProps> = ({ forecast }) => {
+export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
   const [showDetails, setShowDetails] = useState(false);
+
+  if (result.status === "error") {
+    return (
+      <div className="w-full rounded-2xl bg-surf-card border border-surf-border p-5 sm:p-6 shadow-lg">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+              UNAVAILABLE
+            </span>
+            <h3 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight mt-1">
+              {result.spot.name}
+            </h3>
+            <p className="text-xs text-slate-400">{result.spot.subtitle}</p>
+          </div>
+        </div>
+        <div className="p-4 rounded-xl bg-surf-dark/60 border border-surf-border/40 text-center space-y-2">
+          <AlertTriangle className="w-6 h-6 text-amber-400 mx-auto" />
+          <p className="text-xs text-slate-300">
+            Spot forecast temporarily unavailable from weather provider.
+          </p>
+          <span className="text-[10px] text-slate-500">{result.message}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const forecast = result.data;
   const { spot, current } = forecast;
 
   const classificationColors: Record<string, { bg: string; text: string; border: string }> = {

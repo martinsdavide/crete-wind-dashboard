@@ -11,15 +11,16 @@ import {
 
 describe("Windsurfing Scoring Engine", () => {
   describe("Wind Strength Score", () => {
-    it("returns correct score across piecewise interpolation thresholds", () => {
+    it("returns correct score across generic piecewise interpolation thresholds", () => {
       expect(calculateWindStrengthScore(0)).toBe(0);
       expect(calculateWindStrengthScore(6)).toBe(10);
       expect(calculateWindStrengthScore(12)).toBe(20);
       expect(calculateWindStrengthScore(15)).toBe(50);
       expect(calculateWindStrengthScore(18)).toBe(80);
       expect(calculateWindStrengthScore(22)).toBe(100);
-      expect(calculateWindStrengthScore(25)).toBe(100); // sweet spot
-      expect(calculateWindStrengthScore(28)).toBe(100);
+      expect(calculateWindStrengthScore(25)).toBe(95); // (22->100, 28->90) -> halfway is 95
+      expect(calculateWindStrengthScore(28)).toBe(90);
+      expect(calculateWindStrengthScore(30)).toBe(80); // (28->90, 32->70) -> halfway is 80
       expect(calculateWindStrengthScore(32)).toBe(70);
       expect(calculateWindStrengthScore(36)).toBe(40);
     });
@@ -46,25 +47,19 @@ describe("Windsurfing Scoring Engine", () => {
 
   describe("Gustiness Score", () => {
     it("assigns appropriate score based on gust ratio", () => {
-      // 22 / 20 = 1.10 -> < 1.20 -> 100
       expect(calculateGustinessScore(20, 22)).toBe(100);
-      // 25 / 20 = 1.25 -> 1.20-1.29 -> 90
       expect(calculateGustinessScore(20, 25)).toBe(90);
-      // 28 / 20 = 1.40 -> 1.30-1.44 -> 70
       expect(calculateGustinessScore(20, 28)).toBe(70);
-      // 32 / 20 = 1.60 -> >= 1.45 -> 40
       expect(calculateGustinessScore(20, 32)).toBe(40);
     });
   });
 
   describe("Forecast Confidence", () => {
     it("calculates confidence adjustments properly", () => {
-      // 12h horizon (+5), NW favorable (+5), 18kt (>15, +5) -> 80 + 15 = 95 (HIGH)
       const res1 = calculateForecastConfidence(12, "kouremenos", "NW", 18);
       expect(res1.confidence).toBe(95);
       expect(res1.level).toBe("HIGH");
 
-      // 80h horizon (-15), S non-typical (-10), 8kt (<10, -10) -> 80 - 35 = 45 (LOW)
       const res2 = calculateForecastConfidence(80, "kouremenos", "S", 8);
       expect(res2.confidence).toBe(45);
       expect(res2.level).toBe("LOW");
@@ -73,7 +68,6 @@ describe("Windsurfing Scoring Engine", () => {
 
   describe("Overall Score & Classifications", () => {
     it("combines weighted scores into 0-100 score and assigns condition label", () => {
-      // 100 * 0.55 + 100 * 0.25 + 100 * 0.10 + 90 * 0.10 = 55 + 25 + 10 + 9 = 99
       const score = calculateOverallWindScore(100, 100, 100, 90);
       expect(score).toBe(99);
       expect(getConditionLabel(score)).toBe("EXCELLENT");

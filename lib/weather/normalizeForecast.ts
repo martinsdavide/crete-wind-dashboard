@@ -48,8 +48,8 @@ export function normalizeSpotForecast(
     const timestamp = hourlyData.time[i];
     const itemDate = new Date(timestamp);
     const itemMs = itemDate.getTime();
-    
-    // Forecast horizon in hours relative to current time
+
+    // Forecast horizon in hours relative to current UTC time
     const horizonHours = Math.max(0, (itemMs - referenceTimeMs) / (1000 * 60 * 60));
 
     const modelWind = Math.max(0, hourlyData.wind_speed_10m[i] ?? 0);
@@ -131,6 +131,7 @@ export function normalizeSpotForecast(
     current,
     hourly,
     days,
+    providerModel: raw.providerModel || "ECMWF IFS HRES (via Open-Meteo)",
   };
 }
 

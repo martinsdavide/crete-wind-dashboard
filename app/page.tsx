@@ -26,7 +26,7 @@ export default function HomePage() {
 
     try {
       const res = await fetch("/api/wind", {
-        cache: "no-store", // Get freshest data on client request
+        cache: "no-store",
       });
 
       if (!res.ok) {
@@ -48,11 +48,10 @@ export default function HomePage() {
     }
   }, []);
 
-  // Initial load
+  // Initial load & 15-min auto-refresh
   useEffect(() => {
     fetchForecast();
 
-    // 15-minute background auto-refresh
     const interval = setInterval(() => {
       fetchForecast();
     }, 15 * 60 * 1000);
@@ -100,8 +99,8 @@ export default function HomePage() {
             {/* 1. Best Today Hero Card */}
             <BestSpot
               recommendation={data.recommendation}
-              kouremenosForecast={data.spots.kouremenos}
-              tendaForecast={data.spots.tenda}
+              kouremenosResult={data.spots.kouremenos}
+              tendaResult={data.spots.tenda}
             />
 
             {/* 2. Spot Cards (Stacked on Mobile, Side-by-Side on Desktop) */}
@@ -110,27 +109,27 @@ export default function HomePage() {
                 Current Spot Conditions
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <SpotCard forecast={data.spots.kouremenos} />
-                <SpotCard forecast={data.spots.tenda} />
+                <SpotCard result={data.spots.kouremenos} />
+                <SpotCard result={data.spots.tenda} />
               </div>
             </section>
 
             {/* 3. Hourly Forecast Ribbon */}
             <HourlyForecast
-              kouremenosForecast={data.spots.kouremenos}
-              tendaForecast={data.spots.tenda}
+              kouremenosResult={data.spots.kouremenos}
+              tendaResult={data.spots.tenda}
             />
 
             {/* 4. 4-Day Forecast Overview */}
             <DailyForecast
-              kouremenosForecast={data.spots.kouremenos}
-              tendaForecast={data.spots.tenda}
+              kouremenosResult={data.spots.kouremenos}
+              tendaResult={data.spots.tenda}
             />
 
             {/* 5. Wind Chart Evolution & Comparison */}
             <WindChart
-              kouremenosForecast={data.spots.kouremenos}
-              tendaForecast={data.spots.tenda}
+              kouremenosResult={data.spots.kouremenos}
+              tendaResult={data.spots.tenda}
             />
 
             {/* 6. Forecast Source Information & Disclaimer */}

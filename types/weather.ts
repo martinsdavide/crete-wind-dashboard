@@ -34,7 +34,7 @@ export type ConditionLabel =
   | "EXCELLENT";
 
 export interface HourlyWind {
-  timestamp: string; // ISO 8601 string or YYYY-MM-DDTHH:mm in Europe/Athens
+  timestamp: string; // ISO 8601 UTC string (e.g. 2026-08-09T12:00:00.000Z)
 
   modelWind: number; // knots
   modelGust: number; // knots
@@ -59,8 +59,8 @@ export interface HourlyWind {
 }
 
 export interface BestWindow {
-  start: string; // e.g. "14:00"
-  end: string;   // e.g. "18:00"
+  start: string; // e.g. "14:00" in Europe/Athens
+  end: string;   // e.g. "18:00" in Europe/Athens
   startIso?: string;
   endIso?: string;
   durationHours: number;
@@ -72,10 +72,15 @@ export interface BestWindow {
 }
 
 export interface DailyWindSummary {
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD in Europe/Athens
 
+  // 24h ranges
   minWind: number;
   maxWind: number;
+
+  // Daytime 09:00 - 20:00 ranges (ideal for windsurfing focus)
+  daytimeMinWind: number;
+  daytimeMaxWind: number;
 
   maxGust: number;
 
@@ -102,24 +107,36 @@ export interface SpotForecast {
   current: HourlyWind;
   hourly: HourlyWind[];
   days: DailyWindSummary[];
+  providerModel: string;
 }
+
+export type SpotResult =
+  | {
+      status: "ok";
+      data: SpotForecast;
+    }
+  | {
+      status: "error";
+      message: string;
+      spot: WindSpot;
+    };
 
 export interface Recommendation {
   bestSpot: string | null; // spot ID e.g. 'kouremenos' or 'tenda'
   bestSpotName: string | null;
   bestWindow: BestWindow | null;
   score: number | null;
-  dayScoreKouremenos: number;
-  dayScoreTenda: number;
+  dayScoreKouremenos: number | null;
+  dayScoreTenda: number | null;
 }
 
 export interface WindApiResponse {
   generatedAt: string; // ISO timestamp
-  model: string; // e.g. "ECMWF IFS (Open-Meteo)"
+  model: string; // Dynamic provider model e.g. "ECMWF IFS HRES (via Open-Meteo)"
   timezone: string; // "Europe/Athens"
   spots: {
-    kouremenos: SpotForecast;
-    tenda: SpotForecast;
+    kouremenos: SpotResult;
+    tenda: SpotResult;
   };
   recommendation: Recommendation;
 }

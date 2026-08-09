@@ -3,62 +3,102 @@ import { SPOTS } from "@/config/spots";
 import { fetchSpotWeather } from "@/lib/weather/openMeteo";
 import { normalizeSpotForecast } from "@/lib/weather/normalizeForecast";
 import { calculateBestSpotRecommendation } from "@/lib/dailySummary";
-import { WindApiResponse } from "@/types/weather";
+import { SpotForecast, SpotResult, WindApiResponse } from "@/types/weather";
 
 export const revalidate = 900; // 15 minutes cache
 
 export async function GET() {
   const currentTime = new Date();
 
-  try {
-    // Fetch both spots in parallel
-    const [kouremenosRaw, tendaRaw] = await Promise.all([
-      fetchSpotWeather(SPOTS.kouremenos.latitude, SPOTS.kouremenos.longitude, 4),
-      fetchSpotWeather(SPOTS.tenda.latitude, SPOTS.tenda.longitude, 4),
-    ]);
+  // Fetch both spots in parallel with independent failure tolerance (Promise.allSettled)
+  const results = await Promise.allSettled([
+    fetchSpotWeather(SPOTS.kouremenos.latitude, SPOTS.kouremenos.longitude, 4),
+    fetchSpotWeather(SPOTS.tenda.latitude, SPOTS.tenda.longitude, 4),
+  ]);
 
-    const kouremenosForecast = normalizeSpotForecast(
+  const [kouremenosSettled, tendaSettled] = results;
+
+  let kouremenosForecast: SpotForecast | null = null;
+  let tendaForecast: SpotForecast | null = null;
+
+  let kouremenosResult: SpotResult;
+  let tendaResult: SpotResult;
+
+  if (kouremenosSettled.status === "fulfilled") {
+    kouremenosForecast = normalizeSpotForecast(
       SPOTS.kouremenos,
-      kouremenosRaw,
+      kouremenosSettled.value,
       currentTime
     );
-
-    const tendaForecast = normalizeSpotForecast(
-      SPOTS.tenda,
-      tendaRaw,
-      currentTime
-    );
-
-    const recommendation = calculateBestSpotRecommendation(
-      kouremenosForecast,
-      tendaForecast
-    );
-
-    const response: WindApiResponse = {
-      generatedAt: currentTime.toISOString(),
-      model: "ECMWF IFS via Open-Meteo",
-      timezone: "Europe/Athens",
-      spots: {
-        kouremenos: kouremenosForecast,
-        tenda: tendaForecast,
-      },
-      recommendation,
+    kouremenosResult = { status: "ok", data: kouremenosForecast };
+  } else {
+    console.error("Kouremenos forecast fetch failed:", kouremenosSettled.reason);
+    kouremenosResult = {
+      status: "error",
+      message:
+        kouremenosSettled.reason instanceof Error
+          ? kouremenosSettled.reason.message
+          : "Weather data unavailable",
+      spot: SPOTS.kouremenos,
     };
+  }
 
-    return NextResponse.json(response, {
-      headers: {
-        "Cache-Control": "public, s-maxage=900, stale-while-revalidate=300",
-      },
-    });
-  } catch (error: unknown) {
-    console.error("API /api/wind Error:", error);
+  if (tendaSettled.status === "fulfilled") {
+    tendaForecast = normalizeSpotForecast(
+      SPOTS.tenda,
+      tendaSettled.value,
+      currentTime
+    );
+    tendaResult = { status: "ok", data: tendaForecast };
+  } else {
+    console.error("Tenda forecast fetch failed:", tendaSettled.reason);
+    tendaResult = {
+      status: "error",
+      message:
+        tendaSettled.reason instanceof Error
+          ? tendaSettled.reason.message
+          : "Weather data unavailable",
+      spot: SPOTS.tenda,
+    };
+  }
+
+  // If both spots completely failed, return 503
+  if (!kouremenosForecast && !tendaForecast) {
     return NextResponse.json(
       {
         error: "Forecast temporarily unavailable",
-        message: error instanceof Error ? error.message : "Failed to fetch weather data",
+        message: "Unable to retrieve weather data for all spots",
         generatedAt: currentTime.toISOString(),
       },
       { status: 503 }
     );
   }
+
+  const recommendation = calculateBestSpotRecommendation(
+    kouremenosForecast,
+    tendaForecast,
+    currentTime
+  );
+
+  const activeModel =
+    kouremenosForecast?.providerModel ||
+    tendaForecast?.providerModel ||
+    "ECMWF IFS HRES (via Open-Meteo)";
+
+  const response: WindApiResponse = {
+    generatedAt: currentTime.toISOString(),
+    model: activeModel,
+    timezone: "Europe/Athens",
+    spots: {
+      kouremenos: kouremenosResult,
+      tenda: tendaResult,
+    },
+    recommendation,
+  };
+
+  return NextResponse.json(response, {
+    headers: {
+      "Cache-Control": "public, s-maxage=900, stale-while-revalidate=300",
+    },
+  });
 }
