@@ -1,4 +1,7 @@
+"use client";
+
 import React from "react";
+import { useTheme } from "./ThemeProvider";
 
 export interface SpotPilotLogoProps {
   variant?: "full" | "mark";
@@ -15,6 +18,8 @@ export const SpotPilotLogo: React.FC<SpotPilotLogoProps> = ({
   className = "",
   alt = "SpotPilot",
 }) => {
+  const { theme } = useTheme();
+
   // Dimensions for variant & size combinations
   const dimensions = {
     mark: {
@@ -24,7 +29,6 @@ export const SpotPilotLogo: React.FC<SpotPilotLogoProps> = ({
       "responsive-header": {
         width: 80,
         height: 76,
-        // ~38px on mobile, doubled to ~76-85px on desktop PC screens!
         className: "w-10 h-[38px] md:w-20 md:h-[76px] lg:w-22 lg:h-[84px]",
       },
     },
@@ -42,35 +46,26 @@ export const SpotPilotLogo: React.FC<SpotPilotLogoProps> = ({
 
   const currentDim = dimensions[variant][size];
 
+  const isDaylight = theme === "daylight";
+
   const lightSrc =
     variant === "mark"
-      ? "/branding/spotpilot-mark-light.png"
-      : "/branding/spotpilot-light.png";
+      ? "/branding/spotpilot-mark-light.png?v=3"
+      : "/branding/spotpilot-light.png?v=3";
 
   const darkSrc =
     variant === "mark"
-      ? "/branding/spotpilot-mark-dark.png"
-      : "/branding/spotpilot-dark.png";
+      ? "/branding/spotpilot-mark-dark.png?v=3"
+      : "/branding/spotpilot-dark.png?v=3";
 
   return (
-    <div className={`relative inline-flex items-center select-none ${className}`}>
-      {/* Light Theme Logo (shown in daylight mode, transparent background) */}
+    <div className={`relative inline-flex items-center select-none bg-transparent ${className}`}>
       <img
-        src={lightSrc}
+        src={isDaylight ? lightSrc : darkSrc}
         alt={alt}
         width={currentDim.width}
         height={currentDim.height}
-        className={`object-contain transition-all duration-200 hidden [html[data-theme="daylight"]_&]:block [html:not([data-theme="dark"]):not(.dark)_&]:block ${currentDim.className}`}
-        loading="eager"
-      />
-
-      {/* Dark Theme Logo (shown in dark mode, transparent background) */}
-      <img
-        src={darkSrc}
-        alt={alt}
-        width={currentDim.width}
-        height={currentDim.height}
-        className={`object-contain transition-all duration-200 block [html[data-theme="daylight"]_&]:hidden [html:not([data-theme="dark"]):not(.dark)_&]:hidden ${currentDim.className}`}
+        className={`object-contain bg-transparent transition-opacity duration-200 ${currentDim.className}`}
         loading="eager"
       />
     </div>

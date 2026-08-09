@@ -40,9 +40,20 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* Header Background Matching */
+[data-theme="daylight"] header {
+  background-color: rgba(241, 245, 249, 0.95) !important;
+  border-bottom-color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] header {
+  background-color: rgba(10, 15, 29, 0.90) !important;
+  border-bottom-color: #23304e !important;
+}
+
 /* ==========================================================================
    1. DEEP SURF (DARK MODE) BADGES
-   ========================================================================== */
+   ========================================================================= */
 [data-theme="dark"] .badge-wave,
 [data-theme="dark"] .badge-style {
   background-color: rgba(14, 165, 233, 0.2) !important;
@@ -88,7 +99,7 @@ body {
 
 /* ==========================================================================
    2. AEGEAN DAYLIGHT (LIGHT MODE) HIGH-CONTRAST BADGES & TYPOGRAPHY
-   ========================================================================== */
+   ========================================================================= */
 [data-theme="daylight"] .text-white {
   color: #0f172a !important;
 }
@@ -132,7 +143,9 @@ body {
 [data-theme="daylight"] .bg-surf-dark\/50,
 [data-theme="daylight"] .bg-surf-dark\/60,
 [data-theme="daylight"] .bg-surf-dark\/70,
-[data-theme="daylight"] .bg-surf-dark\/80 {
+[data-theme="daylight"] .bg-surf-dark\/80,
+[data-theme="daylight"] .bg-surf-dark\/85,
+[data-theme="daylight"] .bg-surf-dark\/90 {
   background-color: rgba(241, 245, 249, 0.95) !important;
 }
 
@@ -146,45 +159,45 @@ body {
 
 /* Daylight High-Contrast Badges */
 [data-theme="daylight"] .badge-regime {
-  background-color: #dbeafe !important; /* blue-100 */
-  border-color: #3b82f6 !important;     /* blue-500 */
-  color: #1e3a8a !important;            /* blue-900 / navy */
+  background-color: #dbeafe !important;
+  border-color: #3b82f6 !important;
+  color: #1e3a8a !important;
   font-weight: 800 !important;
 }
 
 [data-theme="daylight"] .badge-wave,
 [data-theme="daylight"] .badge-style {
-  background-color: #e0f2fe !important; /* sky-100 */
-  border-color: #38bdf8 !important;     /* sky-400 */
-  color: #075985 !important;            /* sky-900 */
+  background-color: #e0f2fe !important;
+  border-color: #38bdf8 !important;
+  color: #075985 !important;
   font-weight: 800 !important;
 }
 
 [data-theme="daylight"] .badge-ideal {
-  background-color: #dcfce7 !important; /* emerald-100 */
-  border-color: #4ade80 !important;     /* emerald-400 */
-  color: #14532d !important;            /* emerald-900 */
+  background-color: #dcfce7 !important;
+  border-color: #4ade80 !important;
+  color: #14532d !important;
   font-weight: 800 !important;
 }
 
 [data-theme="daylight"] .badge-suitable {
-  background-color: #e0f2fe !important; /* sky-100 */
-  border-color: #38bdf8 !important;     /* sky-400 */
-  color: #0c4a6e !important;            /* sky-900 */
+  background-color: #e0f2fe !important;
+  border-color: #38bdf8 !important;
+  color: #0c4a6e !important;
   font-weight: 800 !important;
 }
 
 [data-theme="daylight"] .badge-marginal {
-  background-color: #fef3c7 !important; /* amber-100 */
-  border-color: #fbbf24 !important;     /* amber-400 */
-  color: #78350f !important;            /* amber-900 */
+  background-color: #fef3c7 !important;
+  border-color: #fbbf24 !important;
+  color: #78350f !important;
   font-weight: 800 !important;
 }
 
 [data-theme="daylight"] .badge-unsuitable {
-  background-color: #ffe4e6 !important; /* rose-100 */
-  border-color: #fb7185 !important;     /* rose-400 */
-  color: #881337 !important;            /* rose-900 */
+  background-color: #ffe4e6 !important;
+  border-color: #fb7185 !important;
+  color: #881337 !important;
   font-weight: 800 !important;
 }
 
