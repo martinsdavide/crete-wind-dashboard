@@ -1,132 +1,91 @@
-import { NextResponse } from "next/server";
-import { SPOTS } from "@/config/spots";
+import { NextRequest, NextResponse } from "next/server";
+import { getRegion } from "@/regions/registry";
 import { fetchSpotWeather } from "@/lib/weather/openMeteo";
 import { normalizeSpotForecast } from "@/lib/weather/normalizeForecast";
-import { calculateBestSpotRecommendation } from "@/lib/dailySummary";
+import { RecommendationEngine } from "@/engine/recommendation/RecommendationEngine";
 import { SpotForecast, SpotResult, WindApiResponse } from "@/types/weather";
 
 export const revalidate = 900; // 15 minutes cache
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const currentTime = new Date();
+  const searchParams = request.nextUrl.searchParams;
+  const regionId = searchParams.get("region");
 
-  // Fetch all 3 spots in parallel with fault tolerance
-  const results = await Promise.allSettled([
-    fetchSpotWeather(SPOTS.kouremenos.latitude, SPOTS.kouremenos.longitude, 4),
-    fetchSpotWeather(SPOTS.tenda.latitude, SPOTS.tenda.longitude, 4),
-    fetchSpotWeather(SPOTS.xerokampos.latitude, SPOTS.xerokampos.longitude, 4),
-  ]);
+  const regionConfig = getRegion(regionId);
 
-  const [kouremenosSettled, tendaSettled, xerokamposSettled] = results;
+  // Fetch all spots in the selected region in parallel with fault tolerance
+  const fetchPromises = regionConfig.spots.map((spot) =>
+    fetchSpotWeather(spot.latitude, spot.longitude, 4)
+  );
 
-  let kouremenosForecast: SpotForecast | null = null;
-  let tendaForecast: SpotForecast | null = null;
-  let xerokamposForecast: SpotForecast | null = null;
+  const settledResults = await Promise.allSettled(fetchPromises);
 
-  let kouremenosResult: SpotResult;
-  let tendaResult: SpotResult;
-  let xerokamposResult: SpotResult;
+  const spotsResults: Record<string, SpotResult> = {};
+  const models: Record<string, string> = {};
+  let anyFulfilled = false;
 
-  if (kouremenosSettled.status === "fulfilled") {
-    kouremenosForecast = normalizeSpotForecast(
-      SPOTS.kouremenos,
-      kouremenosSettled.value,
-      currentTime
-    );
-    kouremenosResult = { status: "ok", data: kouremenosForecast };
-  } else {
-    console.error("Kouremenos forecast fetch failed:", kouremenosSettled.reason);
-    kouremenosResult = {
-      status: "error",
-      message:
-        kouremenosSettled.reason instanceof Error
-          ? kouremenosSettled.reason.message
-          : "Weather data unavailable",
-      spot: SPOTS.kouremenos,
-    };
-  }
+  regionConfig.spots.forEach((spot, idx) => {
+    const settled = settledResults[idx];
+    if (settled.status === "fulfilled") {
+      anyFulfilled = true;
+      const forecast: SpotForecast = normalizeSpotForecast(
+        spot as any,
+        settled.value,
+        currentTime
+      );
+      spotsResults[spot.id] = { status: "ok", data: forecast };
+      models[spot.id] = forecast.providerModel || "ECMWF IFS HRES (via Open-Meteo)";
+    } else {
+      console.error(`Forecast fetch failed for spot ${spot.id} (${spot.name}):`, settled.reason);
+      spotsResults[spot.id] = {
+        status: "error",
+        message:
+          settled.reason instanceof Error
+            ? settled.reason.message
+            : "Weather data unavailable",
+        spot: spot as any,
+      };
+      models[spot.id] = "Unavailable";
+    }
+  });
 
-  if (tendaSettled.status === "fulfilled") {
-    tendaForecast = normalizeSpotForecast(
-      SPOTS.tenda,
-      tendaSettled.value,
-      currentTime
-    );
-    tendaResult = { status: "ok", data: tendaForecast };
-  } else {
-    console.error("Tenda forecast fetch failed:", tendaSettled.reason);
-    tendaResult = {
-      status: "error",
-      message:
-        tendaSettled.reason instanceof Error
-          ? tendaSettled.reason.message
-          : "Weather data unavailable",
-      spot: SPOTS.tenda,
-    };
-  }
-
-  if (xerokamposSettled.status === "fulfilled") {
-    xerokamposForecast = normalizeSpotForecast(
-      SPOTS.xerokampos,
-      xerokamposSettled.value,
-      currentTime
-    );
-    xerokamposResult = { status: "ok", data: xerokamposForecast };
-  } else {
-    console.error("Xerokampos forecast fetch failed:", xerokamposSettled.reason);
-    xerokamposResult = {
-      status: "error",
-      message:
-        xerokamposSettled.reason instanceof Error
-          ? xerokamposSettled.reason.message
-          : "Weather data unavailable",
-      spot: SPOTS.xerokampos,
-    };
-  }
-
-  // If all spots failed, return 503
-  if (!kouremenosForecast && !tendaForecast && !xerokamposForecast) {
+  // If all spots in the region failed, return 503
+  if (!anyFulfilled) {
     return NextResponse.json(
       {
         error: "Forecast temporarily unavailable",
-        message: "Unable to retrieve weather data for all spots",
+        message: `Unable to retrieve weather data for ${regionConfig.metadata.displayName}`,
         generatedAt: currentTime.toISOString(),
       },
       { status: 503 }
     );
   }
 
-  const recommendation = calculateBestSpotRecommendation(
-    kouremenosForecast,
-    tendaForecast,
-    xerokamposForecast,
-    currentTime
-  );
+  // Run decoupled Recommendation Engine
+  const recommendation = RecommendationEngine.run(regionConfig, spotsResults);
 
-  const kModel = kouremenosForecast?.providerModel || "ECMWF IFS HRES (via Open-Meteo)";
-  const tModel = tendaForecast?.providerModel || "ECMWF IFS HRES (via Open-Meteo)";
-  const xModel = xerokamposForecast?.providerModel || "ECMWF IFS HRES (via Open-Meteo)";
+  const defaultModel =
+    Object.values(models).find((m) => m !== "Unavailable") ||
+    "ECMWF IFS HRES (via Open-Meteo)";
+
+  const spotList = regionConfig.spots.map((s) => spotsResults[s.id]);
 
   const response: WindApiResponse = {
     generatedAt: currentTime.toISOString(),
-    model: kModel || tModel || xModel,
-    models: {
-      kouremenos: kModel,
-      tenda: tModel,
-      xerokampos: xModel,
-    },
-    timezone: "Europe/Athens",
-    spots: {
-      kouremenos: kouremenosResult,
-      tenda: tendaResult,
-      xerokampos: xerokamposResult,
-    },
+    regionId: regionConfig.id,
+    regionMetadata: regionConfig.metadata,
+    model: defaultModel,
+    models,
+    timezone: regionConfig.timezone,
+    spots: spotsResults as any,
+    spotList,
     recommendation,
   };
 
   return NextResponse.json(response, {
     headers: {
-      "Cache-Control": "public, s-maxage=900, stale-while-revalidate=300",
+      "Cache-Control": "public, s-maxage=900, stale-while-revalidate=1800",
     },
   });
 }

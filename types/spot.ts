@@ -83,15 +83,15 @@ export interface RiderPreferences {
     freestyle: number;
     flatWater: number;
   };
-  spotPreferences: {
-    kouremenos: number;
-    tenda: number;
-    xerokampos: number;
+  spotPreferences: Record<string, number> & {
+    kouremenos?: number;
+    tenda?: number;
+    xerokampos?: number;
   };
-  maxComfortWindBySpot: {
-    kouremenos: number;
-    tenda: number;
-    xerokampos: number;
+  maxComfortWindBySpot: Record<string, number> & {
+    kouremenos?: number;
+    tenda?: number;
+    xerokampos?: number;
   };
   waveBonusMax: number;
 }

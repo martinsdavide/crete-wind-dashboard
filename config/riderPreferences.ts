@@ -1,4 +1,5 @@
 import { RiderPreferences } from "@/types/spot";
+export type { RiderPreferences };
 
 export const DEFAULT_RIDER_PREFERENCES: RiderPreferences = {
   preferredStyles: {

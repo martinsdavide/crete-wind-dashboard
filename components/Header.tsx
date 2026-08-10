@@ -3,7 +3,9 @@
 import React from "react";
 import { RefreshCw, Sun, Moon } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
+import { useRegion } from "@/context/RegionContext";
 import { SpotPilotLogo } from "./SpotPilotLogo";
+import { RegionSelector } from "./RegionSelector";
 
 interface HeaderProps {
   onRefresh?: () => void;
@@ -17,10 +19,11 @@ export const Header: React.FC<HeaderProps> = ({
   generatedAt,
 }) => {
   const { theme, toggleTheme } = useTheme();
+  const { currentRegion } = useRegion();
 
   const formattedTime = generatedAt
     ? new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Europe/Athens",
+        timeZone: currentRegion.timezone || "Europe/Athens",
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
@@ -30,7 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-30 w-full bg-surf-dark/90 backdrop-blur-md border-b border-surf-border/80 px-4 py-2.5 md:px-8 md:py-5 lg:py-6 transition-all">
-      <div className="max-w-5xl mx-auto flex items-center justify-between">
+      <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
         {/* Brand Identity with Responsive Official Logo Mark (Doubled on PC) */}
         <div className="flex items-center space-x-3 md:space-x-5">
           <div className="flex-shrink-0 flex items-center justify-center">
@@ -46,21 +49,24 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </h1>
               <span className="text-[10px] md:text-xs font-extrabold tracking-wider px-2 py-0.5 md:px-3 md:py-1 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 uppercase hidden sm:inline-block">
-                Eastern Crete
+                {currentRegion.metadata.displayName}
               </span>
             </div>
             <p className="text-[11px] sm:text-xs md:text-sm lg:text-base text-slate-400 font-medium leading-tight mt-0.5">
-              Find your best windsurf session
+              Find your best windsurf session • {currentRegion.metadata.editionTitle}
             </p>
           </div>
         </div>
 
         {/* Header Controls */}
         <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+          {/* Region Selector Dropdown */}
+          <RegionSelector />
+
           {formattedTime && (
-            <div className="hidden md:flex flex-col items-end text-right mr-1">
-              <span className="text-[10px] md:text-xs text-slate-400 font-medium">Athens Time</span>
-              <span className="text-xs md:text-sm font-mono font-bold text-slate-200">
+            <div className="hidden lg:flex flex-col items-end text-right mr-1">
+              <span className="text-[10px] text-slate-400 font-medium">Local Time</span>
+              <span className="text-xs font-mono font-bold text-slate-200">
                 {formattedTime}
               </span>
             </div>

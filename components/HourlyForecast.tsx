@@ -15,7 +15,7 @@ interface HourlyForecastProps {
   kouremenosResult: SpotResult;
   tendaResult: SpotResult;
   xerokamposResult: SpotResult;
-  defaultSpotId?: SpotId | null;
+  defaultSpotId?: SpotId | string | null;
 }
 
 export const HourlyForecast: React.FC<HourlyForecastProps> = ({
@@ -25,14 +25,14 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
   defaultSpotId,
 }) => {
   const [selectedSpotId, setSelectedSpotId] = useState<SpotId>(
-    defaultSpotId || "kouremenos"
+    (defaultSpotId as SpotId) || "kouremenos"
   );
   const [activeItem, setActiveItem] = useState<{ item: HourlyWind; isNow: boolean } | null>(null);
 
   // Dynamically sync default selection with best spot of the day
   useEffect(() => {
     if (defaultSpotId) {
-      setSelectedSpotId(defaultSpotId);
+      setSelectedSpotId(defaultSpotId as SpotId);
     }
   }, [defaultSpotId]);
 

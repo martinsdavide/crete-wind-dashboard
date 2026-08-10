@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { RegionProvider } from "@/context/RegionContext";
 
 export const metadata: Metadata = {
-  title: "SpotPilot | Eastern Crete Edition",
-  description: "SpotPilot: Spot-calibrated windsurfing session quality forecasts for Kouremenos, Tenda, and Xerokampos in Eastern Crete.",
+  title: "SpotPilot | Windsurfing Session Intelligence",
+  description: "SpotPilot: Spot-calibrated windsurfing session quality forecasts and intelligent destination recommendations.",
   applicationName: "SpotPilot",
   appleWebApp: {
     capable: true,
@@ -40,7 +41,9 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen flex flex-col font-sans selection:bg-sky-500/30 selection:text-sky-200">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <RegionProvider>{children}</RegionProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

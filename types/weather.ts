@@ -209,17 +209,21 @@ export interface Recommendation {
 
 export interface WindApiResponse {
   generatedAt: string; // ISO timestamp
+  regionId?: string;
+  regionMetadata?: {
+    displayName: string;
+    editionTitle: string;
+    subtitle: string;
+    country: string;
+  };
   model: string;
-  models?: {
-    kouremenos: string;
-    tenda: string;
-    xerokampos: string;
+  models?: Record<string, string>;
+  timezone: string; // e.g. "Europe/Athens"
+  spots: Record<string, SpotResult> & {
+    kouremenos?: SpotResult;
+    tenda?: SpotResult;
+    xerokampos?: SpotResult;
   };
-  timezone: string; // "Europe/Athens"
-  spots: {
-    kouremenos: SpotResult;
-    tenda: SpotResult;
-    xerokampos: SpotResult;
-  };
+  spotList?: SpotResult[];
   recommendation: Recommendation;
 }

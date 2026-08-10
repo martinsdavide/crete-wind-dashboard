@@ -10,7 +10,7 @@ interface DailyForecastProps {
   kouremenosResult: SpotResult;
   tendaResult: SpotResult;
   xerokamposResult: SpotResult;
-  defaultSpotId?: SpotId | null;
+  defaultSpotId?: SpotId | string | null;
 }
 
 export const DailyForecast: React.FC<DailyForecastProps> = ({
@@ -20,13 +20,13 @@ export const DailyForecast: React.FC<DailyForecastProps> = ({
   defaultSpotId,
 }) => {
   const [activeSpotId, setActiveSpotId] = useState<SpotId>(
-    defaultSpotId || "kouremenos"
+    (defaultSpotId as SpotId) || "kouremenos"
   );
 
   // Dynamically sync default selection with best spot of the day
   useEffect(() => {
     if (defaultSpotId) {
-      setActiveSpotId(defaultSpotId);
+      setActiveSpotId(defaultSpotId as SpotId);
     }
   }, [defaultSpotId]);
 
