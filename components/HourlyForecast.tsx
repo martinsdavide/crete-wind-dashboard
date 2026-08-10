@@ -48,14 +48,22 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
   const [selectedSpotId, setSelectedSpotId] = useState<string>(initialSpotId);
   const [activeItem, setActiveItem] = useState<{ item: HourlyWind; isNow: boolean } | null>(null);
 
-  // Dynamically sync default selection with best spot of the day
+  // Dynamically sync default selection when defaultSpotId changes
   useEffect(() => {
     if (defaultSpotId) {
       setSelectedSpotId(defaultSpotId as string);
-    } else if (availableSpots.length > 0 && !availableSpots.some((s) => s.id === selectedSpotId)) {
-      setSelectedSpotId(availableSpots[0].id);
     }
-  }, [defaultSpotId, availableSpots, selectedSpotId]);
+  }, [defaultSpotId]);
+
+  // If available spots change and current selection is not available in the new region, update selection
+  useEffect(() => {
+    if (availableSpots.length > 0) {
+      setSelectedSpotId((prev) => {
+        if (availableSpots.some((s) => s.id === prev)) return prev;
+        return defaultSpotId ? (defaultSpotId as string) : availableSpots[0].id;
+      });
+    }
+  }, [availableSpots, defaultSpotId]);
 
   const activeSpotEntry = availableSpots.find((s) => s.id === selectedSpotId) || availableSpots[0];
   const activeResult = activeSpotEntry?.result || null;

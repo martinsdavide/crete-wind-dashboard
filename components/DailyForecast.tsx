@@ -44,14 +44,22 @@ export const DailyForecast: React.FC<DailyForecastProps> = ({
   const initialSpotId = (defaultSpotId as string) || (availableSpots[0]?.id ?? "kouremenos");
   const [activeSpotId, setActiveSpotId] = useState<string>(initialSpotId);
 
-  // Dynamically sync default selection with best spot of the day
+  // Dynamically sync default selection when defaultSpotId changes
   useEffect(() => {
     if (defaultSpotId) {
       setActiveSpotId(defaultSpotId as string);
-    } else if (availableSpots.length > 0 && !availableSpots.some((s) => s.id === activeSpotId)) {
-      setActiveSpotId(availableSpots[0].id);
     }
-  }, [defaultSpotId, availableSpots, activeSpotId]);
+  }, [defaultSpotId]);
+
+  // If available spots change and current selection is not available in the new region, update selection
+  useEffect(() => {
+    if (availableSpots.length > 0) {
+      setActiveSpotId((prev) => {
+        if (availableSpots.some((s) => s.id === prev)) return prev;
+        return defaultSpotId ? (defaultSpotId as string) : availableSpots[0].id;
+      });
+    }
+  }, [availableSpots, defaultSpotId]);
 
   const activeSpotEntry = availableSpots.find((s) => s.id === activeSpotId) || availableSpots[0];
   const activeResult = activeSpotEntry?.result || null;
