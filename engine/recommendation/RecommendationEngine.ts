@@ -121,7 +121,7 @@ export class RecommendationEngine {
       todayDateStr = referenceDate.toISOString().split("T")[0];
     }
 
-    // 4. Extract today summaries explicitly using regional local date
+    // 4. Extract today summaries explicitly using regional local date & evaluate hard gates
     const summaries: Record<string, DailyWindSummary | null> = {};
     const spotScores: Record<string, number | null> = {};
 
@@ -130,8 +130,35 @@ export class RecommendationEngine {
       if (forecast && forecast.days && forecast.days.length > 0) {
         const todaySummary =
           forecast.days.find((d) => d.date === todayDateStr) || forecast.days[0];
-        summaries[spot.id] = todaySummary;
-        spotScores[spot.id] = todaySummary.score ?? null;
+
+        // Check if any hard gate excludes this spot under the classified regional regime
+        const isHardGated = spot.hardGates?.some((gate) => {
+          const matchesRegime = !gate.regimes || (regimeId && gate.regimes.includes(regimeId));
+          const dominantDir = todaySummary.dominantDirectionDegrees;
+          let matchesDir = true;
+          if (gate.directionRange) {
+            const [minD, maxD] = gate.directionRange;
+            if (minD <= maxD) {
+              matchesDir = dominantDir >= minD && dominantDir <= maxD;
+            } else {
+              matchesDir = dominantDir >= minD || dominantDir <= maxD;
+            }
+          }
+          return matchesRegime && matchesDir && gate.eligibility === "UNSUITABLE";
+        });
+
+        if (isHardGated) {
+          summaries[spot.id] = {
+            ...todaySummary,
+            score: 0,
+            dominantEligibility: "UNSUITABLE",
+            bestWindow: null,
+          };
+          spotScores[spot.id] = 0;
+        } else {
+          summaries[spot.id] = todaySummary;
+          spotScores[spot.id] = todaySummary.score ?? null;
+        }
       } else {
         summaries[spot.id] = null;
         spotScores[spot.id] = null;
@@ -164,7 +191,8 @@ export class RecommendationEngine {
       const hasEligibleSession =
         score >= 60 &&
         bestWin !== null &&
-        winDuration >= minWindowHours;
+        winDuration >= minWindowHours &&
+        spotScores[spot.id] !== 0;
 
       candidates.push({
         id: spot.id,
@@ -206,9 +234,6 @@ export class RecommendationEngine {
       bestWindow: winner ? winner.bestWindow : null,
       score: winner ? winner.score : 0,
       spotScores,
-      dayScoreKouremenos: spotScores["kouremenos"] ?? null,
-      dayScoreTenda: spotScores["tenda"] ?? null,
-      dayScoreXerokampos: spotScores["xerokampos"] ?? null,
       regime: regimeId as WindRegime,
       regimeLabel,
       sailingStyle: winner ? winner.style : "BUMP_AND_JUMP",

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRegion } from "@/regions/registry";
 import { fetchSpotWeather } from "@/lib/weather/openMeteo";
-import { normalizeSpotForecast } from "@/lib/weather/normalizeForecast";
+import { normalizeSpotForecastGeneric } from "@/engine/forecast/ForecastNormalizer";
 import { RecommendationEngine } from "@/engine/recommendation/RecommendationEngine";
-import { SpotForecast, SpotResult, WindApiResponse, WindSpot } from "@/types/weather";
+import { SpotForecast, SpotResult, WindApiResponse } from "@/types/weather";
 
 export const revalidate = 900; // 15 minutes cache
 
@@ -27,21 +27,14 @@ export async function GET(request: NextRequest) {
 
   regionConfig.spots.forEach((spot, idx) => {
     const settled = settledResults[idx];
-    const windSpot: WindSpot = {
-      id: spot.id,
-      name: spot.name,
-      subtitle: spot.description,
-      latitude: spot.latitude,
-      longitude: spot.longitude,
-      localCorrectionEnabled: true,
-    };
 
     if (settled.status === "fulfilled") {
       anyFulfilled = true;
-      const forecast: SpotForecast = normalizeSpotForecast(
-        windSpot,
+      const forecast: SpotForecast = normalizeSpotForecastGeneric(
+        spot,
         settled.value,
-        currentTime
+        currentTime,
+        regionConfig.timezone
       );
       spotsResults[spot.id] = { status: "ok", data: forecast };
       models[spot.id] = forecast.providerModel || "ECMWF IFS HRES (via Open-Meteo)";
@@ -53,7 +46,14 @@ export async function GET(request: NextRequest) {
           settled.reason instanceof Error
             ? settled.reason.message
             : "Weather data unavailable",
-        spot: windSpot,
+        spot: {
+          id: spot.id,
+          name: spot.name,
+          subtitle: spot.description,
+          latitude: spot.latitude,
+          longitude: spot.longitude,
+          localCorrectionEnabled: true,
+        },
       };
       models[spot.id] = "Unavailable";
     }

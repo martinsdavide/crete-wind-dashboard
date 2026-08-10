@@ -199,9 +199,6 @@ export interface Recommendation {
   bestWindow: BestWindow | null;
   score: number | null; // Top session quality score
   spotScores: Record<string, number | null>;
-  dayScoreKouremenos?: number | null;
-  dayScoreTenda?: number | null;
-  dayScoreXerokampos?: number | null;
   regime: WindRegime | string;
   regimeLabel: string;
   sailingStyle: WaterState;

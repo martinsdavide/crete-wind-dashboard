@@ -17,9 +17,9 @@ import {
 
 interface BestSpotProps {
   recommendation: Recommendation;
-  kouremenosResult: SpotResult;
-  tendaResult: SpotResult;
-  xerokamposResult: SpotResult;
+  kouremenosResult?: SpotResult;
+  tendaResult?: SpotResult;
+  xerokamposResult?: SpotResult;
 }
 
 export const BestSpot: React.FC<BestSpotProps> = ({
@@ -33,22 +33,20 @@ export const BestSpot: React.FC<BestSpotProps> = ({
     bestSpotName,
     bestWindow,
     score,
-    dayScoreKouremenos,
-    dayScoreTenda,
-    dayScoreXerokampos,
+    spotScores = {},
     regimeLabel,
     sailingStyle,
     explanation,
   } = recommendation;
 
+  // Find the winning spot forecast dynamically
+  const spotResults = [kouremenosResult, tendaResult, xerokamposResult].filter(Boolean);
   const chosenResult =
-    bestSpot === "kouremenos"
-      ? kouremenosResult
-      : bestSpot === "tenda"
-      ? tendaResult
-      : bestSpot === "xerokampos"
-      ? xerokamposResult
-      : null;
+    spotResults.find((r) => {
+      if (!r) return false;
+      const spotId = r.status === "ok" ? r.data.spot.id : r.spot.id;
+      return spotId === bestSpot;
+    }) || null;
 
   const chosenForecast = chosenResult?.status === "ok" ? chosenResult.data : null;
   const todaySummary = chosenForecast?.days[0];
@@ -76,20 +74,20 @@ export const BestSpot: React.FC<BestSpotProps> = ({
 
   // Dynamically sort session scores by order of score
   const sortedSessionScores = useMemo(() => {
-    const scores = recommendation.spotScores || {
-      kouremenos: recommendation.dayScoreKouremenos ?? null,
-      tenda: recommendation.dayScoreTenda ?? null,
-      xerokampos: recommendation.dayScoreXerokampos ?? null,
-    };
-
     const formatName = (id: string) => {
-      if (id === "kouremenos") return "Kouremenos";
-      if (id === "tenda") return "Tenda";
-      if (id === "xerokampos") return "Xerokampos";
+      // Find spot display name from results if available
+      const found = spotResults.find((r) => {
+        if (!r) return false;
+        const sId = r.status === "ok" ? r.data.spot.id : r.spot.id;
+        return sId === id;
+      });
+      if (found) {
+        return found.status === "ok" ? found.data.spot.name : found.spot.name;
+      }
       return id.charAt(0).toUpperCase() + id.slice(1);
     };
 
-    const list = Object.entries(scores).map(([id, scoreVal]) => ({
+    const list = Object.entries(spotScores).map(([id, scoreVal]) => ({
       id,
       name: formatName(id),
       score: scoreVal,
@@ -106,7 +104,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
       }
       return 0;
     });
-  }, [recommendation.spotScores, recommendation.dayScoreKouremenos, recommendation.dayScoreTenda, recommendation.dayScoreXerokampos, bestSpot]);
+  }, [spotScores, bestSpot, spotResults]);
 
   // Confidence styling
   const confidenceBadges: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -218,11 +216,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                   </div>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {bestSpot === "kouremenos"
-                    ? "Palekastro Bay • Thermal Sweetspot"
-                    : bestSpot === "tenda"
-                    ? "Cape Sidero • Wave & Strong Meltemi"
-                    : "South-East Crete • W/SW Alternative Regime"}
+                  {chosenForecast?.spot?.subtitle || chosenForecast?.spot?.name || "Optimal conditions today"}
                 </p>
               </div>
 
@@ -357,7 +351,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
               </div>
             )}
 
-            {/* 3-Spot Dynamically Ordered Comparison Bar */}
+            {/* Dynamically Ordered Comparison Bar */}
             <div className="mt-3 flex flex-wrap items-center justify-between text-[11px] text-slate-400 px-1 gap-2">
               <span>
                 Session Scores:{" "}
