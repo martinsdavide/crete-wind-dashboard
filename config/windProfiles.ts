@@ -143,5 +143,21 @@ export const SCORING_CONFIG = {
     startHour: 7, // Sunrise (Eastern Crete)
     endHour: 20,  // Sunset (Eastern Crete)
   },
+  stability: {
+    weights: {
+      windStability: 0.40,      // 40% Wind stability
+      directionStability: 0.30, // 30% Direction stability
+      gustQuality: 0.30,        // 30% Gust factor quality
+    },
+    confidenceTiers: {
+      high: 85,   // >= 85 -> HIGH
+      medium: 60, // 60-84 -> MEDIUM, < 60 -> LOW
+    },
+    gustTiers: {
+      smoothMax: 1.10,        // <= 1.10 -> Smooth
+      slightlyGustyMax: 1.20, // 1.10-1.20 -> Slightly Gusty
+      gustyMax: 1.35,         // 1.20-1.35 -> Gusty, > 1.35 -> Very Gusty
+    },
+  },
   timezone: "Europe/Athens",
 };

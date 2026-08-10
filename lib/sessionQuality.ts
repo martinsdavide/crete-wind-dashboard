@@ -200,5 +200,29 @@ export function explainRecommendation(
     explanations.push("Kouremenos and Tenda are calm or unsuitable under southwesterly flow.");
   }
 
+  const bestSummary =
+    bestSpot === "tenda"
+      ? tToday
+      : bestSpot === "kouremenos"
+      ? kToday
+      : xToday;
+
+  if (bestSummary?.bestWindow?.stability) {
+    const stab = bestSummary.bestWindow.stability;
+    if (
+      stab.confidence === "HIGH" ||
+      stab.windStabilityLabel === "Very Stable" ||
+      stab.windStabilityLabel === "Stable"
+    ) {
+      explanations.push(
+        `The wind remains ${stab.windStabilityLabel.toLowerCase()} throughout the session (${Math.round(
+          stab.minWind
+        )}–${Math.round(stab.maxWind)} kt) with ${
+          stab.directionRange <= 15 ? "steady" : "shifting"
+        } direction (${stab.directionRangeLabel}) and ${stab.gustinessLabel.toLowerCase()} airflow.`
+      );
+    }
+  }
+
   return explanations;
 }

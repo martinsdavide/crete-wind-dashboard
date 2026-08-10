@@ -2,6 +2,7 @@ import { BestWindow, HourlyWind, WaterState } from "@/types/weather";
 import { getConditionLabel } from "./windScore";
 import { getDominantDirection } from "./windDirection";
 import { SCORING_CONFIG } from "@/config/windProfiles";
+import { calculateWindowStability } from "./windowStability";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -174,6 +175,7 @@ export function findBestWindow(
   );
 
   const roundedMeanScore = Math.round(best.meanScore);
+  const stability = calculateWindowStability(seq);
 
   return {
     start: startTimeStr,
@@ -187,5 +189,6 @@ export function findBestWindow(
     meanScore: roundedMeanScore,
     sailingStyle: dominantStyle,
     condition: getConditionLabel(roundedMeanScore),
+    stability,
   };
 }

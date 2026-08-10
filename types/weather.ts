@@ -99,6 +99,42 @@ export interface HourlyWind {
   cloudCover?: number; // %
 }
 
+export type GustinessLabel =
+  | "Smooth"
+  | "Slightly Gusty"
+  | "Gusty"
+  | "Very Gusty";
+
+export type StabilityLabel =
+  | "Very Stable"
+  | "Stable"
+  | "Variable"
+  | "Highly Variable";
+
+export interface WindowStability {
+  minWind: number;
+  maxWind: number;
+  meanWind: number;
+  windStdDev: number;
+
+  meanDirection: number; // circular mean degrees
+  directionStdDev: number; // circular standard deviation in degrees
+  directionRange: number; // circular range in degrees
+
+  startDirectionLabel: string; // e.g. "NW"
+  endDirectionLabel: string;   // e.g. "NNW"
+  directionRangeLabel: string; // e.g. "NW → NNW"
+
+  gustFactor: number; // meanGust / meanWind
+  gustinessLabel: GustinessLabel;
+
+  windStabilityLabel: StabilityLabel;
+  directionStabilityLabel: StabilityLabel;
+
+  stabilityScore: number; // 0-100
+  confidence: "LOW" | "MEDIUM" | "HIGH";
+}
+
 export interface BestWindow {
   start: string; // e.g. "14:00" in Europe/Athens
   end: string;   // e.g. "18:00" in Europe/Athens
@@ -111,6 +147,7 @@ export interface BestWindow {
   meanScore: number; // session quality mean
   sailingStyle: WaterState;
   condition: ConditionLabel;
+  stability?: WindowStability | null;
 }
 
 export interface DailyWindSummary {
