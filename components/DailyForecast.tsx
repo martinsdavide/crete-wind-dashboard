@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SpotResult } from "@/types/weather";
 import { SpotId } from "@/types/spot";
 import { WindArrow } from "./WindArrow";
@@ -10,14 +10,25 @@ interface DailyForecastProps {
   kouremenosResult: SpotResult;
   tendaResult: SpotResult;
   xerokamposResult: SpotResult;
+  defaultSpotId?: SpotId | null;
 }
 
 export const DailyForecast: React.FC<DailyForecastProps> = ({
   kouremenosResult,
   tendaResult,
   xerokamposResult,
+  defaultSpotId,
 }) => {
-  const [activeSpotId, setActiveSpotId] = useState<SpotId>("kouremenos");
+  const [activeSpotId, setActiveSpotId] = useState<SpotId>(
+    defaultSpotId || "kouremenos"
+  );
+
+  // Dynamically sync default selection with best spot of the day
+  useEffect(() => {
+    if (defaultSpotId) {
+      setActiveSpotId(defaultSpotId);
+    }
+  }, [defaultSpotId]);
 
   const activeResult =
     activeSpotId === "kouremenos"

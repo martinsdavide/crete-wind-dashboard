@@ -207,18 +207,20 @@ export default function HomePage() {
               </div>
             </section>
 
-            {/* 3. Hourly Forecast Ribbon */}
+            {/* 3. Hourly Forecast Ribbon (Defaults dynamically to Best Spot) */}
             <HourlyForecast
               kouremenosResult={data.spots.kouremenos}
               tendaResult={data.spots.tenda}
               xerokamposResult={data.spots.xerokampos}
+              defaultSpotId={data.recommendation?.bestSpot || "kouremenos"}
             />
 
-            {/* 4. 4-Day Forecast Overview */}
+            {/* 4. 4-Day Forecast Overview (Defaults dynamically to Best Spot) */}
             <DailyForecast
               kouremenosResult={data.spots.kouremenos}
               tendaResult={data.spots.tenda}
               xerokamposResult={data.spots.xerokampos}
+              defaultSpotId={data.recommendation?.bestSpot || "kouremenos"}
             />
 
             {/* 5. 3-Spot Wind Comparison Chart */}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { HourlyWind, SpotResult } from "@/types/weather";
 import { SpotId } from "@/types/spot";
 import { WindArrow } from "./WindArrow";
@@ -14,15 +14,26 @@ interface HourlyForecastProps {
   kouremenosResult: SpotResult;
   tendaResult: SpotResult;
   xerokamposResult: SpotResult;
+  defaultSpotId?: SpotId | null;
 }
 
 export const HourlyForecast: React.FC<HourlyForecastProps> = ({
   kouremenosResult,
   tendaResult,
   xerokamposResult,
+  defaultSpotId,
 }) => {
-  const [selectedSpotId, setSelectedSpotId] = useState<SpotId>("kouremenos");
+  const [selectedSpotId, setSelectedSpotId] = useState<SpotId>(
+    defaultSpotId || "kouremenos"
+  );
   const [activeItem, setActiveItem] = useState<{ item: HourlyWind; isNow: boolean } | null>(null);
+
+  // Dynamically sync default selection with best spot of the day
+  useEffect(() => {
+    if (defaultSpotId) {
+      setSelectedSpotId(defaultSpotId);
+    }
+  }, [defaultSpotId]);
 
   const activeResult =
     selectedSpotId === "kouremenos"
