@@ -32,9 +32,9 @@ export const Header: React.FC<HeaderProps> = ({
     : null;
 
   return (
-    <header className="sticky top-0 z-30 w-full bg-surf-dark/90 backdrop-blur-md border-b border-surf-border/80 px-4 py-2.5 md:px-8 md:py-5 lg:py-6 transition-all">
+    <header className="sticky top-0 z-30 w-full bg-surf-dark/90 backdrop-blur-md border-b border-surf-border/80 px-4 py-2.5 md:px-8 md:py-4 lg:py-5 transition-all">
       <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
-        {/* Brand Identity with Responsive Official Logo Mark (Doubled on PC) */}
+        {/* Brand Identity with Responsive Official Logo Mark */}
         <div className="flex items-center space-x-3 md:space-x-5">
           <div className="flex-shrink-0 flex items-center justify-center">
             <SpotPilotLogo variant="mark" size="responsive-header" alt="SpotPilot" />
@@ -48,9 +48,6 @@ export const Header: React.FC<HeaderProps> = ({
                   Pilot
                 </span>
               </h1>
-              <span className="text-[10px] md:text-xs font-extrabold tracking-wider px-2 py-0.5 md:px-3 md:py-1 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 uppercase hidden sm:inline-block">
-                {currentRegion.metadata.displayName}
-              </span>
             </div>
             <p className="text-[11px] sm:text-xs md:text-sm lg:text-base text-slate-400 font-medium leading-tight mt-0.5">
               Find your best windsurf session • {currentRegion.metadata.editionTitle}
@@ -58,59 +55,63 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Header Controls */}
-        <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
-          {/* Region Selector Dropdown */}
+        {/* Header Controls: Region Selector positioned ABOVE the action group */}
+        <div className="flex flex-col items-end gap-1.5 sm:gap-2">
+          {/* 1. Region Selector (Above) */}
           <RegionSelector />
 
-          {formattedTime && (
-            <div className="hidden lg:flex flex-col items-end text-right mr-1">
-              <span className="text-[10px] text-slate-400 font-medium">Local Time</span>
-              <span className="text-xs font-mono font-bold text-slate-200">
-                {formattedTime}
-              </span>
-            </div>
-          )}
-
-          {/* Theme Selector Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-surf-card hover:bg-surf-cardHover border border-surf-border text-slate-300 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 md:gap-2 shadow-sm"
-            title={theme === "dark" ? "Switch to Aegean Daylight Theme (Less Dark)" : "Switch to Deep Surf Theme (Dark)"}
-            aria-label="Toggle theme mode"
-          >
-            {theme === "dark" ? (
-              <>
-                <Sun className="w-4 h-4 md:w-5 md:h-5 text-amber-400" />
-                <span className="text-[11px] md:text-xs font-bold text-slate-300 hidden sm:inline">
-                  Daylight
+          {/* 2. Action Controls Group (Local Time, Day/Night Style Toggle, Reload) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
+            {formattedTime && (
+              <div className="hidden md:flex flex-col items-end text-right mr-0.5">
+                <span className="text-[9px] text-slate-400 font-medium">Local Time</span>
+                <span className="text-[11px] font-mono font-bold text-slate-200">
+                  {formattedTime}
                 </span>
-              </>
-            ) : (
-              <>
-                <Moon className="w-4 h-4 md:w-5 md:h-5 text-sky-400" />
-                <span className="text-[11px] md:text-xs font-bold text-slate-700 hidden sm:inline">
-                  Deep Surf
-                </span>
-              </>
+              </div>
             )}
-          </button>
 
-          {onRefresh && (
+            {/* Day/Night Theme Toggle */}
             <button
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-surf-card hover:bg-surf-cardHover border border-surf-border text-slate-300 hover:text-white transition-all active:scale-95 disabled:opacity-50 shadow-sm"
-              title="Refresh Forecast"
-              aria-label="Refresh forecast"
+              onClick={toggleTheme}
+              className="p-1.5 sm:p-2 rounded-xl bg-surf-card hover:bg-surf-cardHover border border-surf-border text-slate-300 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
+              title={theme === "dark" ? "Switch to Aegean Daylight Theme (Less Dark)" : "Switch to Deep Surf Theme (Dark)"}
+              aria-label="Toggle theme mode"
             >
-              <RefreshCw
-                className={`w-4 h-4 md:w-5 md:h-5 text-sky-400 ${
-                  isRefreshing ? "animate-spin" : ""
-                }`}
-              />
+              {theme === "dark" ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-300 hidden sm:inline">
+                    Daylight
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-400" />
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-700 hidden sm:inline">
+                    Deep Surf
+                  </span>
+                </>
+              )}
             </button>
-          )}
+
+            {/* Reload Button */}
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                className="p-1.5 sm:p-2 rounded-xl bg-surf-card hover:bg-surf-cardHover border border-surf-border text-slate-300 hover:text-white transition-all active:scale-95 disabled:opacity-50 shadow-sm"
+                title="Refresh Forecast"
+                aria-label="Refresh forecast"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-400 ${
+                    isRefreshing ? "animate-spin" : ""
+                  }`}
+                />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </header>
