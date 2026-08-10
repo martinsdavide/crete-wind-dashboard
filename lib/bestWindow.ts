@@ -1,6 +1,7 @@
 import { BestWindow, HourlyWind, WaterState } from "@/types/weather";
 import { getConditionLabel } from "./windScore";
 import { getDominantDirection } from "./windDirection";
+import { SCORING_CONFIG } from "@/config/windProfiles";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -28,6 +29,7 @@ export function formatTimeHHMM(timestamp: string): string {
  * 2. eligibility !== "UNSUITABLE" (hard gate: unsuitable hours cannot be in best window)
  * 3. duration >= minDuration (default 2 consecutive hours)
  * 4. adjacent items are strictly 1 hour apart
+ * 5. Window is bounded within daylight hours (sunrise to sunset, ending at sunset maximum)
  */
 export function findBestWindow(
   hourlyItems: HourlyWind[],
@@ -127,12 +129,25 @@ export function findBestWindow(
   try {
     const lastDate = new Date(lastItem.timestamp);
     const endDate = new Date(lastDate.getTime() + ONE_HOUR_MS);
-    endTimeStr = new Intl.DateTimeFormat("en-GB", {
+    const endHourStr = new Intl.DateTimeFormat("en-GB", {
       timeZone: "Europe/Athens",
       hour: "2-digit",
-      minute: "2-digit",
       hour12: false,
     }).format(endDate);
+    const endHour = parseInt(endHourStr, 10);
+
+    // Sunset limit: if end time exceeds sunset (SCORING_CONFIG.daytime.endHour, e.g. 20:00), clamp to sunset
+    const sunsetHour = SCORING_CONFIG.daytime.endHour;
+    if (endHour > sunsetHour || endHour === 0) {
+      endTimeStr = `${String(sunsetHour).padStart(2, "0")}:00`;
+    } else {
+      endTimeStr = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/Athens",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(endDate);
+    }
   } catch {
     endTimeStr = formatTimeHHMM(lastItem.timestamp);
   }

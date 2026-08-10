@@ -57,6 +57,22 @@ describe("Best Window Algorithm", () => {
     expect(window?.sailingStyle).toBe("BUMP_AND_JUMP");
   });
 
+  it("strictly clamps window end time to sunset (20:00) and never outputs 21:00", () => {
+    // Late afternoon session going into 17:00 UTC (20:00 Athens)
+    const lateSequence = [
+      createMockHour("13:00", 80), // Athens 16:00
+      createMockHour("14:00", 85), // Athens 17:00
+      createMockHour("15:00", 88), // Athens 18:00
+      createMockHour("16:00", 82), // Athens 19:00
+      createMockHour("17:00", 78), // Athens 20:00
+    ];
+
+    const window = findBestWindow(lateSequence, 70, 2);
+    expect(window).not.toBeNull();
+    expect(window?.start).toBe("16:00");
+    expect(window?.end).toBe("20:00"); // Capped at sunset (20:00) instead of 21:00
+  });
+
   it("breaks continuous sequence if there is a missing/skipped hour in data", () => {
     const sequenceWithGap = [
       createMockHour("10:00", 85), // point 1
