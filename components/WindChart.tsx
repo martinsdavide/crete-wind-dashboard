@@ -23,10 +23,21 @@ export const WindChart: React.FC<WindChartProps> = ({
   const tForecast = tendaResult.status === "ok" ? tendaResult.data : null;
   const xForecast = xerokamposResult.status === "ok" ? xerokamposResult.data : null;
 
-  // Take first 48 hours
-  const kHourly = useMemo(() => kForecast?.hourly.slice(0, 48) || [], [kForecast]);
-  const tHourly = useMemo(() => tForecast?.hourly.slice(0, 48) || [], [tForecast]);
-  const xHourly = useMemo(() => xForecast?.hourly.slice(0, 48) || [], [xForecast]);
+  // Take upcoming 48 hours from current time forward
+  const getUpcomingPoints = (forecast: typeof kForecast) => {
+    if (!forecast) return [];
+    const nowMs = forecast.current?.timestamp
+      ? new Date(forecast.current.timestamp).getTime()
+      : Date.now();
+    const future = forecast.hourly.filter(
+      (h) => new Date(h.timestamp).getTime() >= nowMs - 30 * 60 * 1000
+    );
+    return future.length > 0 ? future.slice(0, 48) : forecast.hourly.slice(0, 48);
+  };
+
+  const kHourly = useMemo(() => getUpcomingPoints(kForecast), [kForecast]);
+  const tHourly = useMemo(() => getUpcomingPoints(tForecast), [tForecast]);
+  const xHourly = useMemo(() => getUpcomingPoints(xForecast), [xForecast]);
 
   const totalPoints = Math.max(kHourly.length, tHourly.length, xHourly.length);
 
