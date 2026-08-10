@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import { normalizeSpotForecast } from "@/lib/weather/normalizeForecast";
 import { normalizeUtcTimestamp, OpenMeteoRawResponse } from "@/lib/weather/openMeteo";
 import { SPOTS } from "@/config/spots";
-import { calculateBestSpotRecommendation, getAthensDateKey } from "@/lib/dailySummary";
+import { calculateBestSpotRecommendation } from "@/lib/dailySummary";
+import { RecommendationEngine } from "@/engine/recommendation/RecommendationEngine";
+import { EasternCreteRegion } from "@/regions/eastern-crete";
+import { normalizeSpotForecastGeneric } from "@/engine/forecast/ForecastNormalizer";
 
 describe("Open-Meteo Payload & Timezone Integration", () => {
   it("normalizes Open-Meteo UTC timestamps to strict ISO 8601 UTC strings", () => {
@@ -52,7 +55,8 @@ describe("Open-Meteo Payload & Timezone Integration", () => {
     };
 
     const currentTime = new Date("2026-08-09T12:00:00.000Z"); // 15:00 Athens time
-    const forecast = normalizeSpotForecast(SPOTS.kouremenos, mockRaw, currentTime);
+    const kouremenosSpot = EasternCreteRegion.spots.find((s) => s.id === "kouremenos")!;
+    const forecast = normalizeSpotForecastGeneric(kouremenosSpot, mockRaw, currentTime, "Europe/Athens");
 
     expect(forecast.providerModel).toBe("ECMWF IFS HRES (via Open-Meteo)");
     expect(forecast.hourly.length).toBe(48);
@@ -75,9 +79,13 @@ describe("Open-Meteo Payload & Timezone Integration", () => {
     expect(day1.daytimeMaxWind).toBeGreaterThanOrEqual(day1.daytimeMinWind);
     expect(day1.dominantDirection).toBe("NW");
 
-    // Verify Best Spot Recommendation matches Athens date explicitly
-    const rec = calculateBestSpotRecommendation(forecast, null, currentTime);
+    // Verify Best Spot Recommendation with generic RecommendationEngine
+    const spotsResults = {
+      kouremenos: { status: "ok" as const, data: forecast },
+    };
+    const rec = RecommendationEngine.run(EasternCreteRegion, spotsResults, currentTime);
     expect(rec.bestSpot).toBe("kouremenos");
     expect(rec.score).toBeGreaterThan(0);
+    expect(rec.spotScores["kouremenos"]).toBeGreaterThan(0);
   });
 });

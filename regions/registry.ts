@@ -1,5 +1,6 @@
 import { RegionConfig } from "@/types/region";
 import { EasternCreteRegion } from "./eastern-crete";
+import { MaremmaRegion } from "./maremma";
 
 /**
  * Central Region Registry (Plugin Architecture).
@@ -8,6 +9,7 @@ import { EasternCreteRegion } from "./eastern-crete";
  */
 export const REGIONS: RegionConfig[] = [
   EasternCreteRegion,
+  MaremmaRegion,
 ];
 
 export const DEFAULT_REGION: RegionConfig = EasternCreteRegion;

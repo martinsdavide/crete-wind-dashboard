@@ -72,7 +72,7 @@ export interface RegimeDefinition {
     referenceSpotIds?: string[]; // IDs of spots whose raw flow defines the regional regime
     minRawWind?: number;
     maxRawWind?: number;
-    directions: WindDirection[];
+    directions?: WindDirection[];
   };
 }
 
