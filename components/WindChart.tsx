@@ -6,12 +6,29 @@ import { formatTimeHHMM } from "@/lib/bestWindow";
 import { LineChart, AlertTriangle } from "lucide-react";
 
 interface WindChartProps {
-  kouremenosResult: SpotResult;
-  tendaResult: SpotResult;
-  xerokamposResult: SpotResult;
+  spots?: Record<string, SpotResult>;
+  spotList?: SpotResult[];
+  timezone?: string;
+  // Legacy optional props for backward compatibility
+  kouremenosResult?: SpotResult;
+  tendaResult?: SpotResult;
+  xerokamposResult?: SpotResult;
 }
 
+const SPOT_PALETTE = [
+  "#38bdf8", // Sky Blue
+  "#34d399", // Emerald
+  "#c084fc", // Purple
+  "#fbbf24", // Amber
+  "#f43f5e", // Rose
+  "#06b6d4", // Cyan
+  "#f97316", // Orange
+];
+
 export const WindChart: React.FC<WindChartProps> = ({
+  spots,
+  spotList,
+  timezone = "Europe/Athens",
   kouremenosResult,
   tendaResult,
   xerokamposResult,
@@ -19,47 +36,53 @@ export const WindChart: React.FC<WindChartProps> = ({
   const [dataMode, setDataMode] = useState<"local" | "model">("local");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
-  const kForecast = kouremenosResult.status === "ok" ? kouremenosResult.data : null;
-  const tForecast = tendaResult.status === "ok" ? tendaResult.data : null;
-  const xForecast = xerokamposResult.status === "ok" ? xerokamposResult.data : null;
+  // Dynamically resolve all spots
+  const allSpotResults = useMemo(() => {
+    if (spotList && spotList.length > 0) return spotList.filter(Boolean);
+    if (spots && Object.keys(spots).length > 0) return Object.values(spots).filter(Boolean);
+    return [kouremenosResult, tendaResult, xerokamposResult].filter(Boolean) as SpotResult[];
+  }, [spotList, spots, kouremenosResult, tendaResult, xerokamposResult]);
 
   // Take upcoming 48 hours from current time forward
-  const getUpcomingPoints = (forecast: typeof kForecast) => {
-    if (!forecast) return [];
-    const nowMs = forecast.current?.timestamp
-      ? new Date(forecast.current.timestamp).getTime()
-      : Date.now();
-    const future = forecast.hourly.filter(
-      (h) => new Date(h.timestamp).getTime() >= nowMs - 30 * 60 * 1000
-    );
-    return future.length > 0 ? future.slice(0, 48) : forecast.hourly.slice(0, 48);
-  };
+  const seriesList = useMemo(() => {
+    return allSpotResults.map((r, idx) => {
+      const isOk = r.status === "ok";
+      const forecast = isOk ? r.data : null;
+      const id = isOk ? r.data.spot.id : r.spot.id;
+      const name = isOk ? r.data.spot.name : r.spot.name;
+      const color = SPOT_PALETTE[idx % SPOT_PALETTE.length];
 
-  const kHourly = useMemo(() => getUpcomingPoints(kForecast), [kForecast]);
-  const tHourly = useMemo(() => getUpcomingPoints(tForecast), [tForecast]);
-  const xHourly = useMemo(() => getUpcomingPoints(xForecast), [xForecast]);
+      if (!forecast) {
+        return { id, name, isOk, color, hourly: [] };
+      }
 
-  const totalPoints = Math.max(kHourly.length, tHourly.length, xHourly.length);
+      const nowMs = forecast.current?.timestamp
+        ? new Date(forecast.current.timestamp).getTime()
+        : Date.now();
+      const future = forecast.hourly.filter(
+        (h) => new Date(h.timestamp).getTime() >= nowMs - 30 * 60 * 1000
+      );
+      const points = future.length > 0 ? future.slice(0, 48) : forecast.hourly.slice(0, 48);
+
+      return { id, name, isOk, color, hourly: points };
+    });
+  }, [allSpotResults]);
+
+  const totalPoints = useMemo(() => {
+    return Math.max(0, ...seriesList.map((s) => s.hourly.length));
+  }, [seriesList]);
 
   // Determine chart bounds
   const maxWind = useMemo(() => {
     let max = 30;
-    for (let i = 0; i < totalPoints; i++) {
-      if (kHourly[i]) {
-        const kVal = dataMode === "local" ? kHourly[i].localWind : kHourly[i].modelWind;
-        max = Math.max(max, kVal, kHourly[i].localGust);
-      }
-      if (tHourly[i]) {
-        const tVal = dataMode === "local" ? tHourly[i].localWind : tHourly[i].modelWind;
-        max = Math.max(max, tVal, tHourly[i].localGust);
-      }
-      if (xHourly[i]) {
-        const xVal = dataMode === "local" ? xHourly[i].localWind : xHourly[i].modelWind;
-        max = Math.max(max, xVal, xHourly[i].localGust);
+    for (const s of seriesList) {
+      for (const h of s.hourly) {
+        const val = dataMode === "local" ? h.localWind : h.modelWind;
+        max = Math.max(max, val, h.localGust);
       }
     }
     return Math.ceil((max + 4) / 5) * 5;
-  }, [kHourly, tHourly, xHourly, totalPoints, dataMode]);
+  }, [seriesList, dataMode]);
 
   const width = 800;
   const height = 250;
@@ -76,36 +99,19 @@ export const WindChart: React.FC<WindChartProps> = ({
   const getY = (value: number) =>
     paddingTop + chartHeight - (value / maxWind) * chartHeight;
 
-  // Build SVG path strings
-  const kPath = useMemo(() => {
-    if (kHourly.length === 0) return "";
-    return kHourly
-      .map((item, idx) => {
-        const val = dataMode === "local" ? item.localWind : item.modelWind;
-        return `${idx === 0 ? "M" : "L"} ${getX(idx).toFixed(1)} ${getY(val).toFixed(1)}`;
-      })
-      .join(" ");
-  }, [kHourly, dataMode, maxWind, totalPoints]);
-
-  const tPath = useMemo(() => {
-    if (tHourly.length === 0) return "";
-    return tHourly
-      .map((item, idx) => {
-        const val = dataMode === "local" ? item.localWind : item.modelWind;
-        return `${idx === 0 ? "M" : "L"} ${getX(idx).toFixed(1)} ${getY(val).toFixed(1)}`;
-      })
-      .join(" ");
-  }, [tHourly, dataMode, maxWind, totalPoints]);
-
-  const xPath = useMemo(() => {
-    if (xHourly.length === 0) return "";
-    return xHourly
-      .map((item, idx) => {
-        const val = dataMode === "local" ? item.localWind : item.modelWind;
-        return `${idx === 0 ? "M" : "L"} ${getX(idx).toFixed(1)} ${getY(val).toFixed(1)}`;
-      })
-      .join(" ");
-  }, [xHourly, dataMode, maxWind, totalPoints]);
+  // Build SVG path strings dynamically for each series
+  const paths = useMemo(() => {
+    return seriesList.map((s) => {
+      if (s.hourly.length === 0) return { ...s, path: "" };
+      const path = s.hourly
+        .map((item, idx) => {
+          const val = dataMode === "local" ? item.localWind : item.modelWind;
+          return `${idx === 0 ? "M" : "L"} ${getX(idx).toFixed(1)} ${getY(val).toFixed(1)}`;
+        })
+        .join(" ");
+      return { ...s, path };
+    });
+  }, [seriesList, dataMode, maxWind, totalPoints]);
 
   // Y-axis grid ticks
   const yTicks = useMemo(() => {
@@ -118,17 +124,21 @@ export const WindChart: React.FC<WindChartProps> = ({
   }, [maxWind]);
 
   // X-axis time ticks
-  const referenceList = kHourly.length > 0 ? kHourly : tHourly.length > 0 ? tHourly : xHourly;
+  const referenceList = useMemo(() => {
+    const validSeries = seriesList.find((s) => s.hourly.length > 0);
+    return validSeries ? validSeries.hourly : [];
+  }, [seriesList]);
+
   const xTicks = useMemo(() => {
     const ticks: { index: number; label: string }[] = [];
     for (let i = 0; i < totalPoints; i += 6) {
       const item = referenceList[i];
       if (item) {
-        ticks.push({ index: i, label: formatTimeHHMM(item.timestamp) });
+        ticks.push({ index: i, label: formatTimeHHMM(item.timestamp, timezone) });
       }
     }
     return ticks;
-  }, [referenceList, totalPoints]);
+  }, [referenceList, totalPoints, timezone]);
 
   const handlePointerInteraction = (clientX: number, target: SVGSVGElement) => {
     const rect = target.getBoundingClientRect();
@@ -140,22 +150,17 @@ export const WindChart: React.FC<WindChartProps> = ({
     setHoverIndex(Math.max(0, Math.min(totalPoints - 1, idx)));
   };
 
-  const activeK = hoverIndex !== null && kHourly[hoverIndex] ? kHourly[hoverIndex] : null;
-  const activeT = hoverIndex !== null && tHourly[hoverIndex] ? tHourly[hoverIndex] : null;
-  const activeX = hoverIndex !== null && xHourly[hoverIndex] ? xHourly[hoverIndex] : null;
-  const activeSample = activeK || activeT || activeX;
-
   const activeTimeFormatted = useMemo(() => {
-    if (!activeSample) return "";
-    const date = new Date(activeSample.timestamp);
+    if (hoverIndex === null || !referenceList[hoverIndex]) return "";
+    const date = new Date(referenceList[hoverIndex].timestamp);
     return new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Athens",
+      timeZone: timezone,
       weekday: "short",
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
     }).format(date);
-  }, [activeSample]);
+  }, [hoverIndex, referenceList, timezone]);
 
   if (totalPoints === 0) {
     return (
@@ -177,10 +182,10 @@ export const WindChart: React.FC<WindChartProps> = ({
               className="text-base font-extrabold uppercase tracking-tight text-white flex items-center gap-2"
             >
               <LineChart className="w-4 h-4 text-sky-400" />
-              <span>3-SPOT WIND COMPARISON CHART</span>
+              <span>WIND EVOLUTION & SPOT COMPARISON</span>
             </h2>
             <p className="text-xs text-slate-400">
-              Interactive 48-hour evolution between Kouremenos, Tenda & Xerokampos
+              Interactive 48-hour wind evolution across all regional spots
             </p>
           </div>
 
@@ -214,27 +219,20 @@ export const WindChart: React.FC<WindChartProps> = ({
           </div>
         </div>
 
-        {/* Legend */}
+        {/* Dynamic Legend */}
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs mb-3 px-1">
           <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-sky-400 inline-block shadow-sm shadow-sky-400/50" />
-              <span className="font-bold text-slate-200">
-                Kouremenos {kouremenosResult.status === "error" ? "(Offline)" : ""}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-emerald-400 inline-block shadow-sm shadow-emerald-400/50" />
-              <span className="font-bold text-slate-200">
-                Tenda {tendaResult.status === "error" ? "(Offline)" : ""}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-purple-400 inline-block shadow-sm shadow-purple-400/50" />
-              <span className="font-bold text-slate-200">
-                Xerokampos {xerokamposResult.status === "error" ? "(Offline)" : ""}
-              </span>
-            </div>
+            {seriesList.map((s) => (
+              <div key={s.id} className="flex items-center gap-2">
+                <span
+                  className="w-3 h-3 rounded-full inline-block shadow-sm"
+                  style={{ backgroundColor: s.color }}
+                />
+                <span className="font-bold text-slate-200">
+                  {s.name} {!s.isOk ? "(Offline)" : ""}
+                </span>
+              </div>
+            ))}
           </div>
 
           <span className="text-[11px] text-sky-400 font-medium">
@@ -310,40 +308,19 @@ export const WindChart: React.FC<WindChartProps> = ({
               );
             })}
 
-            {/* Kouremenos Line */}
-            {kPath && (
-              <path
-                d={kPath}
-                fill="none"
-                stroke="#38bdf8"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            )}
-
-            {/* Tenda Line */}
-            {tPath && (
-              <path
-                d={tPath}
-                fill="none"
-                stroke="#34d399"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            )}
-
-            {/* Xerokampos Line */}
-            {xPath && (
-              <path
-                d={xPath}
-                fill="none"
-                stroke="#c084fc"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+            {/* Dynamic Spot Lines */}
+            {paths.map((s) =>
+              s.path ? (
+                <path
+                  key={s.id}
+                  d={s.path}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ) : null
             )}
 
             {/* Active Hover Guide Line & Dots */}
@@ -359,85 +336,54 @@ export const WindChart: React.FC<WindChartProps> = ({
                   strokeDasharray="4 2"
                 />
 
-                {activeK && (
-                  <circle
-                    cx={getX(hoverIndex)}
-                    cy={getY(dataMode === "local" ? activeK.localWind : activeK.modelWind)}
-                    r="5.5"
-                    fill="#38bdf8"
-                    stroke="#0f172a"
-                    strokeWidth="2.5"
-                  />
-                )}
-
-                {activeT && (
-                  <circle
-                    cx={getX(hoverIndex)}
-                    cy={getY(dataMode === "local" ? activeT.localWind : activeT.modelWind)}
-                    r="5.5"
-                    fill="#34d399"
-                    stroke="#0f172a"
-                    strokeWidth="2.5"
-                  />
-                )}
-
-                {activeX && (
-                  <circle
-                    cx={getX(hoverIndex)}
-                    cy={getY(dataMode === "local" ? activeX.localWind : activeX.modelWind)}
-                    r="5.5"
-                    fill="#c084fc"
-                    stroke="#0f172a"
-                    strokeWidth="2.5"
-                  />
-                )}
+                {seriesList.map((s) => {
+                  const item = s.hourly[hoverIndex];
+                  if (!item) return null;
+                  const val = dataMode === "local" ? item.localWind : item.modelWind;
+                  return (
+                    <circle
+                      key={s.id}
+                      cx={getX(hoverIndex)}
+                      cy={getY(val)}
+                      r="5.5"
+                      fill={s.color}
+                      stroke="#0f172a"
+                      strokeWidth="2.5"
+                    />
+                  );
+                })}
               </g>
             )}
           </svg>
         </div>
 
         {/* Hover Tooltip Card */}
-        {hoverIndex !== null && (activeK || activeT || activeX) && (
-          <div className="mt-3 p-3 rounded-xl bg-surf-dark border border-surf-border grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs animate-in fade-in duration-100">
-            <div className="text-slate-400 flex items-center justify-between sm:justify-start gap-2 border-b sm:border-b-0 pb-1 sm:pb-0">
+        {hoverIndex !== null && (
+          <div className="mt-3 p-3 rounded-xl bg-surf-dark border border-surf-border flex flex-wrap items-center gap-3 text-xs animate-in fade-in duration-100">
+            <div className="text-slate-400 flex items-center gap-2 border-b sm:border-b-0 pb-1 sm:pb-0 pr-2">
               <span>Time:</span>
-              <strong className="text-white font-mono">
-                {activeTimeFormatted}
-              </strong>
+              <strong className="text-white font-mono">{activeTimeFormatted}</strong>
             </div>
 
-            {activeK && (
-              <div className="flex items-center justify-between gap-1.5">
-                <span className="flex items-center gap-1 text-sky-400 font-bold">
-                  <span className="w-2 h-2 rounded-full bg-sky-400" /> K:
-                </span>
-                <span className="font-mono text-white text-[11px]">
-                  <strong>{Math.round(dataMode === "local" ? activeK.localWind : activeK.modelWind)} kt</strong> {activeK.directionLabel} (Q:{activeK.sessionQualityScore})
-                </span>
-              </div>
-            )}
-
-            {activeT && (
-              <div className="flex items-center justify-between gap-1.5">
-                <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" /> T:
-                </span>
-                <span className="font-mono text-white text-[11px]">
-                  <strong>{Math.round(dataMode === "local" ? activeT.localWind : activeT.modelWind)} kt</strong> {activeT.directionLabel} (Q:{activeT.sessionQualityScore})
-                </span>
-              </div>
-            )}
-
-            {activeX && (
-              <div className="flex items-center justify-between gap-1.5">
-                <span className="flex items-center gap-1 text-purple-400 font-bold">
-                  <span className="w-2 h-2 rounded-full bg-purple-400" /> X:
-                </span>
-                <span className="font-mono text-white text-[11px]">
-                  <strong>{Math.round(dataMode === "local" ? activeX.localWind : activeX.modelWind)} kt</strong> {activeX.directionLabel} (Q:{activeX.sessionQualityScore})
-                </span>
-              </div>
-            )}
+            {seriesList.map((s) => {
+              const item = s.hourly[hoverIndex];
+              if (!item) return null;
+              const val = dataMode === "local" ? item.localWind : item.modelWind;
+              return (
+                <div key={s.id} className="flex items-center gap-1.5 pr-2">
+                  <span className="flex items-center gap-1 font-bold" style={{ color: s.color }}>
+                    <span
+                      className="w-2 h-2 rounded-full inline-block"
+                      style={{ backgroundColor: s.color }}
+                    />
+                    {s.name}:
+                  </span>
+                  <span className="font-mono text-white text-[11px]">
+                    <strong>{Math.round(val)} kt</strong> {item.directionLabel} (Q:{item.sessionQualityScore})
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

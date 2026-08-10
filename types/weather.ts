@@ -227,4 +227,5 @@ export interface WindApiResponse {
   };
   spotList?: SpotResult[];
   recommendation: Recommendation;
+  tomorrowRecommendation?: Recommendation;
 }

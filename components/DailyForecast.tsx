@@ -1,42 +1,60 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { SpotResult } from "@/types/weather";
 import { SpotId } from "@/types/spot";
 import { WindArrow } from "./WindArrow";
 import { Calendar, Clock, Wind, Flame, AlertTriangle, Waves } from "lucide-react";
 
 interface DailyForecastProps {
-  kouremenosResult: SpotResult;
-  tendaResult: SpotResult;
-  xerokamposResult: SpotResult;
+  spots?: Record<string, SpotResult>;
+  spotList?: SpotResult[];
   defaultSpotId?: SpotId | string | null;
+  timezone?: string;
+  // Legacy optional props for backward compatibility
+  kouremenosResult?: SpotResult;
+  tendaResult?: SpotResult;
+  xerokamposResult?: SpotResult;
 }
 
 export const DailyForecast: React.FC<DailyForecastProps> = ({
+  spots,
+  spotList,
+  defaultSpotId,
+  timezone = "Europe/Athens",
   kouremenosResult,
   tendaResult,
   xerokamposResult,
-  defaultSpotId,
 }) => {
-  const [activeSpotId, setActiveSpotId] = useState<SpotId>(
-    (defaultSpotId as SpotId) || "kouremenos"
-  );
+  // Dynamically resolve all spots
+  const allSpotResults = useMemo(() => {
+    if (spotList && spotList.length > 0) return spotList.filter(Boolean);
+    if (spots && Object.keys(spots).length > 0) return Object.values(spots).filter(Boolean);
+    return [kouremenosResult, tendaResult, xerokamposResult].filter(Boolean) as SpotResult[];
+  }, [spotList, spots, kouremenosResult, tendaResult, xerokamposResult]);
+
+  const availableSpots = useMemo(() => {
+    return allSpotResults.map((r) => {
+      const id = r.status === "ok" ? r.data.spot.id : r.spot.id;
+      const name = r.status === "ok" ? r.data.spot.name : r.spot.name;
+      return { id, name, result: r };
+    });
+  }, [allSpotResults]);
+
+  const initialSpotId = (defaultSpotId as string) || (availableSpots[0]?.id ?? "kouremenos");
+  const [activeSpotId, setActiveSpotId] = useState<string>(initialSpotId);
 
   // Dynamically sync default selection with best spot of the day
   useEffect(() => {
     if (defaultSpotId) {
-      setActiveSpotId(defaultSpotId as SpotId);
+      setActiveSpotId(defaultSpotId as string);
+    } else if (availableSpots.length > 0 && !availableSpots.some((s) => s.id === activeSpotId)) {
+      setActiveSpotId(availableSpots[0].id);
     }
-  }, [defaultSpotId]);
+  }, [defaultSpotId, availableSpots, activeSpotId]);
 
-  const activeResult =
-    activeSpotId === "kouremenos"
-      ? kouremenosResult
-      : activeSpotId === "tenda"
-      ? tendaResult
-      : xerokamposResult;
-
+  const activeSpotEntry = availableSpots.find((s) => s.id === activeSpotId) || availableSpots[0];
+  const activeResult = activeSpotEntry?.result || null;
   const activeForecast = activeResult?.status === "ok" ? activeResult.data : null;
 
   const formatDateLabel = (dateStr: string, index: number) => {
@@ -46,7 +64,7 @@ export const DailyForecast: React.FC<DailyForecastProps> = ({
     try {
       const date = new Date(dateStr + "T12:00:00Z");
       return new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Europe/Athens",
+        timeZone: timezone,
         weekday: "short",
         day: "numeric",
         month: "short",
@@ -91,142 +109,135 @@ export const DailyForecast: React.FC<DailyForecastProps> = ({
             </p>
           </div>
 
-          <div className="inline-flex p-1 rounded-xl bg-surf-dark border border-surf-border self-start sm:self-auto">
-            <button
-              onClick={() => setActiveSpotId("kouremenos")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeSpotId === "kouremenos"
-                  ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              Kouremenos
-            </button>
-            <button
-              onClick={() => setActiveSpotId("tenda")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeSpotId === "tenda"
-                  ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              Tenda
-            </button>
-            <button
-              onClick={() => setActiveSpotId("xerokampos")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeSpotId === "xerokampos"
-                  ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              Xerokampos
-            </button>
+          <div className="flex flex-wrap p-1 rounded-xl bg-surf-dark border border-surf-border self-start sm:self-auto gap-1">
+            {availableSpots.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setActiveSpotId(s.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeSpotId === s.id
+                    ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                {s.name}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Spot Offline State */}
-        {activeResult?.status === "error" && (
+        {/* Unavailable State */}
+        {activeResult?.status === "error" ? (
           <div className="py-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-400" />
-            <span>Daily forecast currently unavailable for this spot.</span>
+            <span>Forecast currently unavailable for this spot.</span>
           </div>
-        )}
-
-        {/* 4-Day Grid */}
-        {activeResult?.status !== "error" && activeForecast && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {activeForecast.days.slice(0, 4).map((day, idx) => {
-              const badgeClass = conditionBadges[day.condition] || conditionBadges.OK;
-              const arrowRotation = (day.dominantDirectionDegrees + 180) % 360;
+        ) : (
+          /* 4-Day Responsive Grid */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {activeForecast?.days?.map((day, idx) => {
+              const isToday = idx === 0;
+              const hasBestWindow = day.bestWindow && day.bestWindow.durationHours >= 2;
 
               return (
                 <div
                   key={day.date}
-                  className="flex flex-col justify-between p-4 rounded-xl bg-surf-dark/60 border border-surf-border/60 hover:border-surf-border transition-all"
+                  className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
+                    isToday
+                      ? "bg-gradient-to-b from-surf-dark/95 to-surf-dark border-sky-500/50 shadow-md shadow-sky-500/10 ring-1 ring-sky-500/20"
+                      : "bg-surf-dark/60 border-surf-border/70 hover:border-surf-border"
+                  }`}
                 >
                   <div>
                     {/* Date & Condition Badge */}
-                    <div className="flex items-center justify-between gap-1 mb-2">
-                      <span className="text-xs font-black tracking-wider text-slate-300">
-                        {formatDateLabel(day.date, idx)}
-                      </span>
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div>
+                        <span className="text-xs font-black uppercase tracking-wider text-sky-400 [data-theme='daylight']_:text-sky-700 block">
+                          {formatDateLabel(day.date, idx)}
+                        </span>
+                        <span className="text-[11px] font-mono text-slate-400 block">
+                          {day.date}
+                        </span>
+                      </div>
                       <span
-                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border shadow-sm ${badgeClass}`}
+                        className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border shadow-sm ${
+                          conditionBadges[day.condition] || "bg-slate-800 text-slate-300 border-slate-600"
+                        }`}
                       >
                         {day.condition}
                       </span>
                     </div>
 
-                    {/* Daytime Wind Range & Direction */}
-                    <div className="flex items-center justify-between py-2 border-b border-surf-border/40">
+                    {/* Wind Speed & Direction Display */}
+                    <div className="flex items-center justify-between my-2 p-2.5 rounded-lg bg-surf-dark/70 border border-surf-border/40">
                       <div>
-                        <span className="text-2xl font-black font-mono text-white">
-                          {Math.round(day.daytimeMinWind)}–{Math.round(day.daytimeMaxWind)}{" "}
-                          <span className="text-xs font-normal text-sky-400">kt</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Daytime Wind
                         </span>
-                        <span className="block text-[10px] text-slate-400">
-                          24h: {Math.round(day.minWind)}–{Math.round(day.maxWind)} kt
+                        <span className="text-2xl font-black font-mono text-white block">
+                          {Math.round(day.daytimeMinWind)}–{Math.round(day.daytimeMaxWind)}{" "}
+                          <span className="text-xs font-normal text-slate-400">kt</span>
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          Gusts {Math.round(day.maxGust)} kt
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-1.5 text-right">
-                        <span className="text-sm font-bold font-mono text-slate-200">
+                      <div className="flex flex-col items-center gap-1">
+                        <WindArrow
+                          rotation={
+                            day.dominantDirectionDegrees !== undefined
+                              ? (day.dominantDirectionDegrees + 180) % 360
+                              : 135
+                          }
+                          directionLabel={day.dominantDirection}
+                          size="md"
+                        />
+                        <span className="text-xs font-bold font-mono text-cyan-300">
                           {day.dominantDirection}
                         </span>
-                        <WindArrow
-                          rotation={arrowRotation}
-                          directionLabel={day.dominantDirection}
-                          size="sm"
-                        />
                       </div>
+                    </div>
+
+                    {/* Best Window Highlight */}
+                    <div className="mt-2.5 p-2 rounded-lg bg-surf-card/60 border border-surf-border/40 space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400 flex items-center gap-1 font-semibold">
+                          <Clock className="w-3.5 h-3.5 text-sky-400" />
+                          <span>Best Window:</span>
+                        </span>
+                        <span className="font-bold font-mono text-white">
+                          {hasBestWindow
+                            ? `${day.bestWindow!.start} – ${day.bestWindow!.end}`
+                            : "No peak window"}
+                        </span>
+                      </div>
+
+                      {hasBestWindow && (
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-0.5">
+                          <span>
+                            {day.bestWindow!.durationHours}h continuous (
+                            {Math.round(day.bestWindow!.minWind)}–{Math.round(day.bestWindow!.maxWind)} kt)
+                          </span>
+                          <span className="text-emerald-400 font-bold">
+                            Score {Math.round(day.bestWindow!.meanScore)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Best Window & Metrics */}
-                  <div className="mt-3 space-y-2 text-xs">
-                    {day.bestWindow ? (
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-surf-card/80 border border-surf-border/40">
-                        <div className="flex items-center gap-1.5 text-slate-300">
-                          <Clock className="w-3.5 h-3.5 text-sky-400" />
-                          <span className="text-[11px] font-mono font-bold">
-                            {day.bestWindow.start} – {day.bestWindow.end}
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-mono font-bold text-sky-300">
-                          {Math.round(day.bestWindow.minWind)}–{Math.round(day.bestWindow.maxWind)} kt
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-surf-card/40 border border-surf-border/30 text-[11px] text-slate-400">
-                        <span>No peak window (&ge;70)</span>
-                      </div>
-                    )}
+                  {/* Footer Style & Daily Score */}
+                  <div className="mt-3 pt-2.5 border-t border-surf-border/40 flex items-center justify-between text-xs">
+                    <span className="badge-wave text-[10px] font-bold text-sky-300 flex items-center gap-1">
+                      <Waves className="w-3 h-3 text-sky-400" />
+                      <span>{styleLabels[day.dominantStyle] || day.dominantStyle}</span>
+                    </span>
 
-                    <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
-                      <div className="flex items-center gap-1">
-                        <Flame className="w-3.5 h-3.5 text-amber-400" />
-                        <span className="font-mono font-bold text-slate-200">
-                          Quality {day.score}/100
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1 text-slate-300">
-                        <Wind className="w-3 h-3 text-slate-400" />
-                        <span>
-                          Gust <strong className="text-amber-400">{Math.round(day.maxGust)}</strong>
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Dominant Style Tag */}
-                    <div className="flex items-center justify-between pt-1 border-t border-surf-border/30 text-[10px] text-slate-400">
-                      <span className="flex items-center gap-1 text-cyan-400 font-semibold">
-                        <Waves className="w-3 h-3" />
-                        <span>{styleLabels[day.dominantStyle] || day.dominantStyle}</span>
-                      </span>
-                      <span className="font-mono uppercase font-bold text-slate-400">
-                        {day.dominantEligibility}
+                    <div className="flex items-center gap-1 text-[11px] font-mono">
+                      <Flame className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="font-bold text-white">
+                        Score {day.score}/100
                       </span>
                     </div>
                   </div>

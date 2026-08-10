@@ -164,6 +164,7 @@ export default function HomePage() {
             {/* 1. Best Today Session Hero Card */}
             <BestSpot
               recommendation={data.recommendation}
+              tomorrowRecommendation={data.tomorrowRecommendation}
               spots={data.spots}
               spotList={orderedSpots}
               timezone={data.timezone}
@@ -174,7 +175,7 @@ export default function HomePage() {
               <h2 id="spots-heading" className="sr-only">
                 Current Spot Conditions
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {orderedSpots.map((spotRes) => (
                   <SpotCard
                     key={spotRes.status === "ok" ? spotRes.data.spot.id : spotRes.spot.id}
@@ -186,25 +187,25 @@ export default function HomePage() {
 
             {/* 3. Hourly Forecast Ribbon (Defaults dynamically to Best Spot) */}
             <HourlyForecast
-              kouremenosResult={kouremenosRes}
-              tendaResult={tendaRes}
-              xerokamposResult={xerokamposRes}
+              spots={data.spots}
+              spotList={orderedSpots}
+              timezone={data.timezone}
               defaultSpotId={data.recommendation?.bestSpot || currentRegion.defaultSpotId}
             />
 
             {/* 4. 4-Day Forecast Overview (Defaults dynamically to Best Spot) */}
             <DailyForecast
-              kouremenosResult={kouremenosRes}
-              tendaResult={tendaRes}
-              xerokamposResult={xerokamposRes}
+              spots={data.spots}
+              spotList={orderedSpots}
+              timezone={data.timezone}
               defaultSpotId={data.recommendation?.bestSpot || currentRegion.defaultSpotId}
             />
 
-            {/* 5. 3-Spot Wind Comparison Chart */}
+            {/* 5. Wind Comparison Chart */}
             <WindChart
-              kouremenosResult={kouremenosRes}
-              tendaResult={tendaRes}
-              xerokamposResult={xerokamposRes}
+              spots={data.spots}
+              spotList={orderedSpots}
+              timezone={data.timezone}
             />
 
             {/* 6. Forecast Source Information & Disclaimer */}

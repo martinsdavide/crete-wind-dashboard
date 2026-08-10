@@ -71,8 +71,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Run decoupled Recommendation Engine
+  // Run decoupled Recommendation Engine for Today and Tomorrow
   const recommendation = RecommendationEngine.run(regionConfig, spotsResults, currentTime);
+  const tomorrowTime = new Date(currentTime.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowRecommendation = RecommendationEngine.run(regionConfig, spotsResults, tomorrowTime);
 
   const defaultModel =
     Object.values(models).find((m) => m !== "Unavailable") ||
@@ -90,6 +92,7 @@ export async function GET(request: NextRequest) {
     spots: spotsResults,
     spotList,
     recommendation,
+    tomorrowRecommendation,
   };
 
   return NextResponse.json(response, {

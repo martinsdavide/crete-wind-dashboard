@@ -6,46 +6,62 @@ import { SpotId } from "@/types/spot";
 import { WindArrow } from "./WindArrow";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { formatTimeHHMM } from "@/lib/bestWindow";
-import { getAthensTimeComponents } from "@/lib/localWind";
-import { SCORING_CONFIG } from "@/config/windProfiles";
 import { isDaylightHour } from "@/lib/solar";
 import { X, AlertTriangle, Waves, Sun } from "lucide-react";
 
 interface HourlyForecastProps {
-  kouremenosResult: SpotResult;
-  tendaResult: SpotResult;
-  xerokamposResult: SpotResult;
+  spots?: Record<string, SpotResult>;
+  spotList?: SpotResult[];
   defaultSpotId?: SpotId | string | null;
+  timezone?: string;
+  // Legacy optional props for backward compatibility
+  kouremenosResult?: SpotResult;
+  tendaResult?: SpotResult;
+  xerokamposResult?: SpotResult;
 }
 
 export const HourlyForecast: React.FC<HourlyForecastProps> = ({
+  spots,
+  spotList,
+  defaultSpotId,
+  timezone = "Europe/Athens",
   kouremenosResult,
   tendaResult,
   xerokamposResult,
-  defaultSpotId,
 }) => {
-  const [selectedSpotId, setSelectedSpotId] = useState<SpotId>(
-    (defaultSpotId as SpotId) || "kouremenos"
-  );
+  // Dynamically resolve all spots
+  const allSpotResults = useMemo(() => {
+    if (spotList && spotList.length > 0) return spotList.filter(Boolean);
+    if (spots && Object.keys(spots).length > 0) return Object.values(spots).filter(Boolean);
+    return [kouremenosResult, tendaResult, xerokamposResult].filter(Boolean) as SpotResult[];
+  }, [spotList, spots, kouremenosResult, tendaResult, xerokamposResult]);
+
+  const availableSpots = useMemo(() => {
+    return allSpotResults.map((r) => {
+      const id = r.status === "ok" ? r.data.spot.id : r.spot.id;
+      const name = r.status === "ok" ? r.data.spot.name : r.spot.name;
+      return { id, name, result: r };
+    });
+  }, [allSpotResults]);
+
+  const initialSpotId = (defaultSpotId as string) || (availableSpots[0]?.id ?? "kouremenos");
+  const [selectedSpotId, setSelectedSpotId] = useState<string>(initialSpotId);
   const [activeItem, setActiveItem] = useState<{ item: HourlyWind; isNow: boolean } | null>(null);
 
   // Dynamically sync default selection with best spot of the day
   useEffect(() => {
     if (defaultSpotId) {
-      setSelectedSpotId(defaultSpotId as SpotId);
+      setSelectedSpotId(defaultSpotId as string);
+    } else if (availableSpots.length > 0 && !availableSpots.some((s) => s.id === selectedSpotId)) {
+      setSelectedSpotId(availableSpots[0].id);
     }
-  }, [defaultSpotId]);
+  }, [defaultSpotId, availableSpots, selectedSpotId]);
 
-  const activeResult =
-    selectedSpotId === "kouremenos"
-      ? kouremenosResult
-      : selectedSpotId === "tenda"
-      ? tendaResult
-      : xerokamposResult;
-
+  const activeSpotEntry = availableSpots.find((s) => s.id === selectedSpotId) || availableSpots[0];
+  const activeResult = activeSpotEntry?.result || null;
   const activeForecast = activeResult?.status === "ok" ? activeResult.data : null;
 
-  // Filter display items: NOW (current conditions) followed strictly by daylight windsurfing hours (07:00 to 20:00)
+  // Filter display items: NOW (current conditions) followed strictly by daylight windsurfing hours
   const displayItems = useMemo(() => {
     if (!activeForecast) return [];
 
@@ -53,13 +69,16 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
       ? new Date(activeForecast.current.timestamp).getTime()
       : Date.now();
 
+    const lat = activeForecast.spot?.latitude ?? 35.19;
+    const lon = activeForecast.spot?.longitude ?? 26.27;
+
     // Filter future hourly items:
     // 1. Strictly in the future (timestamp > nowMs)
     // 2. Strictly during solar daylight windsurfing window (sunrise to sunset calculated astronomically)
     const futureDaylightHours = activeForecast.hourly.filter((h) => {
       const hMs = new Date(h.timestamp).getTime();
       const isFuture = hMs > nowMs;
-      const isDaylight = isDaylightHour(h.timestamp);
+      const isDaylight = isDaylightHour(h.timestamp, lat, lon);
 
       return isFuture && isDaylight;
     });
@@ -73,7 +92,7 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
     }
 
     return futureDaylightHours.slice(0, 36).map((h) => ({ item: h, isNow: false }));
-  }, [activeForecast]);
+  }, [activeForecast, timezone]);
 
   const styleLabels: Record<string, string> = {
     WAVE: "WAVE",
@@ -100,38 +119,21 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
             </p>
           </div>
 
-          {/* 3-Spot Toggle Pill */}
-          <div className="inline-flex p-1 rounded-xl bg-surf-dark border border-surf-border self-start sm:self-auto">
-            <button
-              onClick={() => setSelectedSpotId("kouremenos")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                selectedSpotId === "kouremenos"
-                  ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              Kouremenos
-            </button>
-            <button
-              onClick={() => setSelectedSpotId("tenda")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                selectedSpotId === "tenda"
-                  ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              Tenda
-            </button>
-            <button
-              onClick={() => setSelectedSpotId("xerokampos")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                selectedSpotId === "xerokampos"
-                  ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              Xerokampos
-            </button>
+          {/* Dynamic Spot Toggle Pill */}
+          <div className="flex flex-wrap p-1 rounded-xl bg-surf-dark border border-surf-border self-start sm:self-auto gap-1">
+            {availableSpots.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setSelectedSpotId(s.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  selectedSpotId === s.id
+                    ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                {s.name}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -146,12 +148,12 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
           <div className="relative">
             <div className="flex items-stretch gap-2.5 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-surf-border scrollbar-track-transparent">
               {displayItems.map(({ item, isNow }) => {
-                const timeLabel = isNow ? "NOW" : formatTimeHHMM(item.timestamp);
+                const timeLabel = isNow ? "NOW" : formatTimeHHMM(item.timestamp, timezone);
                 const itemDate = new Date(item.timestamp);
                 const dayLabel = isNow
                   ? ""
                   : new Intl.DateTimeFormat("en-GB", {
-                      timeZone: "Europe/Athens",
+                      timeZone: timezone,
                       weekday: "short",
                     })
                       .format(itemDate)
@@ -249,18 +251,18 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
             <div className="flex items-center justify-between border-b border-surf-border/60 pb-3">
               <div>
                 <span className="text-xs text-sky-400 uppercase font-bold">
-                  {selectedSpotId.toUpperCase()}
+                  {activeSpotEntry?.name.toUpperCase() || selectedSpotId.toUpperCase()}
                 </span>
                 <h4 className="text-lg font-black text-white font-mono">
                   {activeItem.isNow
                     ? "NOW (CURRENT CONDITIONS)"
                     : `${new Intl.DateTimeFormat("en-GB", {
-                        timeZone: "Europe/Athens",
+                        timeZone: timezone,
                         weekday: "short",
                         hour: "2-digit",
                         minute: "2-digit",
                         hour12: false,
-                      }).format(new Date(activeItem.item.timestamp))} ATHENS TIME`}
+                      }).format(new Date(activeItem.item.timestamp))} LOCAL TIME`}
                 </h4>
               </div>
               <button

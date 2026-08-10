@@ -20,9 +20,9 @@ export function classifyRegionalRegime(
   regionConfig: RegionConfig,
   spotForecasts: Record<string, SpotForecast | null | undefined>
 ): { regimeId: string; regimeLabel: string } {
-  const defaultRegime = regionConfig.regimes[0] || {
-    id: "MODERATE_FLOW",
-    label: "Moderate Flow",
+  const fallbackRegime = {
+    regimeId: "OTHER_FLOW",
+    regimeLabel: "Variable Airflow",
   };
 
   // Find reference flow from configured reference spots
@@ -33,7 +33,7 @@ export function classifyRegionalRegime(
   }
 
   if (referenceForecasts.length === 0) {
-    return { regimeId: defaultRegime.id, regimeLabel: defaultRegime.label };
+    return fallbackRegime;
   }
 
   // Calculate average raw speed and dominant raw direction across reference spots
@@ -82,7 +82,7 @@ export function classifyRegionalRegime(
     }
   }
 
-  return { regimeId: defaultRegime.id, regimeLabel: defaultRegime.label };
+  return fallbackRegime;
 }
 
 export class RecommendationEngine {

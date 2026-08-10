@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MaremmaRegion } from "@/regions/maremma";
-import { getRegion, isValidRegionId, REGIONS } from "@/regions/registry";
+import { getRegion, isValidRegionId } from "@/regions/registry";
 import { RecommendationEngine } from "@/engine/recommendation/RecommendationEngine";
 import { normalizeSpotForecastGeneric } from "@/engine/forecast/ForecastNormalizer";
 import { OpenMeteoRawResponse } from "@/lib/weather/openMeteo";
@@ -19,7 +19,7 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
       expect(region.defaultSpotId).toBe("talamone");
     });
 
-    it("includes the 5 MVP spots with valid coordinates and configurations", () => {
+    it("includes the 5 MVP spots with valid coordinates and hard gates", () => {
       const spotIds = MaremmaRegion.spots.map((s) => s.id);
       expect(spotIds).toEqual([
         "talamone",
@@ -37,6 +37,7 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
         expect(spot.qualityCurve.length).toBeGreaterThanOrEqual(4);
         expect(spot.idealDirections.length).toBeGreaterThan(0);
         expect(spot.localCorrection.minFactor).toBeLessThanOrEqual(spot.localCorrection.maxFactor);
+        expect(spot.hardGates?.length).toBeGreaterThanOrEqual(1);
       }
     });
 
@@ -54,7 +55,8 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
   function generateMaremmaRawData(
     baseSpeed: number,
     baseDirection: number,
-    gustMultiplier = 1.25
+    gustMultiplier = 1.25,
+    hoursCount = 48
   ): OpenMeteoRawResponse {
     const times: string[] = [];
     const speeds: number[] = [];
@@ -63,10 +65,11 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
     const temps: number[] = [];
     const clouds: number[] = [];
 
-    // 24 hours forecast for 2026-08-10 in UTC
-    for (let h = 0; h < 24; h++) {
-      const hourStr = h.toString().padStart(2, "0");
-      times.push(`2026-08-10T${hourStr}:00:00.000Z`);
+    const baseDate = new Date("2026-08-10T00:00:00.000Z");
+
+    for (let h = 0; h < hoursCount; h++) {
+      const dt = new Date(baseDate.getTime() + h * 3600000);
+      times.push(dt.toISOString());
       speeds.push(baseSpeed);
       dirs.push(baseDirection);
       gusts.push(baseSpeed * gustMultiplier);
@@ -186,7 +189,16 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
       const spotsResults: Record<string, SpotResult> = {};
       MaremmaRegion.spots.forEach((spot, idx) => {
         if (idx === 0) {
-          spotsResults[spot.id] = { status: "error", message: "Network timeout", spot: { id: spot.id, name: spot.name, latitude: spot.latitude, longitude: spot.longitude } };
+          spotsResults[spot.id] = {
+            status: "error",
+            message: "Network timeout",
+            spot: {
+              id: spot.id,
+              name: spot.name,
+              latitude: spot.latitude,
+              longitude: spot.longitude,
+            },
+          };
         } else {
           const fc = normalizeSpotForecastGeneric(spot, raw, refDate, "Europe/Rome");
           spotsResults[spot.id] = { status: "ok", data: fc };
@@ -198,6 +210,64 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
       expect(recommendation.bestSpot).not.toBeNull();
       expect(recommendation.bestSpot).not.toBe("talamone");
       expect(recommendation.spotScores["talamone"]).toBeNull();
+    });
+  });
+
+  describe("Offshore Direction Safety Hard Gates", () => {
+    it("marks spots UNSUITABLE under hazardous offshore East wind (90°)", () => {
+      // 22 kt East (90°) wind (strong offshore for Talamone, Punta Ala, Marina di Grosseto, Castiglione)
+      const raw = generateMaremmaRawData(22, 90);
+      const refDate = new Date("2026-08-10T12:00:00.000Z");
+
+      const spotsResults: Record<string, SpotResult> = {};
+      for (const spot of MaremmaRegion.spots) {
+        const fc = normalizeSpotForecastGeneric(spot, raw, refDate, "Europe/Rome");
+        spotsResults[spot.id] = { status: "ok", data: fc };
+      }
+
+      const rec = RecommendationEngine.run(MaremmaRegion, spotsResults, refDate);
+
+      // Talamone, Punta Ala, Marina di Grosseto, Castiglione must be hard-gated with score 0
+      expect(rec.spotScores["talamone"]).toBe(0);
+      expect(rec.spotScores["punta-ala"]).toBe(0);
+      expect(rec.spotScores["marina-di-grosseto"]).toBe(0);
+      expect(rec.spotScores["castiglione-della-pescaia"]).toBe(0);
+    });
+  });
+
+  describe("Unmatched Regime Fallback", () => {
+    it("returns neutral 'OTHER_FLOW' / 'Variable Airflow' when conditions do not match any defined regime", () => {
+      // 11 kt SE (135°) which does not match Scirocco (min 12kt) or other regimes
+      const raw = generateMaremmaRawData(11, 135);
+      const refDate = new Date("2026-08-10T12:00:00.000Z");
+
+      const spotsResults: Record<string, SpotResult> = {};
+      for (const spot of MaremmaRegion.spots) {
+        const fc = normalizeSpotForecastGeneric(spot, raw, refDate, "Europe/Rome");
+        spotsResults[spot.id] = { status: "ok", data: fc };
+      }
+
+      const rec = RecommendationEngine.run(MaremmaRegion, spotsResults, refDate);
+      expect(rec.regime).toBe("OTHER_FLOW");
+      expect(rec.regimeLabel).toBe("Variable Airflow");
+    });
+  });
+
+  describe("Tomorrow's Independent Recommendation", () => {
+    it("evaluates tomorrow's session rankings independently across all 5 spots", () => {
+      const raw = generateMaremmaRawData(20, 315, 1.2, 48);
+      const todayDate = new Date("2026-08-10T12:00:00.000Z");
+      const tomorrowDate = new Date("2026-08-11T12:00:00.000Z");
+
+      const spotsResults: Record<string, SpotResult> = {};
+      for (const spot of MaremmaRegion.spots) {
+        const fc = normalizeSpotForecastGeneric(spot, raw, todayDate, "Europe/Rome");
+        spotsResults[spot.id] = { status: "ok", data: fc };
+      }
+
+      const tomorrowRec = RecommendationEngine.run(MaremmaRegion, spotsResults, tomorrowDate);
+      expect(tomorrowRec.bestSpot).not.toBeNull();
+      expect(Object.keys(tomorrowRec.spotScores).length).toBe(5);
     });
   });
 });

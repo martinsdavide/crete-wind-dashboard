@@ -62,6 +62,15 @@ export const MaremmaSpots: RegionSpotConfig[] = [
         SW: 0.0,
       },
     },
+    hardGates: [
+      {
+        id: "talamone-offshore-east",
+        description: "Offshore wind from inland hills (ENE/E/ESE)",
+        directionRange: [60, 120],
+        eligibility: "UNSUITABLE",
+        reason: "Strongly offshore wind from inland hills creates dangerous drift and severe gustiness.",
+      },
+    ],
   },
   {
     id: "punta-ala",
@@ -119,6 +128,15 @@ export const MaremmaSpots: RegionSpotConfig[] = [
         SW: 0.05,
       },
     },
+    hardGates: [
+      {
+        id: "punta-ala-offshore-east",
+        description: "Offshore wind off the cape (NE/E/SE)",
+        directionRange: [45, 135],
+        eligibility: "UNSUITABLE",
+        reason: "Offshore wind from the pine forest blows into the open channel with unstable gusts and hazardous drift.",
+      },
+    ],
   },
   {
     id: "marina-di-grosseto",
@@ -175,6 +193,15 @@ export const MaremmaSpots: RegionSpotConfig[] = [
         SW: 0.05,
       },
     },
+    hardGates: [
+      {
+        id: "marina-grosseto-offshore",
+        description: "Direct offshore wind from the mainland (NE/E/SE)",
+        directionRange: [45, 135],
+        eligibility: "UNSUITABLE",
+        reason: "Direct offshore wind from the mainland creates unsafe drift and gusty offshore conditions.",
+      },
+    ],
   },
   {
     id: "giannella",
@@ -230,6 +257,15 @@ export const MaremmaSpots: RegionSpotConfig[] = [
         N: 0.0,
       },
     },
+    hardGates: [
+      {
+        id: "giannella-offshore-south",
+        description: "Offshore flow away from tombolo (SE/S/SSW)",
+        directionRange: [135, 210],
+        eligibility: "UNSUITABLE",
+        reason: "Offshore flow creates hazardous drift away from the tombolo.",
+      },
+    ],
   },
   {
     id: "castiglione-della-pescaia",
@@ -284,5 +320,14 @@ export const MaremmaSpots: RegionSpotConfig[] = [
         W: 0.05,
       },
     },
+    hardGates: [
+      {
+        id: "castiglione-offshore-east",
+        description: "Offshore wind from behind the hills (NE/E)",
+        directionRange: [45, 120],
+        eligibility: "UNSUITABLE",
+        reason: "Offshore wind blowing from behind the hills creates dangerous offshore drift.",
+      },
+    ],
   },
 ];

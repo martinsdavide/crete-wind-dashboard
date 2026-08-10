@@ -22,6 +22,7 @@ import { getSolarWindow } from "@/lib/solar";
 
 interface BestSpotProps {
   recommendation: Recommendation;
+  tomorrowRecommendation?: Recommendation;
   spots?: Record<string, SpotResult>;
   spotList?: SpotResult[];
   timezone?: string;
@@ -33,6 +34,7 @@ interface BestSpotProps {
 
 export const BestSpot: React.FC<BestSpotProps> = ({
   recommendation,
+  tomorrowRecommendation,
   spots,
   spotList,
   timezone = "Europe/Athens",
@@ -64,7 +66,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
     return [kouremenosResult, tendaResult, xerokamposResult].filter(Boolean) as SpotResult[];
   }, [spotList, spots, kouremenosResult, tendaResult, xerokamposResult]);
 
-  // Find the winning spot forecast dynamically
+  // Find today's winning spot forecast dynamically
   const chosenResult =
     spotResults.find((r) => {
       if (!r) return false;
@@ -74,8 +76,27 @@ export const BestSpot: React.FC<BestSpotProps> = ({
 
   const chosenForecast = chosenResult?.status === "ok" ? chosenResult.data : null;
   const todaySummary = chosenForecast?.days[0];
-  const tomorrowSummary = chosenForecast?.days[1];
   const stability = bestWindow?.stability;
+
+  // Tomorrow's winning spot & forecast (evaluated independently across all spots)
+  const tomorrowWinnerId = tomorrowRecommendation?.bestSpot || bestSpot;
+  const tomorrowWinnerName = tomorrowRecommendation?.bestSpotName || bestSpotName;
+  const tomorrowWinnerResult =
+    spotResults.find((r) => {
+      if (!r) return false;
+      const spotId = r.status === "ok" ? r.data.spot.id : r.spot.id;
+      return spotId === tomorrowWinnerId;
+    }) || chosenResult;
+
+  const tomorrowWinnerForecast =
+    tomorrowWinnerResult?.status === "ok" ? tomorrowWinnerResult.data : chosenForecast;
+  const tomorrowSummary =
+    tomorrowWinnerForecast?.days?.[1] || tomorrowWinnerForecast?.days?.[0];
+  const tomorrowScore = tomorrowRecommendation?.score ?? tomorrowSummary?.score ?? null;
+  const tomorrowBestWindow =
+    tomorrowRecommendation?.bestWindow ?? tomorrowSummary?.bestWindow ?? null;
+  const tomorrowStyle =
+    tomorrowRecommendation?.sailingStyle || tomorrowSummary?.dominantStyle || "BUMP_AND_JUMP";
 
   // Determine if it's currently post-sunset / nighttime in the region's local timezone
   const isPostSunset = useMemo(() => {
@@ -304,13 +325,13 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                       EARLY FORECAST FOR TOMORROW
                     </span>
                     <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight uppercase">
-                      {bestSpotName}
+                      {tomorrowWinnerName}
                     </h3>
                   </div>
                   <div className="flex items-center gap-2 self-start">
                     <span className="badge-wave inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-extrabold tracking-wide shadow-sm border">
                       <Waves className="w-3.5 h-3.5 text-sky-400" />
-                      <span>{styleLabels[tomorrowSummary.dominantStyle] || tomorrowSummary.dominantStyle}</span>
+                      <span>{styleLabels[tomorrowStyle] || tomorrowStyle}</span>
                     </span>
                   </div>
                 </div>
@@ -357,13 +378,13 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                     </div>
                     <div>
                       <span className="text-[13px] xs:text-sm sm:text-lg md:text-xl lg:text-2xl font-black font-mono text-white block tracking-tight whitespace-nowrap">
-                        {tomorrowSummary.bestWindow
-                          ? `${tomorrowSummary.bestWindow.start} – ${tomorrowSummary.bestWindow.end}`
+                        {tomorrowBestWindow
+                          ? `${tomorrowBestWindow.start} – ${tomorrowBestWindow.end}`
                           : "11:00 – 17:00"}
                       </span>
                       <span className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 block truncate">
-                        {tomorrowSummary.bestWindow
-                          ? `${tomorrowSummary.bestWindow.durationHours}h window`
+                        {tomorrowBestWindow
+                          ? `${tomorrowBestWindow.durationHours}h window`
                           : "Daylight window"}
                       </span>
                     </div>
@@ -377,7 +398,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                     </div>
                     <div>
                       <span className="text-lg sm:text-2xl font-black font-mono text-amber-400 block">
-                        {tomorrowSummary.score}/100
+                        {tomorrowScore !== null ? tomorrowScore : tomorrowSummary.score}/100
                       </span>
                       <span className="text-[10px] sm:text-[11px] text-slate-300 mt-0.5 block truncate">
                         {tomorrowSummary.condition}
