@@ -85,7 +85,7 @@ export const WindChart: React.FC<WindChartProps> = ({
         return `${idx === 0 ? "M" : "L"} ${getX(idx).toFixed(1)} ${getY(val).toFixed(1)}`;
       })
       .join(" ");
-  }, [kHourly, dataMode, maxWind]);
+  }, [kHourly, dataMode, maxWind, totalPoints]);
 
   const tPath = useMemo(() => {
     if (tHourly.length === 0) return "";
@@ -95,7 +95,7 @@ export const WindChart: React.FC<WindChartProps> = ({
         return `${idx === 0 ? "M" : "L"} ${getX(idx).toFixed(1)} ${getY(val).toFixed(1)}`;
       })
       .join(" ");
-  }, [tHourly, dataMode, maxWind]);
+  }, [tHourly, dataMode, maxWind, totalPoints]);
 
   const xPath = useMemo(() => {
     if (xHourly.length === 0) return "";
@@ -105,7 +105,7 @@ export const WindChart: React.FC<WindChartProps> = ({
         return `${idx === 0 ? "M" : "L"} ${getX(idx).toFixed(1)} ${getY(val).toFixed(1)}`;
       })
       .join(" ");
-  }, [xHourly, dataMode, maxWind]);
+  }, [xHourly, dataMode, maxWind, totalPoints]);
 
   // Y-axis grid ticks
   const yTicks = useMemo(() => {
@@ -130,9 +130,32 @@ export const WindChart: React.FC<WindChartProps> = ({
     return ticks;
   }, [referenceList, totalPoints]);
 
+  const handlePointerInteraction = (clientX: number, target: SVGSVGElement) => {
+    const rect = target.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const relX = clientX - rect.left;
+    const svgX = (relX / rect.width) * width;
+    const ratio = Math.max(0, Math.min(1, (svgX - paddingLeft) / chartWidth));
+    const idx = Math.round(ratio * (totalPoints - 1));
+    setHoverIndex(Math.max(0, Math.min(totalPoints - 1, idx)));
+  };
+
   const activeK = hoverIndex !== null && kHourly[hoverIndex] ? kHourly[hoverIndex] : null;
   const activeT = hoverIndex !== null && tHourly[hoverIndex] ? tHourly[hoverIndex] : null;
   const activeX = hoverIndex !== null && xHourly[hoverIndex] ? xHourly[hoverIndex] : null;
+  const activeSample = activeK || activeT || activeX;
+
+  const activeTimeFormatted = useMemo(() => {
+    if (!activeSample) return "";
+    const date = new Date(activeSample.timestamp);
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Athens",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+  }, [activeSample]);
 
   if (totalPoints === 0) {
     return (
@@ -214,39 +237,25 @@ export const WindChart: React.FC<WindChartProps> = ({
             </div>
           </div>
 
-          <span className="text-[11px] text-slate-400">
-            Hover or touch to inspect comparison
+          <span className="text-[11px] text-sky-400 font-medium">
+            Touch or move cursor to inspect any hour
           </span>
         </div>
 
         {/* SVG Interactive Chart */}
-        <div className="relative w-full overflow-hidden">
+        <div className="relative w-full overflow-hidden cursor-crosshair">
           <svg
             viewBox={`0 0 ${width} ${height}`}
-            className="w-full h-auto select-none"
-            onMouseMove={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const clientX = e.clientX - rect.left;
-              const ratio = Math.max(
-                0,
-                Math.min(1, (clientX / rect.width) * width - paddingLeft) / chartWidth
-              );
-              const idx = Math.round(ratio * (totalPoints - 1));
-              setHoverIndex(Math.max(0, Math.min(totalPoints - 1, idx)));
-            }}
-            onMouseLeave={() => setHoverIndex(null)}
-            onTouchMove={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const touch = e.touches[0];
-              const clientX = touch.clientX - rect.left;
-              const ratio = Math.max(
-                0,
-                Math.min(1, (clientX / rect.width) * width - paddingLeft) / chartWidth
-              );
-              const idx = Math.round(ratio * (totalPoints - 1));
-              setHoverIndex(Math.max(0, Math.min(totalPoints - 1, idx)));
-            }}
+            className="w-full h-auto select-none touch-none"
+            style={{ touchAction: "none" }}
+            onPointerDown={(e) => handlePointerInteraction(e.clientX, e.currentTarget)}
+            onPointerMove={(e) => handlePointerInteraction(e.clientX, e.currentTarget)}
+            onPointerLeave={() => setHoverIndex(null)}
+            onPointerCancel={() => setHoverIndex(null)}
           >
+            {/* Transparent backdrop overlay to capture all pointer events */}
+            <rect x="0" y="0" width={width} height={height} fill="transparent" pointerEvents="all" />
+
             {/* Y Grid lines */}
             {yTicks.map((tick) => {
               const y = getY(tick);
@@ -339,7 +348,7 @@ export const WindChart: React.FC<WindChartProps> = ({
 
             {/* Active Hover Guide Line & Dots */}
             {hoverIndex !== null && (
-              <g>
+              <g pointerEvents="none">
                 <line
                   x1={getX(hoverIndex)}
                   y1={paddingTop}
@@ -354,10 +363,10 @@ export const WindChart: React.FC<WindChartProps> = ({
                   <circle
                     cx={getX(hoverIndex)}
                     cy={getY(dataMode === "local" ? activeK.localWind : activeK.modelWind)}
-                    r="4.5"
+                    r="5.5"
                     fill="#38bdf8"
                     stroke="#0f172a"
-                    strokeWidth="2"
+                    strokeWidth="2.5"
                   />
                 )}
 
@@ -365,10 +374,10 @@ export const WindChart: React.FC<WindChartProps> = ({
                   <circle
                     cx={getX(hoverIndex)}
                     cy={getY(dataMode === "local" ? activeT.localWind : activeT.modelWind)}
-                    r="4.5"
+                    r="5.5"
                     fill="#34d399"
                     stroke="#0f172a"
-                    strokeWidth="2"
+                    strokeWidth="2.5"
                   />
                 )}
 
@@ -376,10 +385,10 @@ export const WindChart: React.FC<WindChartProps> = ({
                   <circle
                     cx={getX(hoverIndex)}
                     cy={getY(dataMode === "local" ? activeX.localWind : activeX.modelWind)}
-                    r="4.5"
+                    r="5.5"
                     fill="#c084fc"
                     stroke="#0f172a"
-                    strokeWidth="2"
+                    strokeWidth="2.5"
                   />
                 )}
               </g>
@@ -389,11 +398,11 @@ export const WindChart: React.FC<WindChartProps> = ({
 
         {/* Hover Tooltip Card */}
         {hoverIndex !== null && (activeK || activeT || activeX) && (
-          <div className="mt-3 p-3 rounded-xl bg-surf-dark border border-surf-border grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+          <div className="mt-3 p-3 rounded-xl bg-surf-dark border border-surf-border grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs animate-in fade-in duration-100">
             <div className="text-slate-400 flex items-center justify-between sm:justify-start gap-2 border-b sm:border-b-0 pb-1 sm:pb-0">
               <span>Time:</span>
               <strong className="text-white font-mono">
-                {formatTimeHHMM((activeK || activeT || activeX)!.timestamp)}
+                {activeTimeFormatted}
               </strong>
             </div>
 
