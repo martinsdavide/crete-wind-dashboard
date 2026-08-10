@@ -58,6 +58,6 @@ export const MaremmaExplanationRules: ExplanationTemplateRule[] = [
       spotId: "castiglione-della-pescaia",
     },
     explanation:
-      "Castiglione della Pescaia delivers clean open-sea breeze with dynamic bump & jump ramps along the northern coast.",
+      "Castiglione delivers clean open-sea breeze with dynamic bump & jump ramps along the northern coast.",
   },
 ];

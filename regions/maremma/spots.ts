@@ -305,7 +305,7 @@ export const MaremmaSpots: RegionSpotConfig[] = [
   },
   {
     id: "castiglione-della-pescaia",
-    name: "Castiglione della Pescaia",
+    name: "Castiglione",
     latitude: 42.763,
     longitude: 10.88,
     description: "Northern Maremma Coast • Open bay with dynamic bump & jump and rolling swell.",

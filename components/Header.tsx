@@ -50,7 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
               </h1>
             </div>
             <p className="text-[11px] sm:text-xs md:text-sm lg:text-base text-slate-400 font-medium leading-tight mt-0.5">
-              Find your best windsurf session • {currentRegion.metadata.editionTitle}
+              Find your best windsurf session
             </p>
           </div>
         </div>
