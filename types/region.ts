@@ -23,17 +23,51 @@ export interface HardGateRule {
   reason: string;
 }
 
+export type ThermalBoostModel = "FIXED" | "DYNAMIC";
+
+export interface FixedThermalBoostConfig {
+  model?: "FIXED";
+  enabled?: boolean;
+  startHour: number; // 13
+  endHour: number;   // 18
+  boostAmount: number; // 0.15
+}
+
+export interface DynamicThermalBoostConfig {
+  model: "DYNAMIC";
+  enabled?: boolean;
+  maxBoost: number; // e.g. 0.20
+  monthFactors?: Record<number, number>; // 1-12 -> 0-1
+  timeProfile?: { hour: number; factor: number }[]; // [{ hour: 11, factor: 0.10 }, ...]
+  directionFactors?: Partial<Record<WindDirection, number>>;
+  defaultDirectionFactor?: number;
+  synopticWindCurve?: { wind: number; factor: number }[]; // [{ wind: 0, factor: 0.20 }, ...]
+  cloudCoverCurve?: { cloud: number; factor: number }[]; // [{ cloud: 0, factor: 1.0 }, ...]
+  minThermalStrength?: number;
+}
+
+export type DiurnalThermalBoostConfig = FixedThermalBoostConfig | DynamicThermalBoostConfig;
+
+export interface ThermalEvaluation {
+  strength: number; // 0-1
+  boost: number;    // increment to correction factor
+  active: boolean;
+  factors: {
+    season: number;
+    time: number;
+    direction: number;
+    synopticWind: number;
+    solar: number;
+  };
+}
+
 export interface SpotLocalCorrectionConfig {
   baseCorrectionFactor: number;
   minFactor: number;
   maxFactor: number;
   summerBoostMonths?: number[]; // [6, 7, 8]
   summerBoostAmount?: number;
-  diurnalThermalBoost?: {
-    startHour: number; // 13
-    endHour: number;   // 18
-    boostAmount: number;
-  };
+  diurnalThermalBoost?: DiurnalThermalBoostConfig;
   directionModifiers?: Partial<Record<WindDirection, number>>;
   directionDeflections?: Partial<Record<WindDirection, WindDirection>>;
 }

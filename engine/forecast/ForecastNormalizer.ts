@@ -1,4 +1,4 @@
-import { RegionSpotConfig } from "@/types/region";
+import { RegionSpotConfig, ThermalEvaluation } from "@/types/region";
 import {
   DailyWindSummary,
   HourlyWind,
@@ -29,15 +29,167 @@ import {
 import { OpenMeteoRawResponse } from "@/lib/weather/openMeteo";
 
 /**
- * Circular angle interpolation from angleA to angleB by fraction t (0.0 - 1.0).
+ * Linear interpolation helper across a numeric sequence.
  */
-export function interpolateAngle(angleA: number, angleB: number, t: number): number {
-  const normA = normalizeDegrees(angleA);
-  const normB = normalizeDegrees(angleB);
-  let diff = (normB - normA) % 360;
+export function interpolate(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+/**
+ * Generic linear interpolation across an array of control points sorted by x ascending.
+ */
+export function interpolateCurve(
+  x: number,
+  points: { x: number; y: number }[]
+): number {
+  if (!points || points.length === 0) return 1.0;
+  if (points.length === 1) return points[0].y;
+
+  // Clamp left
+  if (x <= points[0].x) return points[0].y;
+  // Clamp right
+  if (x >= points[points.length - 1].x) return points[points.length - 1].y;
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    if (x >= p1.x && x <= p2.x) {
+      if (p2.x === p1.x) return p1.y;
+      const t = (x - p1.x) / (p2.x - p1.x);
+      return p1.y + t * (p2.y - p1.y);
+    }
+  }
+
+  return points[points.length - 1].y;
+}
+
+/**
+ * Interpolates between two angles in degrees (0-360) along the shortest arc.
+ */
+export function interpolateDirection(degA: number, degB: number, t: number): number {
+  const normA = normalizeDegrees(degA);
+  const normB = normalizeDegrees(degB);
+  let diff = normB - normA;
   if (diff > 180) diff -= 360;
   if (diff < -180) diff += 360;
   return normalizeDegrees(normA + diff * t);
+}
+
+export const interpolateAngle = interpolateDirection;
+
+/**
+ * Calculates dynamic thermal strength and boost contribution based on:
+ * Season x Time-of-day x Wind direction x Synoptic wind intensity x Solar heating / Cloud cover.
+ */
+export function calculateThermalStrength(
+  spotConfig: RegionSpotConfig,
+  timestamp: string | Date,
+  directionLabel: WindDirection,
+  modelWind = 12,
+  cloudCover = 0,
+  timeZone = "Europe/Athens"
+): ThermalEvaluation {
+  const cfg = spotConfig.localCorrection.diurnalThermalBoost;
+
+  if (!cfg || cfg.enabled === false) {
+    return {
+      strength: 0,
+      boost: 0,
+      active: false,
+      factors: { season: 1, time: 0, direction: 1, synopticWind: 1, solar: 1 },
+    };
+  }
+
+  const { month, hour } = getLocalTimeComponents(timestamp, timeZone);
+
+  // Backward-compatible FIXED model
+  if (!("model" in cfg) || cfg.model !== "DYNAMIC") {
+    const isHourActive = hour >= cfg.startHour && hour <= cfg.endHour;
+    return {
+      strength: isHourActive ? 1.0 : 0,
+      boost: isHourActive ? cfg.boostAmount : 0,
+      active: isHourActive,
+      factors: { season: 1, time: isHourActive ? 1 : 0, direction: 1, synopticWind: 1, solar: 1 },
+    };
+  }
+
+  // DYNAMIC multi-factor thermal model
+  // 1. Season Factor
+  let seasonFactor = 1.0;
+  if (cfg.monthFactors) {
+    seasonFactor = cfg.monthFactors[month] ?? 0.0;
+  }
+
+  // 2. Time-of-Day Factor
+  let timeFactor = 0.0;
+  if (cfg.timeProfile && cfg.timeProfile.length > 0) {
+    const firstH = cfg.timeProfile[0].hour;
+    const lastH = cfg.timeProfile[cfg.timeProfile.length - 1].hour;
+    if (hour >= firstH && hour <= lastH) {
+      timeFactor = interpolateCurve(
+        hour,
+        cfg.timeProfile.map((p) => ({ x: p.hour, y: p.factor }))
+      );
+    } else {
+      timeFactor = 0.0;
+    }
+  } else {
+    timeFactor = 1.0;
+  }
+
+  // 3. Direction Factor
+  let directionFactor = 1.0;
+  if (cfg.directionFactors) {
+    directionFactor =
+      cfg.directionFactors[directionLabel] ?? cfg.defaultDirectionFactor ?? 0.10;
+  }
+
+  // 4. Synoptic Wind Factor
+  let synopticWindFactor = 1.0;
+  if (cfg.synopticWindCurve && cfg.synopticWindCurve.length > 0) {
+    synopticWindFactor = interpolateCurve(
+      modelWind,
+      cfg.synopticWindCurve.map((p) => ({ x: p.wind, y: p.factor }))
+    );
+  }
+
+  // 5. Solar / Cloud Cover Factor
+  let solarFactor = 1.0;
+  const effectiveCloud = cloudCover !== undefined && !isNaN(cloudCover) ? cloudCover : 0;
+  if (cfg.cloudCoverCurve && cfg.cloudCoverCurve.length > 0) {
+    solarFactor = interpolateCurve(
+      effectiveCloud,
+      cfg.cloudCoverCurve.map((p) => ({ x: p.cloud, y: p.factor }))
+    );
+  } else {
+    solarFactor = Math.max(0, 1.0 - effectiveCloud / 100);
+  }
+
+  // Multiply all factors
+  const rawStrength =
+    seasonFactor * timeFactor * directionFactor * synopticWindFactor * solarFactor;
+  let strength = Math.max(0, Math.min(1, rawStrength));
+
+  const minStrength = cfg.minThermalStrength ?? 0.05;
+  if (strength < minStrength) {
+    strength = 0;
+  }
+
+  const boost = cfg.maxBoost * strength;
+  const active = strength > 0 && boost > 0;
+
+  return {
+    strength,
+    boost,
+    active,
+    factors: {
+      season: seasonFactor,
+      time: timeFactor,
+      direction: directionFactor,
+      synopticWind: synopticWindFactor,
+      solar: solarFactor,
+    },
+  };
 }
 
 /**
@@ -48,27 +200,44 @@ export function calculateLocalCorrectionFactor(
   timestamp: string | Date,
   directionLabel: WindDirection,
   directionDegrees: number,
+  modelWind = 12,
+  cloudCover = 0,
   timeZone = "Europe/Athens"
-): { factor: number; effectiveDirection: WindDirection; effectiveDegrees: number } {
+): {
+  factor: number;
+  effectiveDirection: WindDirection;
+  effectiveDegrees: number;
+  thermal: ThermalEvaluation;
+} {
   const cfg = spotConfig.localCorrection;
   let factor = cfg.baseCorrectionFactor;
   let effectiveDirection = directionLabel;
   let effectiveDegrees = directionDegrees;
 
-  const { month, hour } = getLocalTimeComponents(timestamp, timeZone);
+  const { month } = getLocalTimeComponents(timestamp, timeZone);
 
-  // 1. Seasonal / Summer Boost
-  if (cfg.summerBoostMonths && cfg.summerBoostMonths.includes(month)) {
+  // 1. Seasonal / Summer Boost (applied only if not configured with dynamic thermal)
+  const isDynamicThermal =
+    cfg.diurnalThermalBoost &&
+    "model" in cfg.diurnalThermalBoost &&
+    cfg.diurnalThermalBoost.model === "DYNAMIC";
+
+  if (!isDynamicThermal && cfg.summerBoostMonths && cfg.summerBoostMonths.includes(month)) {
     factor += cfg.summerBoostAmount ?? 0.10;
   }
 
-  // 2. Diurnal / Afternoon Thermal Boost
-  if (
-    cfg.diurnalThermalBoost &&
-    hour >= cfg.diurnalThermalBoost.startHour &&
-    hour <= cfg.diurnalThermalBoost.endHour
-  ) {
-    factor += cfg.diurnalThermalBoost.boostAmount;
+  // 2. Diurnal Thermal Boost (evaluated via calculateThermalStrength)
+  const thermal = calculateThermalStrength(
+    spotConfig,
+    timestamp,
+    directionLabel,
+    modelWind,
+    cloudCover,
+    timeZone
+  );
+
+  if (thermal.active) {
+    factor += thermal.boost;
   }
 
   // 3. Direction Modifiers
@@ -88,6 +257,7 @@ export function calculateLocalCorrectionFactor(
     factor: clampedFactor,
     effectiveDirection,
     effectiveDegrees,
+    thermal,
   };
 }
 
@@ -153,6 +323,8 @@ export function normalizeHourlyPoint(
       point.timestamp,
       rawDirectionLabel,
       point.windDirection,
+      point.windSpeed,
+      point.cloudCover,
       timeZone
     );
 

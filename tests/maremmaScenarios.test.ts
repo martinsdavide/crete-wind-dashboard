@@ -154,10 +154,10 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
       const talamoneSpot = MaremmaRegion.spots.find((s) => s.id === "talamone")!;
       const forecast = normalizeSpotForecastGeneric(talamoneSpot, raw, refDate, "Europe/Rome");
 
-      // Hour 13 UTC (15:00 Rome) receives base (1.10) + summer (0.10) + thermal (0.15) + NW (0.10) = 1.45 factor
+      // Hour 13 UTC (15:00 Rome) receives base (1.05) + dynamic thermal boost (~0.19) = ~1.24 factor
       const afternoonHour = forecast.hourly[13];
-      expect(afternoonHour.correctionFactor).toBeGreaterThanOrEqual(1.40);
-      expect(afternoonHour.localWind).toBeGreaterThanOrEqual(14);
+      expect(afternoonHour.correctionFactor).toBeGreaterThanOrEqual(1.20);
+      expect(afternoonHour.localWind).toBeGreaterThanOrEqual(12.0);
     });
   });
 
