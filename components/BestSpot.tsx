@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Recommendation, SpotResult } from "@/types/weather";
 import {
   Compass,
@@ -11,7 +11,6 @@ import {
   Sparkles,
   Waves,
   AlertCircle,
-  ShieldCheck,
   Activity,
   Star,
 } from "lucide-react";
@@ -74,6 +73,42 @@ export const BestSpot: React.FC<BestSpotProps> = ({
     FLAT: "FLAT WATER",
     CHOP: "CHOPPY",
   };
+
+  // Dynamically sort session scores by order of score
+  const sortedSessionScores = useMemo(() => {
+    const defaultOrder = ["kouremenos", "tenda", "xerokampos"];
+    const list = [
+      {
+        id: "kouremenos",
+        name: "Kouremenos",
+        score: dayScoreKouremenos,
+        numScore: typeof dayScoreKouremenos === "number" ? dayScoreKouremenos : -1,
+      },
+      {
+        id: "tenda",
+        name: "Tenda",
+        score: dayScoreTenda,
+        numScore: typeof dayScoreTenda === "number" ? dayScoreTenda : -1,
+      },
+      {
+        id: "xerokampos",
+        name: "Xerokampos",
+        score: dayScoreXerokampos,
+        numScore: typeof dayScoreXerokampos === "number" ? dayScoreXerokampos : -1,
+      },
+    ];
+
+    return list.sort((a, b) => {
+      // The recommended Best Spot winner leads if scores are equal or leading
+      if (bestSpot === a.id) return -1;
+      if (bestSpot === b.id) return 1;
+
+      if (b.numScore !== a.numScore) {
+        return b.numScore - a.numScore;
+      }
+      return defaultOrder.indexOf(a.id) - defaultOrder.indexOf(b.id);
+    });
+  }, [dayScoreKouremenos, dayScoreTenda, dayScoreXerokampos, bestSpot]);
 
   // Confidence styling
   const confidenceBadges: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -324,21 +359,24 @@ export const BestSpot: React.FC<BestSpotProps> = ({
               </div>
             )}
 
-            {/* 3-Spot Comparison Bar */}
+            {/* 3-Spot Dynamically Ordered Comparison Bar */}
             <div className="mt-3 flex flex-wrap items-center justify-between text-[11px] text-slate-400 px-1 gap-2">
               <span>
                 Session Scores:{" "}
-                <strong className="text-slate-200 font-bold">
-                  Kouremenos ({dayScoreKouremenos ?? "N/A"})
-                </strong>{" "}
-                •{" "}
-                <strong className="text-slate-200 font-bold">
-                  Tenda ({dayScoreTenda ?? "N/A"})
-                </strong>{" "}
-                •{" "}
-                <strong className="text-slate-200 font-bold">
-                  Xerokampos ({dayScoreXerokampos ?? "N/A"})
-                </strong>
+                {sortedSessionScores.map((s, idx) => (
+                  <React.Fragment key={s.id}>
+                    <strong
+                      className={`font-bold ${
+                        bestSpot === s.id
+                          ? "text-cyan-300 [data-theme='daylight']_:text-cyan-800 font-black"
+                          : "text-slate-200"
+                      }`}
+                    >
+                      {s.name} ({s.score !== null && s.score !== undefined ? s.score : "N/A"})
+                    </strong>
+                    {idx < sortedSessionScores.length - 1 ? " • " : ""}
+                  </React.Fragment>
+                ))}
               </span>
               {todaySummary?.maxGust ? (
                 <span className="flex items-center gap-1 text-slate-300 font-medium">
@@ -376,9 +414,14 @@ export const BestSpot: React.FC<BestSpotProps> = ({
             <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-surf-border/40">
               <span>
                 Day Session Scores:{" "}
-                <strong className="text-slate-200">Kouremenos ({dayScoreKouremenos ?? 0})</strong> •{" "}
-                <strong className="text-slate-200">Tenda ({dayScoreTenda ?? 0})</strong> •{" "}
-                <strong className="text-slate-200">Xerokampos ({dayScoreXerokampos ?? 0})</strong>
+                {sortedSessionScores.map((s, idx) => (
+                  <React.Fragment key={s.id}>
+                    <strong className="text-slate-200">
+                      {s.name} ({s.score ?? 0})
+                    </strong>
+                    {idx < sortedSessionScores.length - 1 ? " • " : ""}
+                  </React.Fragment>
+                ))}
               </span>
             </div>
           </div>
