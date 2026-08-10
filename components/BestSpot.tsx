@@ -315,62 +315,74 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-                  <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60">
-                    <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">
-                      <Wind className="w-3.5 h-3.5 text-sky-400" />
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 pt-1">
+                  {/* 1. Expected Wind */}
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
+                    <div className="flex items-center gap-1.5 text-slate-400 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">
+                      <Wind className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
                       <span>EXPECTED WIND</span>
                     </div>
-                    <span className="text-xl sm:text-2xl font-black font-mono text-cyan-300 block">
-                      {Math.round(tomorrowSummary.daytimeMinWind)}–{Math.round(tomorrowSummary.daytimeMaxWind)}{" "}
-                      <span className="text-xs font-normal text-slate-300">kt</span>
-                    </span>
-                    <span className="text-[11px] text-slate-300 mt-0.5 block">
-                      Gusts to {Math.round(tomorrowSummary.maxGust)} kt
-                    </span>
+                    <div>
+                      <span className="text-lg sm:text-2xl font-black font-mono text-cyan-300 block">
+                        {Math.round(tomorrowSummary.daytimeMinWind)}–{Math.round(tomorrowSummary.daytimeMaxWind)}{" "}
+                        <span className="text-xs font-normal text-slate-300">kt</span>
+                      </span>
+                      <span className="text-[10px] sm:text-[11px] text-slate-300 mt-0.5 block truncate">
+                        Gusts to {Math.round(tomorrowSummary.maxGust)} kt
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60">
-                    <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">
-                      <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                  {/* 2. Direction */}
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
+                    <div className="flex items-center gap-1.5 text-slate-400 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">
+                      <Compass className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
                       <span>DIRECTION</span>
                     </div>
-                    <span className="text-xl sm:text-2xl font-black font-mono text-white block">
-                      {tomorrowSummary.dominantDirection}
-                    </span>
-                    <span className="text-[11px] text-slate-300 mt-0.5 block">
-                      Favorable angle
-                    </span>
+                    <div>
+                      <span className="text-lg sm:text-2xl font-black font-mono text-white block">
+                        {tomorrowSummary.dominantDirection}
+                      </span>
+                      <span className="text-[10px] sm:text-[11px] text-slate-300 mt-0.5 block truncate">
+                        Favorable angle
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60">
-                    <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">
-                      <Clock className="w-3.5 h-3.5 text-sky-400" />
+                  {/* 3. Best Window */}
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
+                    <div className="flex items-center gap-1.5 text-slate-400 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">
+                      <Clock className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
                       <span>BEST WINDOW</span>
                     </div>
-                    <span className="text-xl sm:text-2xl font-black font-mono text-white block">
-                      {tomorrowSummary.bestWindow
-                        ? `${tomorrowSummary.bestWindow.start} – ${tomorrowSummary.bestWindow.end}`
-                        : "11:00 – 17:00"}
-                    </span>
-                    <span className="text-[11px] text-slate-400 mt-0.5 block">
-                      {tomorrowSummary.bestWindow
-                        ? `${tomorrowSummary.bestWindow.durationHours}h continuous window`
-                        : "Daylight window"}
-                    </span>
+                    <div>
+                      <span className="text-[13px] xs:text-sm sm:text-lg md:text-xl lg:text-2xl font-black font-mono text-white block tracking-tight whitespace-nowrap">
+                        {tomorrowSummary.bestWindow
+                          ? `${tomorrowSummary.bestWindow.start} – ${tomorrowSummary.bestWindow.end}`
+                          : "11:00 – 17:00"}
+                      </span>
+                      <span className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 block truncate">
+                        {tomorrowSummary.bestWindow
+                          ? `${tomorrowSummary.bestWindow.durationHours}h window`
+                          : "Daylight window"}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60">
-                    <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">
-                      <Flame className="w-3.5 h-3.5 text-amber-400" />
+                  {/* 4. Session Quality */}
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
+                    <div className="flex items-center gap-1.5 text-slate-400 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">
+                      <Flame className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
                       <span>SESSION QUALITY</span>
                     </div>
-                    <span className="text-xl sm:text-2xl font-black font-mono text-amber-400 block">
-                      {tomorrowSummary.score}/100
-                    </span>
-                    <span className="text-[11px] text-slate-300 mt-0.5 block">
-                      {tomorrowSummary.condition}
-                    </span>
+                    <div>
+                      <span className="text-lg sm:text-2xl font-black font-mono text-amber-400 block">
+                        {tomorrowSummary.score}/100
+                      </span>
+                      <span className="text-[10px] sm:text-[11px] text-slate-300 mt-0.5 block truncate">
+                        {tomorrowSummary.condition}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -464,16 +476,16 @@ export const BestSpot: React.FC<BestSpotProps> = ({
               </div>
             </div>
 
-            {/* 4-Metric Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-surf-border/60">
-              {/* 1. Wind Range */}
-              <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
-                <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">
-                  <Wind className="w-3.5 h-3.5 text-sky-400" />
+            {/* 4-Metric Grid: 2 columns on mobile, 4 columns on desktop */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 pt-2 border-t border-surf-border/60">
+              {/* 1. Wind Range / Expected Wind */}
+              <div className="p-2.5 sm:p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">
+                  <Wind className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
                   <span>WIND RANGE</span>
                 </div>
                 <div>
-                  <span className="text-xl sm:text-2xl font-black font-mono text-cyan-300 block">
+                  <span className="text-lg sm:text-2xl font-black font-mono text-cyan-300 block">
                     {stability
                       ? `${Math.round(stability.minWind)}–${Math.round(stability.maxWind)}`
                       : bestWindow
@@ -483,37 +495,37 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                       : "—"}{" "}
                     <span className="text-xs font-normal text-slate-300">kt</span>
                   </span>
-                  <span className="flex items-center gap-1.5 text-[11px] text-slate-300 mt-0.5 font-medium">
+                  <span className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-300 mt-0.5 font-medium truncate">
                     <span
-                      className={`w-2 h-2 rounded-full inline-block ${getStabilityDot(
+                      className={`w-2 h-2 rounded-full inline-block flex-shrink-0 ${getStabilityDot(
                         stability?.windStabilityLabel
                       )}`}
                     />
-                    <span>{stability?.windStabilityLabel || "Stable"}</span>
+                    <span className="truncate">{stability?.windStabilityLabel || "Stable"}</span>
                   </span>
                 </div>
               </div>
 
               {/* 2. Direction Range */}
-              <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
-                <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">
-                  <Compass className="w-3.5 h-3.5 text-cyan-400" />
+              <div className="p-2.5 sm:p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">
+                  <Compass className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
                   <span>DIRECTION</span>
                 </div>
                 <div>
-                  <span className="text-xl sm:text-2xl font-black font-mono text-white block">
+                  <span className="text-lg sm:text-2xl font-black font-mono text-white block">
                     {stability?.directionRangeLabel ||
                       bestWindow?.dominantDirection ||
                       todaySummary?.dominantDirection ||
                       "NW"}
                   </span>
-                  <span className="flex items-center gap-1.5 text-[11px] text-slate-300 mt-0.5 font-medium">
+                  <span className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-300 mt-0.5 font-medium truncate">
                     <span
-                      className={`w-2 h-2 rounded-full inline-block ${getStabilityDot(
+                      className={`w-2 h-2 rounded-full inline-block flex-shrink-0 ${getStabilityDot(
                         stability?.directionStabilityLabel
                       )}`}
                     />
-                    <span>
+                    <span className="truncate">
                       {stability && stability.directionRange <= 15
                         ? "Steady airflow"
                         : stability?.directionStabilityLabel || "Consistent"}
@@ -522,49 +534,49 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                 </div>
               </div>
 
-              {/* 3. Gustiness & Quality */}
-              <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
-                <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">
-                  <Activity className="w-3.5 h-3.5 text-amber-400" />
-                  <span>AIRFLOW QUALITY</span>
-                </div>
-                <div>
-                  <span className="text-lg sm:text-xl font-extrabold text-slate-100 block">
-                    {stability?.gustinessLabel || "Smooth wind"}
-                  </span>
-                  <span className="text-[11px] text-slate-400 mt-0.5 block">
-                    {stability
-                      ? `Gust factor ${stability.gustFactor}x`
-                      : todaySummary
-                      ? `Gusts to ${Math.round(todaySummary.maxGust)} kt`
-                      : "Low turbulence"}
-                  </span>
-                </div>
-              </div>
-
-              {/* 4. Best Window & Confidence */}
-              <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-                    <Clock className="w-3.5 h-3.5 text-sky-400" />
+              {/* 3. Best Window & Confidence */}
+              <div className="p-2.5 sm:p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
+                  <div className="flex items-center gap-1 text-slate-400 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">
+                    <Clock className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
                     <span>BEST WINDOW</span>
                   </div>
                   <span
-                    className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${confStyle.bg} ${confStyle.text} ${confStyle.border}`}
+                    className={`px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-black uppercase tracking-wider border ${confStyle.bg} ${confStyle.text} ${confStyle.border}`}
                   >
                     {confStyle.label}
                   </span>
                 </div>
                 <div>
-                  <span className="text-xl sm:text-2xl font-black font-mono text-white block">
+                  <span className="text-[13px] xs:text-sm sm:text-lg md:text-xl lg:text-2xl font-black font-mono text-white block tracking-tight whitespace-nowrap">
                     {bestWindow
                       ? `${bestWindow.start} – ${bestWindow.end}`
                       : "07:00 – 20:00"}
                   </span>
-                  <span className="text-[11px] text-slate-400 mt-0.5 block">
+                  <span className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 block truncate">
                     {bestWindow
-                      ? `${bestWindow.durationHours}h continuous session`
+                      ? `${bestWindow.durationHours}h window`
                       : "Daylight forecast"}
+                  </span>
+                </div>
+              </div>
+
+              {/* 4. Gustiness & Airflow Quality */}
+              <div className="p-2.5 sm:p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">
+                  <Activity className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                  <span>AIRFLOW QUALITY</span>
+                </div>
+                <div>
+                  <span className="text-base sm:text-xl font-extrabold text-slate-100 block truncate">
+                    {stability?.gustinessLabel || "Smooth wind"}
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 block truncate">
+                    {stability
+                      ? `Gust factor ${stability.gustFactor}x`
+                      : todaySummary
+                      ? `Gusts to ${Math.round(todaySummary.maxGust)} kt`
+                      : "Low turbulence"}
                   </span>
                 </div>
               </div>
