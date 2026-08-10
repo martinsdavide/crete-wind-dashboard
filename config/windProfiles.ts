@@ -140,8 +140,8 @@ export const SCORING_CONFIG = {
     minConsecutiveHours: 2,
   },
   daytime: {
-    startHour: 9,
-    endHour: 20,
+    startHour: 7, // Sunrise (Eastern Crete)
+    endHour: 20,  // Sunset (Eastern Crete)
   },
   timezone: "Europe/Athens",
 };

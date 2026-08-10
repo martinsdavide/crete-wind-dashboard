@@ -6,7 +6,9 @@ import { SpotId } from "@/types/spot";
 import { WindArrow } from "./WindArrow";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { formatTimeHHMM } from "@/lib/bestWindow";
-import { X, Clock, AlertTriangle, Waves } from "lucide-react";
+import { getAthensTimeComponents } from "@/lib/localWind";
+import { SCORING_CONFIG } from "@/config/windProfiles";
+import { X, Clock, AlertTriangle, Waves, Sun } from "lucide-react";
 
 interface HourlyForecastProps {
   kouremenosResult: SpotResult;
@@ -31,7 +33,7 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
 
   const activeForecast = activeResult?.status === "ok" ? activeResult.data : null;
 
-  // Filter display items so they start from NOW and show the subsequent future hours
+  // Filter display items: NOW (current conditions) followed strictly by daylight windsurfing hours (07:00 to 20:00)
   const displayItems = useMemo(() => {
     if (!activeForecast) return [];
 
@@ -39,21 +41,29 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
       ? new Date(activeForecast.current.timestamp).getTime()
       : Date.now();
 
-    // Strictly future hourly items after current time
-    const futureHours = activeForecast.hourly.filter((h) => {
+    // Filter future hourly items:
+    // 1. Strictly in the future (timestamp > nowMs)
+    // 2. Strictly during daylight windsurfing window (sunrise to sunset, 07:00 - 20:00 Athens local time)
+    const futureDaylightHours = activeForecast.hourly.filter((h) => {
       const hMs = new Date(h.timestamp).getTime();
-      return hMs > nowMs;
+      const isFuture = hMs > nowMs;
+      const { hour } = getAthensTimeComponents(h.timestamp);
+      const isDaylight =
+        hour >= SCORING_CONFIG.daytime.startHour &&
+        hour <= SCORING_CONFIG.daytime.endHour;
+
+      return isFuture && isDaylight;
     });
 
-    // Build timeline: NOW (current interpolated) followed by subsequent future hours
+    // Build timeline: NOW followed strictly by upcoming daylight hours
     if (activeForecast.current) {
       return [
         { item: activeForecast.current, isNow: true },
-        ...futureHours.slice(0, 48).map((h) => ({ item: h, isNow: false })),
+        ...futureDaylightHours.slice(0, 36).map((h) => ({ item: h, isNow: false })),
       ];
     }
 
-    return futureHours.slice(0, 48).map((h) => ({ item: h, isNow: false }));
+    return futureDaylightHours.slice(0, 36).map((h) => ({ item: h, isNow: false }));
   }, [activeForecast]);
 
   const styleLabels: Record<string, string> = {
@@ -73,11 +83,11 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
               id="hourly-forecast-heading"
               className="text-base font-extrabold uppercase tracking-tight text-white flex items-center gap-2"
             >
-              <Clock className="w-4 h-4 text-sky-400" />
+              <Sun className="w-4 h-4 text-amber-400" />
               <span>HOURLY SESSION FORECAST</span>
             </h2>
             <p className="text-xs text-slate-400">
-              Current conditions and subsequent hours forecast
+              Daylight windsurfing hours (sunrise 07:00 to sunset 20:00)
             </p>
           </div>
 
