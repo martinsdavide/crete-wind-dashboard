@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Recommendation, SpotResult } from "@/types/weather";
 import {
   Compass,
@@ -13,7 +13,12 @@ import {
   AlertCircle,
   Activity,
   Star,
+  Sunset,
+  Beer,
+  ArrowRight,
+  Sun,
 } from "lucide-react";
+import { getSolarWindow } from "@/lib/solar";
 
 interface BestSpotProps {
   recommendation: Recommendation;
@@ -28,6 +33,8 @@ export const BestSpot: React.FC<BestSpotProps> = ({
   tendaResult,
   xerokamposResult,
 }) => {
+  const [nightViewTab, setNightViewTab] = useState<"tomorrow" | "today">("tomorrow");
+
   const {
     bestSpot,
     bestSpotName,
@@ -50,7 +57,29 @@ export const BestSpot: React.FC<BestSpotProps> = ({
 
   const chosenForecast = chosenResult?.status === "ok" ? chosenResult.data : null;
   const todaySummary = chosenForecast?.days[0];
+  const tomorrowSummary = chosenForecast?.days[1];
   const stability = bestWindow?.stability;
+
+  // Determine if it's currently post-sunset / nighttime in local spot timezone (Athens)
+  const isPostSunset = useMemo(() => {
+    try {
+      const now = new Date();
+      const solar = getSolarWindow(
+        now,
+        chosenForecast?.spot.latitude ?? 35.2,
+        chosenForecast?.spot.longitude ?? 26.27
+      );
+      const localHourStr = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/Athens",
+        hour: "2-digit",
+        hour12: false,
+      }).format(now);
+      const localHour = parseInt(localHourStr, 10);
+      return localHour >= solar.endHour || localHour < solar.startHour;
+    } catch {
+      return false;
+    }
+  }, [chosenForecast]);
 
   const conditionGradients: Record<string, string> = {
     EXCELLENT: "from-sky-500/20 via-cyan-500/10 to-transparent border-sky-500/40 text-sky-200",
@@ -62,7 +91,9 @@ export const BestSpot: React.FC<BestSpotProps> = ({
 
   const currentCondition = todaySummary?.condition || (score !== null && score >= 75 ? "VERY GOOD" : "OK");
   const gradientClass = bestSpotName
-    ? conditionGradients[currentCondition] || conditionGradients.OK
+    ? isPostSunset
+      ? "from-amber-500/15 via-orange-500/5 to-transparent border-amber-500/30 text-amber-200"
+      : conditionGradients[currentCondition] || conditionGradients.OK
     : "from-slate-800/40 to-surf-dark/80 border-surf-border text-slate-300";
 
   const styleLabels: Record<string, string> = {
@@ -75,7 +106,6 @@ export const BestSpot: React.FC<BestSpotProps> = ({
   // Dynamically sort session scores by order of score
   const sortedSessionScores = useMemo(() => {
     const formatName = (id: string) => {
-      // Find spot display name from results if available
       const found = spotResults.find((r) => {
         if (!r) return false;
         const sId = r.status === "ok" ? r.data.spot.id : r.spot.id;
@@ -95,7 +125,6 @@ export const BestSpot: React.FC<BestSpotProps> = ({
     }));
 
     return list.sort((a, b) => {
-      // The recommended Best Spot winner leads if scores are equal or leading
       if (bestSpot === a.id) return -1;
       if (bestSpot === b.id) return 1;
 
@@ -131,7 +160,6 @@ export const BestSpot: React.FC<BestSpotProps> = ({
   const currentConfidence = stability?.confidence || "HIGH";
   const confStyle = confidenceBadges[currentConfidence] || confidenceBadges.HIGH;
 
-  // Stability Dot Colors
   const getStabilityDot = (label?: string) => {
     if (label === "Very Stable" || label === "Stable" || label === "Smooth") {
       return "bg-emerald-400 shadow-sm shadow-emerald-400/50";
@@ -142,8 +170,15 @@ export const BestSpot: React.FC<BestSpotProps> = ({
     return "bg-rose-400 shadow-sm shadow-rose-400/50";
   };
 
-  // 5-Star visual rating
   const starCount = score !== null ? Math.max(1, Math.min(5, Math.round((score / 100) * 5))) : 4;
+
+  // Funny surf / taverna quotes
+  const tavernaQuotes = [
+    "The sun has dipped into the Aegean! Sails rolled, fins rinsed — time for a cold Mythos and grilled octopus at the taverna. You earned it! 🍻🐙",
+    "Night-vision fins haven't been invented yet! Session's officially closed, taverna session officially open. 🍺",
+    "Sun's down! Rest your forearms, recharge with tzatziki & gyros, and get ready for tomorrow's blasts! 🇬🇷💨",
+  ];
+  const selectedQuote = tavernaQuotes[0];
 
   return (
     <section aria-labelledby="best-today-heading" className="w-full">
@@ -157,25 +192,34 @@ export const BestSpot: React.FC<BestSpotProps> = ({
           <div className="flex items-center gap-2">
             <span
               className={`flex items-center justify-center w-7 h-7 rounded-lg ${
-                bestSpot
+                isPostSunset
+                  ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                  : bestSpot
                   ? "bg-sky-500/20 text-sky-400 border border-sky-500/30"
                   : "bg-slate-700/40 text-slate-400 border border-slate-600"
               }`}
             >
-              <Award className="w-4 h-4" />
+              {isPostSunset ? <Beer className="w-4 h-4" /> : <Award className="w-4 h-4" />}
             </span>
             <div>
               <h2
                 id="best-today-heading"
-                className="text-xs font-black tracking-wider uppercase text-sky-400"
+                className={`text-xs font-black tracking-wider uppercase ${
+                  isPostSunset ? "text-amber-400" : "text-sky-400"
+                }`}
               >
-                RECOMMENDED SPOT FOR TODAY
+                {isPostSunset ? "SUN HAS SET • TAVERNA TIME 🍻" : "RECOMMENDED SPOT FOR TODAY"}
               </h2>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Regime Badge */}
+            {isPostSunset && (
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                <Sunset className="w-3 h-3" />
+                <span>Après-Surf</span>
+              </span>
+            )}
             {regimeLabel && (
               <span className="badge-regime px-3 py-0.5 rounded-full text-[11px] font-extrabold shadow-sm border">
                 {regimeLabel}
@@ -192,7 +236,182 @@ export const BestSpot: React.FC<BestSpotProps> = ({
           </div>
         </div>
 
-        {bestSpot && bestSpotName ? (
+        {/* POST-SUNSET / TAVERNA TIME MODE */}
+        {isPostSunset && bestSpot && bestSpotName ? (
+          <div className="space-y-4">
+            {/* Witty Banner */}
+            <div className="p-3.5 rounded-xl bg-amber-950/40 [data-theme='daylight']_:bg-amber-100/80 border border-amber-500/30 text-amber-200 [data-theme='daylight']_:text-amber-900 text-xs flex items-start gap-3 shadow-inner">
+              <span className="text-2xl select-none">🐙</span>
+              <div className="space-y-1">
+                <p className="font-bold text-[12px] leading-snug">
+                  {selectedQuote}
+                </p>
+                <p className="text-[11px] text-amber-300/80 [data-theme='daylight']_:text-amber-800">
+                  Daylight sessions have concluded for today. Check out tomorrow&apos;s outlook below!
+                </p>
+              </div>
+            </div>
+
+            {/* Toggle Tabs: Tomorrow's Call vs Today's Recap */}
+            <div className="flex items-center gap-2 border-b border-surf-border/60 pb-2">
+              <button
+                type="button"
+                onClick={() => setNightViewTab("tomorrow")}
+                className={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                  nightViewTab === "tomorrow"
+                    ? "bg-sky-500 text-white shadow-md shadow-sky-500/30"
+                    : "bg-surf-dark/60 text-slate-400 hover:text-slate-200 border border-surf-border/40"
+                }`}
+              >
+                <Sun className="w-3.5 h-3.5" />
+                <span>Tomorrow&apos;s Call</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setNightViewTab("today")}
+                className={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                  nightViewTab === "today"
+                    ? "bg-amber-500 text-white shadow-md shadow-amber-500/30"
+                    : "bg-surf-dark/60 text-slate-400 hover:text-slate-200 border border-surf-border/40"
+                }`}
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>Today&apos;s Winner Recap</span>
+              </button>
+            </div>
+
+            {/* TOMORROW'S PREVIEW TAB */}
+            {nightViewTab === "tomorrow" && tomorrowSummary && (
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-3">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-sky-400 block mb-0.5">
+                      EARLY FORECAST FOR TOMORROW
+                    </span>
+                    <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight uppercase">
+                      {bestSpotName}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2 self-start">
+                    <span className="badge-wave inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-extrabold tracking-wide shadow-sm border">
+                      <Waves className="w-3.5 h-3.5 text-sky-400" />
+                      <span>{styleLabels[tomorrowSummary.dominantStyle] || tomorrowSummary.dominantStyle}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                  <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60">
+                    <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">
+                      <Wind className="w-3.5 h-3.5 text-sky-400" />
+                      <span>EXPECTED WIND</span>
+                    </div>
+                    <span className="text-xl sm:text-2xl font-black font-mono text-cyan-300 block">
+                      {Math.round(tomorrowSummary.daytimeMinWind)}–{Math.round(tomorrowSummary.daytimeMaxWind)}{" "}
+                      <span className="text-xs font-normal text-slate-300">kt</span>
+                    </span>
+                    <span className="text-[11px] text-slate-300 mt-0.5 block">
+                      Gusts to {Math.round(tomorrowSummary.maxGust)} kt
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60">
+                    <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">
+                      <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>DIRECTION</span>
+                    </div>
+                    <span className="text-xl sm:text-2xl font-black font-mono text-white block">
+                      {tomorrowSummary.dominantDirection}
+                    </span>
+                    <span className="text-[11px] text-slate-300 mt-0.5 block">
+                      Favorable angle
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60">
+                    <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">
+                      <Clock className="w-3.5 h-3.5 text-sky-400" />
+                      <span>BEST WINDOW</span>
+                    </div>
+                    <span className="text-xl sm:text-2xl font-black font-mono text-white block">
+                      {tomorrowSummary.bestWindow
+                        ? `${tomorrowSummary.bestWindow.start} – ${tomorrowSummary.bestWindow.end}`
+                        : "11:00 – 17:00"}
+                    </span>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">
+                      {tomorrowSummary.bestWindow
+                        ? `${tomorrowSummary.bestWindow.durationHours}h continuous window`
+                        : "Daylight window"}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60">
+                    <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">
+                      <Flame className="w-3.5 h-3.5 text-amber-400" />
+                      <span>SESSION QUALITY</span>
+                    </div>
+                    <span className="text-xl sm:text-2xl font-black font-mono text-amber-400 block">
+                      {tomorrowSummary.score}/100
+                    </span>
+                    <span className="text-[11px] text-slate-300 mt-0.5 block">
+                      {tomorrowSummary.condition}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TODAY'S RECAP TAB */}
+            {nightViewTab === "today" && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block mb-0.5">
+                      TODAY&apos;S WINNING SPOT
+                    </span>
+                    <h3 className="text-2xl font-extrabold text-white tracking-tight uppercase">
+                      {bestSpotName}
+                    </h3>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs">
+                    Score {score}/100
+                  </span>
+                </div>
+                {explanation && explanation.length > 0 && (
+                  <div className="p-3 rounded-xl bg-surf-dark/70 border border-surf-border/60 text-xs text-slate-300 space-y-1">
+                    {explanation.map((item, idx) => (
+                      <p key={idx} className="leading-relaxed text-[11px]">
+                        • {item}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Session Scores comparison bar */}
+            <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 px-1 gap-2 pt-2 border-t border-surf-border/40">
+              <span>
+                Today&apos;s Scores:{" "}
+                {sortedSessionScores.map((s, idx) => (
+                  <React.Fragment key={s.id}>
+                    <strong
+                      className={`font-bold ${
+                        bestSpot === s.id
+                          ? "text-amber-300 font-black"
+                          : "text-slate-300"
+                      }`}
+                    >
+                      {s.name} ({s.score !== null && s.score !== undefined ? s.score : "N/A"})
+                    </strong>
+                    {idx < sortedSessionScores.length - 1 ? " • " : ""}
+                  </React.Fragment>
+                ))}
+              </span>
+            </div>
+          </div>
+        ) : bestSpot && bestSpotName ? (
+          /* STANDARD DAYTIME RECOMMENDED SPOT CARD */
           <div>
             {/* Spot Title & Stars */}
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-4">
@@ -230,7 +449,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
               </div>
             </div>
 
-            {/* 4-Metric Grid: Wind Range, Direction Range, Stability & Gustiness, Best Window & Confidence */}
+            {/* 4-Metric Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-surf-border/60">
               {/* 1. Wind Range */}
               <div className="p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">

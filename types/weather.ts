@@ -144,9 +144,12 @@ export interface BestWindow {
   minWind: number;
   maxWind: number;
   dominantDirection: WindDirection;
+  dominantDirectionDegrees?: number;
   meanScore: number; // session quality mean
+  score?: number;
   sailingStyle: WaterState;
-  condition: ConditionLabel;
+  condition?: ConditionLabel;
+  classification?: WindClassification | ConditionLabel;
   stability?: WindowStability | null;
 }
 

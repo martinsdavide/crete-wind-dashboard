@@ -10,11 +10,11 @@ const ONE_HOUR_MS = 60 * 60 * 1000;
 /**
  * Formats an ISO UTC timestamp string to HH:MM in Europe/Athens timezone.
  */
-export function formatTimeHHMM(timestamp: string): string {
+export function formatTimeHHMM(timestamp: string, timezone = "Europe/Athens"): string {
   try {
     const date = new Date(timestamp);
     return new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Athens",
+      timeZone: timezone,
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
@@ -31,20 +31,39 @@ export function formatTimeHHMM(timestamp: string): string {
  * 2. eligibility !== "UNSUITABLE" (hard gate: unsuitable hours cannot be in best window)
  * 3. duration >= minDuration (default 2 consecutive hours)
  * 4. adjacent items are strictly 1 hour apart
- * 5. Window is bounded within daylight hours (sunrise to sunset, ending at sunset maximum)
+ * 5. Window is strictly within astronomical daylight hours (sunrise to sunset)
  */
 export function findBestWindow(
   hourlyItems: HourlyWind[],
   minScoreThreshold = 70,
-  minConsecutiveHours = 2
+  minConsecutiveHours = 2,
+  timezone = "Europe/Athens"
 ): BestWindow | null {
   if (!hourlyItems || hourlyItems.length === 0) return null;
+
+  // Filter strictly to astronomical daylight hours (sunrise to sunset)
+  const daylightItems = hourlyItems.filter((item) => {
+    try {
+      const solar = getSolarWindow(item.timestamp);
+      const localHourStr = new Intl.DateTimeFormat("en-GB", {
+        timeZone: timezone,
+        hour: "2-digit",
+        hour12: false,
+      }).format(new Date(item.timestamp));
+      const localHour = parseInt(localHourStr, 10);
+      return localHour >= solar.startHour && localHour < solar.endHour;
+    } catch {
+      return true;
+    }
+  });
+
+  if (daylightItems.length === 0) return null;
 
   const candidateSequences: HourlyWind[][] = [];
   let currentSequence: HourlyWind[] = [];
 
-  for (let i = 0; i < hourlyItems.length; i++) {
-    const item = hourlyItems[i];
+  for (let i = 0; i < daylightItems.length; i++) {
+    const item = daylightItems[i];
     const isQualifying =
       item.sessionQualityScore >= minScoreThreshold &&
       item.eligibility !== "UNSUITABLE";
@@ -95,7 +114,7 @@ export function findBestWindow(
     const sumScore = seq.reduce((acc, h) => acc + h.sessionQualityScore, 0);
     const meanScore = sumScore / seq.length;
     const minScore = Math.min(...seq.map((h) => h.sessionQualityScore));
-    const startIndex = hourlyItems.indexOf(seq[0]);
+    const startIndex = daylightItems.indexOf(seq[0]);
     return {
       sequence: seq,
       meanScore,
@@ -125,34 +144,42 @@ export function findBestWindow(
   const startItem = seq[0];
   const lastItem = seq[seq.length - 1];
 
-  const startTimeStr = formatTimeHHMM(startItem.timestamp);
+  const startTimeStr = formatTimeHHMM(startItem.timestamp, timezone);
 
   let endTimeStr = "";
   try {
     const lastDate = new Date(lastItem.timestamp);
     const endDate = new Date(lastDate.getTime() + ONE_HOUR_MS);
     const endHourStr = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Athens",
+      timeZone: timezone,
       hour: "2-digit",
       hour12: false,
     }).format(endDate);
     const endHour = parseInt(endHourStr, 10);
 
-    // Astronomical Sunset limit: if end time exceeds astronomical sunset for this date, clamp to sunset
+    // Astronomical Sunset limit: clamp to sunset
     const solar = getSolarWindow(lastItem.timestamp);
     const sunsetHour = solar.endHour;
     if (endHour > sunsetHour || endHour === 0) {
       endTimeStr = `${String(sunsetHour).padStart(2, "0")}:00`;
     } else {
       endTimeStr = new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Europe/Athens",
+        timeZone: timezone,
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
       }).format(endDate);
     }
   } catch {
-    endTimeStr = formatTimeHHMM(lastItem.timestamp);
+    endTimeStr = formatTimeHHMM(lastItem.timestamp, timezone);
+  }
+
+  // Safety check: ensure endTime is strictly after startTime
+  const startHourVal = parseInt(startTimeStr.split(":")[0], 10);
+  let endHourVal = parseInt(endTimeStr.split(":")[0], 10);
+  if (endHourVal <= startHourVal) {
+    endHourVal = Math.min(20, startHourVal + best.durationHours);
+    endTimeStr = `${String(endHourVal).padStart(2, "0")}:00`;
   }
 
   const windValues = seq.map((h) => Math.round(h.localWind));
@@ -188,9 +215,11 @@ export function findBestWindow(
     minWind,
     maxWind,
     dominantDirection: dominantDir.label,
+    dominantDirectionDegrees: dominantDir.degrees,
+    score: roundedMeanScore,
     meanScore: roundedMeanScore,
+    classification: getConditionLabel(roundedMeanScore),
     sailingStyle: dominantStyle,
-    condition: getConditionLabel(roundedMeanScore),
     stability,
   };
 }
