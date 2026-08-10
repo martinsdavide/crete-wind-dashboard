@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { RecommendationEngine } from "@/engine/recommendation/RecommendationEngine";
 import { evaluateQualityCurve } from "@/engine/scoring/CurveEvaluator";
-import { evaluatePreferenceScore } from "@/engine/scoring/PreferenceEvaluator";
-import { normalizeHourlyPoint } from "@/engine/forecast/ForecastNormalizer";
+import { evaluateDirectionScore, evaluateForecastConfidence } from "@/engine/scoring/DirectionEvaluator";
+import { getLocalTimeComponents } from "@/lib/localWind";
 import { EasternCreteRegion } from "@/regions/eastern-crete";
 import { REGIONS, getRegion, isValidRegionId } from "@/regions/registry";
 import { RegionConfig } from "@/types/region";
-import { SpotForecast, SpotResult } from "@/types/weather";
+import { SpotForecast, SpotResult, WindSpot } from "@/types/weather";
 
 describe("Engine / Region Decoupling Refactor", () => {
   describe("Region Registry", () => {
@@ -24,6 +24,65 @@ describe("Engine / Region Decoupling Refactor", () => {
     it("falls back to DEFAULT_REGION when null or invalid ID passed", () => {
       const fallback = getRegion("unknown_id");
       expect(fallback.id).toBe("eastern-crete");
+    });
+  });
+
+  describe("Timezone Generalization", () => {
+    it("correctly extracts local components for any IANA timezone", () => {
+      const utcTimestamp = "2026-08-10T12:00:00.000Z";
+      
+      const athens = getLocalTimeComponents(utcTimestamp, "Europe/Athens");
+      expect(athens.hour).toBe(15); // UTC+3
+
+      const rome = getLocalTimeComponents(utcTimestamp, "Europe/Rome");
+      expect(rome.hour).toBe(14); // UTC+2
+
+      const newYork = getLocalTimeComponents(utcTimestamp, "America/New_York");
+      expect(newYork.hour).toBe(8); // UTC-4
+    });
+  });
+
+  describe("Pure Direction & Confidence Evaluator", () => {
+    it("evaluates direction score purely from spotConfig without hardcoded spot switches", () => {
+      const mockSpotConfig = {
+        id: "custom-spot",
+        name: "Custom Spot",
+        latitude: 42.0,
+        longitude: 11.0,
+        description: "",
+        sweetSpotSummary: "",
+        idealDirections: ["NW" as const, "WNW" as const],
+        minPlaningWind: 11,
+        idealWindMin: 18,
+        idealWindMax: 26,
+        comfortCeilingWind: 30,
+        defaultStyle: "FLAT" as const,
+        qualityCurve: [],
+        localCorrection: {
+          baseCorrectionFactor: 1.0,
+          minFactor: 0.9,
+          maxFactor: 1.2,
+        },
+        directionScores: {
+          NW: 100,
+          WNW: 90,
+          default: 35,
+        },
+      };
+
+      expect(evaluateDirectionScore(mockSpotConfig, "NW")).toBe(100);
+      expect(evaluateDirectionScore(mockSpotConfig, "WNW")).toBe(90);
+      expect(evaluateDirectionScore(mockSpotConfig, "S")).toBe(35);
+    });
+
+    it("evaluates confidence score without spotId dependencies", () => {
+      const confHigh = evaluateForecastConfidence(12, 100, 20);
+      expect(confHigh.level).toBe("HIGH");
+      expect(confHigh.confidence).toBeGreaterThanOrEqual(80);
+
+      const confLow = evaluateForecastConfidence(80, 40, 8);
+      expect(confLow.level).toBe("LOW");
+      expect(confLow.confidence).toBeLessThan(60);
     });
   });
 
@@ -134,15 +193,24 @@ describe("Engine / Region Decoupling Refactor", () => {
       ],
     };
 
-    it("runs recommendation engine on synthetic region with ZERO Crete dependencies", () => {
+    it("runs recommendation engine on synthetic region with ZERO Crete dependencies and outputs generic spotScores", () => {
       function createMockForecast(
         spotId: "spot-alpha" | "spot-beta",
         score: number,
         wind: number
       ): SpotForecast {
         const spot = MockSyntheticRegion.spots.find((s) => s.id === spotId)!;
+        const windSpot: WindSpot = {
+          id: spot.id,
+          name: spot.name,
+          subtitle: spot.description,
+          latitude: spot.latitude,
+          longitude: spot.longitude,
+          localCorrectionEnabled: true,
+        };
+
         return {
-          spot: spot as any,
+          spot: windSpot,
           current: {
             timestamp: "2026-08-10T12:00:00.000Z",
             modelWind: wind,
@@ -178,8 +246,18 @@ describe("Engine / Region Decoupling Refactor", () => {
               dominantDirectionDegrees: 315,
               score,
               condition: "VERY GOOD",
-              dominantEligibility: "IDEAL",
+              dominantEligibility: "UNSUITABLE", // Notice: Daily dominant is UNSUITABLE
               dominantStyle: spot.defaultStyle,
+              bestWindow: {
+                start: "13:00",
+                end: "17:00",
+                durationHours: 4.0,
+                minWind: wind - 1,
+                maxWind: wind + 1,
+                dominantDirection: "NW",
+                dominantDirectionDegrees: 315,
+                score,
+              },
             },
           ],
           providerModel: "TestModel",
@@ -194,12 +272,18 @@ describe("Engine / Region Decoupling Refactor", () => {
         "spot-beta": { status: "ok", data: betaFc },
       };
 
-      const recommendation = RecommendationEngine.run(MockSyntheticRegion, spotsResults);
+      const recommendation = RecommendationEngine.run(
+        MockSyntheticRegion,
+        spotsResults,
+        new Date("2026-08-10T12:00:00.000Z")
+      );
 
       expect(recommendation).not.toBeNull();
       expect(recommendation.bestSpot).toBe("spot-beta");
       expect(recommendation.bestSpotName).toBe("Beta Reef");
       expect(recommendation.score).toBe(95);
+      expect(recommendation.spotScores["spot-alpha"]).toBe(75);
+      expect(recommendation.spotScores["spot-beta"]).toBe(95);
       expect(recommendation.regimeLabel).toBe("Strong Maestrale");
       expect(recommendation.explanation[0]).toBe("Beta Reef provides epic wave conditions today.");
     });

@@ -1,13 +1,17 @@
 import { RegionConfig } from "@/types/region";
 import {
+  BestWindow,
+  DailyWindSummary,
   Recommendation,
   SpotForecast,
   SpotResult,
+  WaterState,
   WindDirection,
   WindRegime,
 } from "@/types/weather";
 import { generateRecommendationExplanation } from "../explanation/ExplanationEngine";
 import { degreesToCompass } from "@/lib/windDirection";
+import { SCORING_CONFIG } from "@/config/windProfiles";
 
 /**
  * Classifies regional wind regime based on configured RegionConfig regime rules.
@@ -87,7 +91,8 @@ export class RecommendationEngine {
    */
   public static run(
     regionConfig: RegionConfig,
-    spotsResults: Record<string, SpotResult>
+    spotsResults: Record<string, SpotResult>,
+    referenceDate: Date = new Date()
   ): Recommendation {
     // 1. Extract valid forecasts
     const validForecasts: Record<string, SpotForecast> = {};
@@ -103,47 +108,81 @@ export class RecommendationEngine {
       validForecasts
     );
 
-    // 3. Extract today summaries
-    const summaries: Record<string, any> = {};
-    for (const spot of regionConfig.spots) {
-      summaries[spot.id] = validForecasts[spot.id]?.days[0] ?? null;
+    // 3. Resolve today's date in the region's configured timezone (e.g. "YYYY-MM-DD")
+    let todayDateStr = "";
+    try {
+      todayDateStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: regionConfig.timezone || "Europe/Athens",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(referenceDate);
+    } catch {
+      todayDateStr = referenceDate.toISOString().split("T")[0];
     }
 
-    // 4. Rank spot candidates by session score & eligibility
+    // 4. Extract today summaries explicitly using regional local date
+    const summaries: Record<string, DailyWindSummary | null> = {};
+    const spotScores: Record<string, number | null> = {};
+
+    for (const spot of regionConfig.spots) {
+      const forecast = validForecasts[spot.id];
+      if (forecast && forecast.days && forecast.days.length > 0) {
+        const todaySummary =
+          forecast.days.find((d) => d.date === todayDateStr) || forecast.days[0];
+        summaries[spot.id] = todaySummary;
+        spotScores[spot.id] = todaySummary.score ?? null;
+      } else {
+        summaries[spot.id] = null;
+        spotScores[spot.id] = null;
+      }
+    }
+
+    // 5. Rank spot candidates based on session quality and Best Window availability
     interface SpotCandidate {
       id: string;
       name: string;
       score: number;
-      bestWindow: any;
-      eligibility: string;
-      style: any;
+      bestWindow: BestWindow | null;
+      hasEligibleSession: boolean;
+      style: WaterState;
     }
 
     const candidates: SpotCandidate[] = [];
+    const minWindowHours = SCORING_CONFIG.bestWindow?.minConsecutiveHours || 2;
 
     for (const spot of regionConfig.spots) {
       const summary = summaries[spot.id];
       if (!summary) continue;
 
+      const score = summary.score ?? 0;
+      const bestWin = summary.bestWindow ?? null;
+      const winDuration = bestWin?.durationHours ?? 0;
+
+      // A spot has an eligible session if its best window meets the minimum continuous window
+      // and quality score >= 60, regardless of the dominant daily state (e.g. even if morning was calm).
+      const hasEligibleSession =
+        score >= 60 &&
+        bestWin !== null &&
+        winDuration >= minWindowHours;
+
       candidates.push({
         id: spot.id,
         name: spot.name,
-        score: summary.score ?? 0,
-        bestWindow: summary.bestWindow ?? null,
-        eligibility: summary.dominantEligibility ?? "SUITABLE",
+        score,
+        bestWindow: bestWin,
+        hasEligibleSession,
         style: summary.dominantStyle ?? spot.defaultStyle,
       });
     }
 
-    // Filter eligible candidates: score >= 60, not UNSUITABLE
-    const qualifyingCandidates = candidates.filter(
-      (c) => c.score >= 60 && c.eligibility !== "UNSUITABLE"
-    );
+    // Filter qualifying session candidates
+    const qualifyingCandidates = candidates.filter((c) => c.hasEligibleSession);
 
     let winner: SpotCandidate | null = null;
 
     if (qualifyingCandidates.length > 0) {
-      // Sort by highest score, then window duration
+      // Sort by highest score, then continuous window duration
       qualifyingCandidates.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
         const durA = a.bestWindow?.durationHours ?? 0;
@@ -153,7 +192,7 @@ export class RecommendationEngine {
       winner = qualifyingCandidates[0];
     }
 
-    // 5. Generate rule-based explanations
+    // 6. Generate rule-based explanations from region rulebook
     const explanations = generateRecommendationExplanation(
       regionConfig,
       winner ? winner.id : null,
@@ -162,13 +201,14 @@ export class RecommendationEngine {
     );
 
     return {
-      bestSpot: winner ? (winner.id as any) : null,
+      bestSpot: winner ? winner.id : null,
       bestSpotName: winner ? winner.name : null,
       bestWindow: winner ? winner.bestWindow : null,
       score: winner ? winner.score : 0,
-      dayScoreKouremenos: summaries["kouremenos"]?.score ?? null,
-      dayScoreTenda: summaries["tenda"]?.score ?? null,
-      dayScoreXerokampos: summaries["xerokampos"]?.score ?? null,
+      spotScores,
+      dayScoreKouremenos: spotScores["kouremenos"] ?? null,
+      dayScoreTenda: spotScores["tenda"] ?? null,
+      dayScoreXerokampos: spotScores["xerokampos"] ?? null,
       regime: regimeId as WindRegime,
       regimeLabel,
       sailingStyle: winner ? winner.style : "BUMP_AND_JUMP",

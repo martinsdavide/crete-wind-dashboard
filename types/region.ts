@@ -56,6 +56,7 @@ export interface RegionSpotConfig {
   hardGates?: HardGateRule[];
   defaultStyle: WaterState;
   preferredStyles?: Partial<Record<WaterState, number>>;
+  directionScores?: Partial<Record<WindDirection, number>> & { default?: number };
   styleRules?: {
     waveThresholdWind?: number;
     bumpAndJumpThresholdWind?: number;

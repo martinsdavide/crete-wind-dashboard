@@ -1,31 +1,27 @@
 import { RegionSpotConfig } from "@/types/region";
 import { degreesToCompass, compassToArrowRotation } from "@/lib/windDirection";
-import {
-  calculateDirectionScore,
-  calculateForecastConfidence,
-  getWindClassification,
-  getConditionLabel,
-  calculateGustinessScore,
-} from "@/lib/windScore";
-import { getAthensTimeComponents } from "@/lib/localWind";
+import { getWindClassification, getConditionLabel, calculateGustinessScore } from "@/lib/windScore";
+import { getLocalTimeComponents } from "@/lib/localWind";
 import { HourlyWind, WaterState, WindDirection } from "@/types/weather";
 import { evaluateHourQuality } from "../scoring/SessionQuality";
+import { evaluateDirectionScore, evaluateForecastConfidence } from "../scoring/DirectionEvaluator";
 
 /**
- * Calculates dynamic local correction factor using the spot's injected configuration.
+ * Calculates dynamic local correction factor using the spot's injected configuration and regional timezone.
  */
 export function calculateLocalCorrectionFactor(
   spotConfig: RegionSpotConfig,
   timestamp: string | Date,
   directionLabel: WindDirection,
-  directionDegrees: number
+  directionDegrees: number,
+  timeZone = "Europe/Athens"
 ): { factor: number; effectiveDirection: WindDirection; effectiveDegrees: number } {
   const cfg = spotConfig.localCorrection;
   let factor = cfg.baseCorrectionFactor;
   let effectiveDirection = directionLabel;
   let effectiveDegrees = directionDegrees;
 
-  const { month, hour } = getAthensTimeComponents(timestamp);
+  const { month, hour } = getLocalTimeComponents(timestamp, timeZone);
 
   // 1. Seasonal / Summer Boost
   if (cfg.summerBoostMonths && cfg.summerBoostMonths.includes(month)) {
@@ -112,7 +108,8 @@ export function normalizeHourlyPoint(
     cloudCover?: number;
   },
   referenceDate: Date = new Date(),
-  regimeId?: string
+  regimeId?: string,
+  timeZone = "Europe/Athens"
 ): HourlyWind {
   const rawDirectionLabel = degreesToCompass(point.windDirection);
 
@@ -121,23 +118,23 @@ export function normalizeHourlyPoint(
       spotConfig,
       point.timestamp,
       rawDirectionLabel,
-      point.windDirection
+      point.windDirection,
+      timeZone
     );
 
   const localWind = Math.max(0, point.windSpeed * factor);
   const localGust = Math.max(localWind, (point.windGust || point.windSpeed * 1.25) * factor);
 
-  const directionScore = calculateDirectionScore(spotConfig.id as any, effectiveDirection);
+  const directionScore = evaluateDirectionScore(spotConfig, effectiveDirection);
 
   const pointDate = new Date(point.timestamp);
   const forecastHorizonHours = Math.max(
     0,
     (pointDate.getTime() - referenceDate.getTime()) / (1000 * 3600)
   );
-  const { confidence, level: confidenceLevel } = calculateForecastConfidence(
+  const { confidence, level: confidenceLevel } = evaluateForecastConfidence(
     forecastHorizonHours,
-    spotConfig.id as any,
-    effectiveDirection,
+    directionScore,
     point.windSpeed
   );
 

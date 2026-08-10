@@ -7,45 +7,69 @@ import { SpotId } from "@/types/spot";
  * Returns Athens local month (1-12), day of month (1-31), and fractional hour (0.0-24.0)
  * from a timestamp string or Date object.
  */
-export function getAthensTimeComponents(timestamp: string | Date): {
+/**
+ * Returns regional local month (1-12), day of month (1-31), and fractional hour (0.0-24.0)
+ * for any configured IANA timezone (e.g. "Europe/Athens", "Europe/Rome").
+ */
+export function getLocalTimeComponents(
+  timestamp: string | Date,
+  timeZone = "Europe/Athens"
+): {
   month: number;
   day: number;
   hour: number;
 } {
   const date = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
-  
+
   if (isNaN(date.getTime())) {
     return { month: 1, day: 1, hour: 12 };
   }
 
-  // Format in Europe/Athens timezone
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Europe/Athens",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    hour12: false,
-  });
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timeZone || "Europe/Athens",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      hour12: false,
+    });
 
-  const parts = formatter.formatToParts(date);
-  let month = 1;
-  let day = 1;
-  let hour = 12;
-  let minute = 0;
+    const parts = formatter.formatToParts(date);
+    let month = 1;
+    let day = 1;
+    let hour = 12;
+    let minute = 0;
 
-  for (const part of parts) {
-    if (part.type === "month") month = parseInt(part.value, 10);
-    if (part.type === "day") day = parseInt(part.value, 10);
-    if (part.type === "hour") hour = parseInt(part.value, 10);
-    if (part.type === "minute") minute = parseInt(part.value, 10);
+    for (const part of parts) {
+      if (part.type === "month") month = parseInt(part.value, 10);
+      if (part.type === "day") day = parseInt(part.value, 10);
+      if (part.type === "hour") hour = parseInt(part.value, 10);
+      if (part.type === "minute") minute = parseInt(part.value, 10);
+    }
+
+    if (hour === 24) hour = 0;
+    const fractionalHour = hour + minute / 60;
+    return { month, day, hour: fractionalHour };
+  } catch {
+    // Fallback to UTC if invalid timezone provided
+    return {
+      month: date.getUTCMonth() + 1,
+      day: date.getUTCDate(),
+      hour: date.getUTCHours() + date.getUTCMinutes() / 60,
+    };
   }
+}
 
-  // If 24 returned by formatToParts (midnight edge case), normalize to 0
-  if (hour === 24) hour = 0;
-
-  const fractionalHour = hour + minute / 60;
-  return { month, day, hour: fractionalHour };
+/**
+ * Backwards compatibility alias for Athens time components.
+ */
+export function getAthensTimeComponents(timestamp: string | Date): {
+  month: number;
+  day: number;
+  hour: number;
+} {
+  return getLocalTimeComponents(timestamp, "Europe/Athens");
 }
 
 /**

@@ -1,5 +1,5 @@
 import { HourlyWind, SpotForecast, WaterState } from "@/types/weather";
-import { SpotConfig } from "@/types/spot";
+import { SpotConfig, SpotId } from "@/types/spot";
 import { OpenMeteoRawResponse } from "./openMeteo";
 import {
   compassToArrowRotation,
@@ -73,9 +73,11 @@ export function normalizeSpotForecast(
     const directionLabel = degreesToCompass(directionDegrees);
     const arrowRotation = compassToArrowRotation(directionDegrees);
 
+    const spotId = spot.id as SpotId;
+
     // 1. Local Wind Correction
     const localWindResult = calculateLocalWind(
-      spot.id,
+      spotId,
       modelWind,
       directionDegrees,
       timestamp,
@@ -91,7 +93,7 @@ export function normalizeSpotForecast(
     // 3. Regime & Eligibility
     const { regime } = detectWindRegime(modelWind, directionDegrees);
     const { eligibility, reason: eligibilityReason } = calculateSpotEligibility(
-      spot.id,
+      spotId,
       directionDegrees,
       directionLabel,
       localWind,
@@ -99,16 +101,16 @@ export function normalizeSpotForecast(
     );
 
     // 4. Water State & Spot-Specific Wind Quality
-    const waterState: WaterState = estimateWaterState(spot.id, directionLabel, localWind);
-    const spotWindQuality = Math.round(calculateSpotWindQuality(spot.id, localWind));
-    const directionQuality = Math.round(calculateDirectionScore(spot.id, directionLabel));
+    const waterState: WaterState = estimateWaterState(spotId, directionLabel, localWind);
+    const spotWindQuality = Math.round(calculateSpotWindQuality(spotId, localWind));
+    const directionQuality = Math.round(calculateDirectionScore(spotId, directionLabel));
     const waterStateQuality = Math.round(calculateWaterStateQuality(waterState));
-    const preferenceScore = Math.round(calculatePreferenceScore(spot.id, waterState, localWind, directionLabel));
+    const preferenceScore = Math.round(calculatePreferenceScore(spotId, waterState, localWind, directionLabel));
     const gustScore = Math.round(calculateGustinessScore(localWind, localGust));
 
     const { confidence, level: confidenceLevel } = calculateForecastConfidence(
       horizonHours,
-      spot.id,
+      spotId,
       directionLabel,
       modelWind
     );
@@ -116,7 +118,7 @@ export function normalizeSpotForecast(
     // 5. Total Session Quality Score
     const sessionQualityScore = Math.round(
       calculateSessionQualityScore(
-        spot.id,
+        spotId,
         eligibility,
         spotWindQuality,
         directionQuality,
@@ -235,9 +237,10 @@ export function calculateCurrentConditions(
 
   const directionLabel = degreesToCompass(directionDegrees);
   const arrowRotation = compassToArrowRotation(directionDegrees);
+  const spotId = spot.id as SpotId;
 
   const localWindResult = calculateLocalWind(
-    spot.id,
+    spotId,
     modelWind,
     directionDegrees,
     currentTime,
@@ -250,30 +253,30 @@ export function calculateCurrentConditions(
 
   const { regime } = detectWindRegime(modelWind, directionDegrees);
   const { eligibility, reason: eligibilityReason } = calculateSpotEligibility(
-    spot.id,
+    spotId,
     directionDegrees,
     directionLabel,
     localWind,
     regime
   );
 
-  const waterState: WaterState = estimateWaterState(spot.id, directionLabel, localWind);
-  const spotWindQuality = Math.round(calculateSpotWindQuality(spot.id, localWind));
-  const directionQuality = Math.round(calculateDirectionScore(spot.id, directionLabel));
+  const waterState: WaterState = estimateWaterState(spotId, directionLabel, localWind);
+  const spotWindQuality = Math.round(calculateSpotWindQuality(spotId, localWind));
+  const directionQuality = Math.round(calculateDirectionScore(spotId, directionLabel));
   const waterStateQuality = Math.round(calculateWaterStateQuality(waterState));
-  const preferenceScore = Math.round(calculatePreferenceScore(spot.id, waterState, localWind, directionLabel));
+  const preferenceScore = Math.round(calculatePreferenceScore(spotId, waterState, localWind, directionLabel));
   const gustScore = Math.round(calculateGustinessScore(localWind, localGust));
 
   const { confidence, level: confidenceLevel } = calculateForecastConfidence(
     0,
-    spot.id,
+    spotId,
     directionLabel,
     modelWind
   );
 
   const sessionQualityScore = Math.round(
     calculateSessionQualityScore(
-      spot.id,
+      spotId,
       eligibility,
       spotWindQuality,
       directionQuality,

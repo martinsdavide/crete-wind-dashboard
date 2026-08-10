@@ -76,27 +76,25 @@ export const BestSpot: React.FC<BestSpotProps> = ({
 
   // Dynamically sort session scores by order of score
   const sortedSessionScores = useMemo(() => {
-    const defaultOrder = ["kouremenos", "tenda", "xerokampos"];
-    const list = [
-      {
-        id: "kouremenos",
-        name: "Kouremenos",
-        score: dayScoreKouremenos,
-        numScore: typeof dayScoreKouremenos === "number" ? dayScoreKouremenos : -1,
-      },
-      {
-        id: "tenda",
-        name: "Tenda",
-        score: dayScoreTenda,
-        numScore: typeof dayScoreTenda === "number" ? dayScoreTenda : -1,
-      },
-      {
-        id: "xerokampos",
-        name: "Xerokampos",
-        score: dayScoreXerokampos,
-        numScore: typeof dayScoreXerokampos === "number" ? dayScoreXerokampos : -1,
-      },
-    ];
+    const scores = recommendation.spotScores || {
+      kouremenos: recommendation.dayScoreKouremenos ?? null,
+      tenda: recommendation.dayScoreTenda ?? null,
+      xerokampos: recommendation.dayScoreXerokampos ?? null,
+    };
+
+    const formatName = (id: string) => {
+      if (id === "kouremenos") return "Kouremenos";
+      if (id === "tenda") return "Tenda";
+      if (id === "xerokampos") return "Xerokampos";
+      return id.charAt(0).toUpperCase() + id.slice(1);
+    };
+
+    const list = Object.entries(scores).map(([id, scoreVal]) => ({
+      id,
+      name: formatName(id),
+      score: scoreVal,
+      numScore: typeof scoreVal === "number" ? scoreVal : -1,
+    }));
 
     return list.sort((a, b) => {
       // The recommended Best Spot winner leads if scores are equal or leading
@@ -106,9 +104,9 @@ export const BestSpot: React.FC<BestSpotProps> = ({
       if (b.numScore !== a.numScore) {
         return b.numScore - a.numScore;
       }
-      return defaultOrder.indexOf(a.id) - defaultOrder.indexOf(b.id);
+      return 0;
     });
-  }, [dayScoreKouremenos, dayScoreTenda, dayScoreXerokampos, bestSpot]);
+  }, [recommendation.spotScores, recommendation.dayScoreKouremenos, recommendation.dayScoreTenda, recommendation.dayScoreXerokampos, bestSpot]);
 
   // Confidence styling
   const confidenceBadges: Record<string, { label: string; bg: string; text: string; border: string }> = {

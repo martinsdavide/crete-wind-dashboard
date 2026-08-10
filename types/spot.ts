@@ -3,12 +3,12 @@ import { WindDirection } from "./weather";
 export type SpotId = "kouremenos" | "tenda" | "xerokampos";
 
 export interface SpotConfig {
-  id: SpotId;
+  id: SpotId | string;
   name: string;
-  subtitle: string;
+  subtitle?: string;
   latitude: number;
   longitude: number;
-  localCorrectionEnabled: boolean;
+  localCorrectionEnabled?: boolean;
 }
 
 export type DirectionFactors = {

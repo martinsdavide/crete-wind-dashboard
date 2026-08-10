@@ -194,14 +194,15 @@ export type SpotResult =
     };
 
 export interface Recommendation {
-  bestSpot: SpotId | null;
+  bestSpot: SpotId | string | null;
   bestSpotName: string | null;
   bestWindow: BestWindow | null;
   score: number | null; // Top session quality score
-  dayScoreKouremenos: number | null;
-  dayScoreTenda: number | null;
-  dayScoreXerokampos: number | null;
-  regime: WindRegime;
+  spotScores: Record<string, number | null>;
+  dayScoreKouremenos?: number | null;
+  dayScoreTenda?: number | null;
+  dayScoreXerokampos?: number | null;
+  regime: WindRegime | string;
   regimeLabel: string;
   sailingStyle: WaterState;
   explanation: string[];

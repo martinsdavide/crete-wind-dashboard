@@ -3,7 +3,7 @@ import { getRegion } from "@/regions/registry";
 import { fetchSpotWeather } from "@/lib/weather/openMeteo";
 import { normalizeSpotForecast } from "@/lib/weather/normalizeForecast";
 import { RecommendationEngine } from "@/engine/recommendation/RecommendationEngine";
-import { SpotForecast, SpotResult, WindApiResponse } from "@/types/weather";
+import { SpotForecast, SpotResult, WindApiResponse, WindSpot } from "@/types/weather";
 
 export const revalidate = 900; // 15 minutes cache
 
@@ -27,10 +27,19 @@ export async function GET(request: NextRequest) {
 
   regionConfig.spots.forEach((spot, idx) => {
     const settled = settledResults[idx];
+    const windSpot: WindSpot = {
+      id: spot.id,
+      name: spot.name,
+      subtitle: spot.description,
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+      localCorrectionEnabled: true,
+    };
+
     if (settled.status === "fulfilled") {
       anyFulfilled = true;
       const forecast: SpotForecast = normalizeSpotForecast(
-        spot as any,
+        windSpot,
         settled.value,
         currentTime
       );
@@ -44,7 +53,7 @@ export async function GET(request: NextRequest) {
           settled.reason instanceof Error
             ? settled.reason.message
             : "Weather data unavailable",
-        spot: spot as any,
+        spot: windSpot,
       };
       models[spot.id] = "Unavailable";
     }
@@ -63,7 +72,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Run decoupled Recommendation Engine
-  const recommendation = RecommendationEngine.run(regionConfig, spotsResults);
+  const recommendation = RecommendationEngine.run(regionConfig, spotsResults, currentTime);
 
   const defaultModel =
     Object.values(models).find((m) => m !== "Unavailable") ||
@@ -78,7 +87,7 @@ export async function GET(request: NextRequest) {
     model: defaultModel,
     models,
     timezone: regionConfig.timezone,
-    spots: spotsResults as any,
+    spots: spotsResults,
     spotList,
     recommendation,
   };

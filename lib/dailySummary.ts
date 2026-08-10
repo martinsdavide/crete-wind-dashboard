@@ -264,6 +264,11 @@ export function calculateBestSpotRecommendation(
       bestSpotName: null,
       bestWindow: null,
       score: 0,
+      spotScores: {
+        kouremenos: kScore,
+        tenda: tScore,
+        xerokampos: xScore,
+      },
       dayScoreKouremenos: kScore,
       dayScoreTenda: tScore,
       dayScoreXerokampos: xScore,
@@ -293,6 +298,11 @@ export function calculateBestSpotRecommendation(
     bestSpotName: winner.name,
     bestWindow,
     score: winner.score,
+    spotScores: {
+      kouremenos: kScore,
+      tenda: tScore,
+      xerokampos: xScore,
+    },
     dayScoreKouremenos: kScore,
     dayScoreTenda: tScore,
     dayScoreXerokampos: xScore,
