@@ -5,8 +5,8 @@ import { evaluateDirectionScore, evaluateForecastConfidence } from "@/engine/sco
 import { getLocalTimeComponents } from "@/lib/localWind";
 import { EasternCreteRegion } from "@/regions/eastern-crete";
 import { REGIONS, getRegion, isValidRegionId } from "@/regions/registry";
-import { RegionConfig } from "@/types/region";
-import { SpotForecast, SpotResult, WindSpot } from "@/types/weather";
+import { getRegionalDateKey, calculateDailySummariesGeneric } from "@/engine/forecast/ForecastNormalizer";
+import { SpotForecast, SpotResult, WindSpot, HourlyWind } from "@/types/weather";
 
 describe("Engine / Region Decoupling Refactor", () => {
   describe("Region Registry", () => {
@@ -39,6 +39,13 @@ describe("Engine / Region Decoupling Refactor", () => {
 
       const newYork = getLocalTimeComponents(utcTimestamp, "America/New_York");
       expect(newYork.hour).toBe(8); // UTC-4
+    });
+
+    it("extracts regional date key matching local calendar day across timezone boundaries", () => {
+      // 22:30 UTC on Aug 10 -> 01:30 AM on Aug 11 in Athens (UTC+3)
+      const lateUtc = "2026-08-10T22:30:00.000Z";
+      expect(getRegionalDateKey(lateUtc, "Europe/Athens")).toBe("2026-08-11");
+      expect(getRegionalDateKey(lateUtc, "UTC")).toBe("2026-08-10");
     });
   });
 
@@ -83,6 +90,158 @@ describe("Engine / Region Decoupling Refactor", () => {
       const confLow = evaluateForecastConfidence(80, 40, 8);
       expect(confLow.level).toBe("LOW");
       expect(confLow.confidence).toBeLessThan(60);
+    });
+  });
+
+  describe("Daily Aggregation & Top-3 Session Scoring", () => {
+    it("calculates daily score from the top 3 eligible hourly session scores excluding UNSUITABLE hours", () => {
+      const mockSpot = EasternCreteRegion.spots[0]; // Kouremenos
+      const mockHourly: HourlyWind[] = [
+        // Morning calm: 09:00 - 11:00 (scores: 30, 40, 50 - eligible but weak)
+        {
+          timestamp: "2026-08-10T06:00:00.000Z", // 09:00 Athens
+          modelWind: 10,
+          modelGust: 12,
+          directionDegrees: 315,
+          directionLabel: "NW",
+          arrowRotation: 135,
+          localWind: 10,
+          localGust: 12,
+          correctionFactor: 1.0,
+          confidence: 80,
+          confidenceLevel: "HIGH",
+          eligibility: "SUITABLE",
+          waterState: "FLAT",
+          spotWindQuality: 30,
+          directionQuality: 100,
+          preferenceScore: 30,
+          sessionQualityScore: 30,
+          score: 30,
+          classification: "LIGHT",
+          condition: "POOR",
+        },
+        {
+          timestamp: "2026-08-10T07:00:00.000Z", // 10:00 Athens
+          modelWind: 12,
+          modelGust: 14,
+          directionDegrees: 315,
+          directionLabel: "NW",
+          arrowRotation: 135,
+          localWind: 12,
+          localGust: 14,
+          correctionFactor: 1.0,
+          confidence: 80,
+          confidenceLevel: "HIGH",
+          eligibility: "SUITABLE",
+          waterState: "FLAT",
+          spotWindQuality: 40,
+          directionQuality: 100,
+          preferenceScore: 40,
+          sessionQualityScore: 40,
+          score: 40,
+          classification: "LIGHT",
+          condition: "POOR",
+        },
+        // Epic 3-hour afternoon session: 13:00, 14:00, 15:00 (scores: 90, 95, 85)
+        {
+          timestamp: "2026-08-10T10:00:00.000Z", // 13:00 Athens
+          modelWind: 22,
+          modelGust: 26,
+          directionDegrees: 315,
+          directionLabel: "NW",
+          arrowRotation: 135,
+          localWind: 22,
+          localGust: 26,
+          correctionFactor: 1.0,
+          confidence: 85,
+          confidenceLevel: "HIGH",
+          eligibility: "IDEAL",
+          waterState: "FLAT",
+          spotWindQuality: 90,
+          directionQuality: 100,
+          preferenceScore: 90,
+          sessionQualityScore: 90,
+          score: 90,
+          classification: "MODERATE",
+          condition: "EXCELLENT",
+        },
+        {
+          timestamp: "2026-08-10T11:00:00.000Z", // 14:00 Athens
+          modelWind: 24,
+          modelGust: 28,
+          directionDegrees: 315,
+          directionLabel: "NW",
+          arrowRotation: 135,
+          localWind: 24,
+          localGust: 28,
+          correctionFactor: 1.0,
+          confidence: 85,
+          confidenceLevel: "HIGH",
+          eligibility: "IDEAL",
+          waterState: "FLAT",
+          spotWindQuality: 95,
+          directionQuality: 100,
+          preferenceScore: 95,
+          sessionQualityScore: 95,
+          score: 95,
+          classification: "STRONG",
+          condition: "EXCELLENT",
+        },
+        {
+          timestamp: "2026-08-10T12:00:00.000Z", // 15:00 Athens
+          modelWind: 21,
+          modelGust: 25,
+          directionDegrees: 315,
+          directionLabel: "NW",
+          arrowRotation: 135,
+          localWind: 21,
+          localGust: 25,
+          correctionFactor: 1.0,
+          confidence: 85,
+          confidenceLevel: "HIGH",
+          eligibility: "IDEAL",
+          waterState: "FLAT",
+          spotWindQuality: 85,
+          directionQuality: 100,
+          preferenceScore: 85,
+          sessionQualityScore: 85,
+          score: 85,
+          classification: "MODERATE",
+          condition: "VERY GOOD",
+        },
+        // Unsuitable gusty hour: 16:00 (score 100 on raw wind, but UNSUITABLE hard gate -> sessionQualityScore 0)
+        {
+          timestamp: "2026-08-10T13:00:00.000Z", // 16:00 Athens
+          modelWind: 35,
+          modelGust: 50,
+          directionDegrees: 180,
+          directionLabel: "S",
+          arrowRotation: 0,
+          localWind: 35,
+          localGust: 50,
+          correctionFactor: 1.0,
+          confidence: 70,
+          confidenceLevel: "MEDIUM",
+          eligibility: "UNSUITABLE",
+          waterState: "CHOP",
+          spotWindQuality: 0,
+          directionQuality: 0,
+          preferenceScore: 0,
+          sessionQualityScore: 0,
+          score: 0,
+          classification: "GALE",
+          condition: "POOR",
+        },
+      ];
+
+      const summaries = calculateDailySummariesGeneric(mockHourly, mockSpot, "Europe/Athens");
+      expect(summaries.length).toBe(1);
+
+      // Expected dailyScore: top 3 eligible scores = [95, 90, 85] -> average = 90
+      // Weak morning hours (30, 40) and UNSUITABLE hour (0) do NOT dilute the top session score
+      expect(summaries[0].score).toBe(90);
+      expect(summaries[0].condition).toBe("EXCELLENT");
+      expect(summaries[0].date).toBe("2026-08-10");
     });
   });
 

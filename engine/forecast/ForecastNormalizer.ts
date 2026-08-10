@@ -282,6 +282,28 @@ export function calculateCurrentConditionsGeneric(
 /**
  * Aggregates normalized hourly data into daily wind summaries using astronomical solar hours.
  */
+/**
+ * Extracts regional calendar date key (YYYY-MM-DD) based on regional timezone.
+ */
+export function getRegionalDateKey(
+  timestamp: string | Date,
+  timeZone = "Europe/Athens"
+): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(timestamp));
+  } catch {
+    return new Date(timestamp).toISOString().split("T")[0];
+  }
+}
+
+/**
+ * Aggregates normalized hourly data into daily wind summaries using astronomical solar hours.
+ */
 export function calculateDailySummariesGeneric(
   hourly: HourlyWind[],
   spotConfig: RegionSpotConfig,
@@ -290,7 +312,7 @@ export function calculateDailySummariesGeneric(
   const groups: Record<string, HourlyWind[]> = {};
 
   for (const h of hourly) {
-    const dateStr = h.timestamp.split("T")[0];
+    const dateStr = getRegionalDateKey(h.timestamp, timeZone);
     if (!groups[dateStr]) {
       groups[dateStr] = [];
     }
@@ -314,7 +336,6 @@ export function calculateDailySummariesGeneric(
 
     const windSpeeds = activeHours.map((h) => h.localWind);
     const gustSpeeds = activeHours.map((h) => h.localGust);
-    const scores = activeHours.map((h) => h.sessionQualityScore);
     const dirDegrees = activeHours.map((h) => h.directionDegrees);
 
     const daytimeMinWind = Math.min(...windSpeeds);
@@ -326,12 +347,22 @@ export function calculateDailySummariesGeneric(
     const { degrees: dominantDirectionDegrees, label: dominantDirection } =
       getDominantDirection(dirDegrees);
 
-    const avgScore =
-      scores.length > 0
-        ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+    // Daily spot score: average of the top 3 highest ELIGIBLE hourly sessionQualityScores (excluding UNSUITABLE)
+    const eligibleScores = activeHours
+      .filter((h) => h.eligibility !== "UNSUITABLE")
+      .map((h) => h.sessionQualityScore)
+      .sort((a, b) => b - a);
+
+    const topScores = eligibleScores.slice(0, 3);
+
+    const dailyScore =
+      topScores.length > 0
+        ? Math.round(
+            topScores.reduce((sum, score) => sum + score, 0) / topScores.length
+          )
         : 0;
 
-    const condition = getConditionLabel(avgScore);
+    const condition = getConditionLabel(dailyScore);
 
     // Dominant eligibility
     const eligCounts: Record<string, number> = {};
@@ -377,7 +408,7 @@ export function calculateDailySummariesGeneric(
       maxGust,
       dominantDirection,
       dominantDirectionDegrees,
-      score: avgScore,
+      score: dailyScore,
       condition,
       dominantEligibility,
       dominantStyle,
