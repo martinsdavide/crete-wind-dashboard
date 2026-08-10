@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { WindApiResponse } from "@/types/weather";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { WindApiResponse, SpotResult } from "@/types/weather";
+import { SpotId } from "@/types/spot";
 import { Header } from "@/components/Header";
 import { BestSpot } from "@/components/BestSpot";
 import { SpotCard } from "@/components/SpotCard";
@@ -58,6 +59,94 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, [fetchForecast]);
 
+  // Dynamically order Spot Cards by surf quality score, falling back to default order if no spot is surfable
+  const orderedSpots = useMemo<SpotResult[]>(() => {
+    if (!data) return [];
+
+    const defaultOrder: SpotId[] = ["kouremenos", "tenda", "xerokampos"];
+
+    const spotsList: {
+      id: SpotId;
+      result: SpotResult;
+      score: number;
+      isSurfable: boolean;
+    }[] = [
+      {
+        id: "kouremenos",
+        result: data.spots.kouremenos,
+        score:
+          data.recommendation?.dayScoreKouremenos ??
+          (data.spots.kouremenos.status === "ok"
+            ? data.spots.kouremenos.data.days[0]?.score ?? 0
+            : 0),
+        isSurfable:
+          data.spots.kouremenos.status === "ok" &&
+          data.spots.kouremenos.data.current.eligibility !== "UNSUITABLE" &&
+          (data.recommendation?.dayScoreKouremenos ??
+            data.spots.kouremenos.data.days[0]?.score ??
+            0) >= 60,
+      },
+      {
+        id: "tenda",
+        result: data.spots.tenda,
+        score:
+          data.recommendation?.dayScoreTenda ??
+          (data.spots.tenda.status === "ok"
+            ? data.spots.tenda.data.days[0]?.score ?? 0
+            : 0),
+        isSurfable:
+          data.spots.tenda.status === "ok" &&
+          data.spots.tenda.data.current.eligibility !== "UNSUITABLE" &&
+          (data.recommendation?.dayScoreTenda ??
+            data.spots.tenda.data.days[0]?.score ??
+            0) >= 60,
+      },
+      {
+        id: "xerokampos",
+        result: data.spots.xerokampos,
+        score:
+          data.recommendation?.dayScoreXerokampos ??
+          (data.spots.xerokampos.status === "ok"
+            ? data.spots.xerokampos.data.days[0]?.score ?? 0
+            : 0),
+        isSurfable:
+          data.spots.xerokampos.status === "ok" &&
+          data.spots.xerokampos.data.current.eligibility !== "UNSUITABLE" &&
+          (data.recommendation?.dayScoreXerokampos ??
+            data.spots.xerokampos.data.days[0]?.score ??
+            0) >= 60,
+      },
+    ];
+
+    // Check if at least one spot is surfable (or has an active Best Spot recommendation)
+    const anySurfable = spotsList.some(
+      (s) =>
+        s.isSurfable ||
+        (data.recommendation?.bestSpot === s.id && (data.recommendation?.score ?? 0) > 0)
+    );
+
+    // If no spot is surfable, keep default sequence: Kouremenos, Tenda, Xerokampos
+    if (!anySurfable) {
+      return spotsList.map((s) => s.result);
+    }
+
+    // Sort dynamically in descending order of surf quality score
+    return [...spotsList]
+      .sort((a, b) => {
+        // The recommended bestSpot always leads
+        if (data.recommendation?.bestSpot === a.id) return -1;
+        if (data.recommendation?.bestSpot === b.id) return 1;
+
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+
+        // Tie-breaker: default order
+        return defaultOrder.indexOf(a.id) - defaultOrder.indexOf(b.id);
+      })
+      .map((s) => s.result);
+  }, [data]);
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header
@@ -103,15 +192,18 @@ export default function HomePage() {
               xerokamposResult={data.spots.xerokampos}
             />
 
-            {/* 2. 3 Spot Cards (1 col mobile, 3 cols desktop) */}
+            {/* 2. 3 Spot Cards (Ordered dynamically by surf quality) */}
             <section aria-labelledby="spots-heading" className="space-y-2">
               <h2 id="spots-heading" className="sr-only">
                 Current Spot Conditions
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <SpotCard result={data.spots.kouremenos} />
-                <SpotCard result={data.spots.tenda} />
-                <SpotCard result={data.spots.xerokampos} />
+                {orderedSpots.map((spotRes) => (
+                  <SpotCard
+                    key={spotRes.status === "ok" ? spotRes.data.spot.id : spotRes.spot.id}
+                    result={spotRes}
+                  />
+                ))}
               </div>
             </section>
 
