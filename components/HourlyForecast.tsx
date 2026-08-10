@@ -8,7 +8,7 @@ import { ConfidenceBadge } from "./ConfidenceBadge";
 import { formatTimeHHMM } from "@/lib/bestWindow";
 import { getAthensTimeComponents } from "@/lib/localWind";
 import { SCORING_CONFIG } from "@/config/windProfiles";
-import { X, Clock, AlertTriangle, Waves, Sun } from "lucide-react";
+import { X, AlertTriangle, Waves, Sun } from "lucide-react";
 
 interface HourlyForecastProps {
   kouremenosResult: SpotResult;
@@ -155,7 +155,9 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
                   : new Intl.DateTimeFormat("en-GB", {
                       timeZone: "Europe/Athens",
                       weekday: "short",
-                    }).format(itemDate);
+                    })
+                      .format(itemDate)
+                      .toUpperCase();
 
                 const isPrimeTime = item.sessionQualityScore >= 75;
                 const isGoodTime = item.sessionQualityScore >= 60 && item.sessionQualityScore < 75;
@@ -165,7 +167,7 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
                   <button
                     key={`${item.timestamp}-${isNow ? "now" : "hour"}`}
                     onClick={() => setActiveItem({ item, isNow })}
-                    className={`flex-shrink-0 flex flex-col items-center justify-between p-3 w-20 rounded-xl border transition-all text-center focus:outline-none focus:ring-2 focus:ring-sky-400 ${
+                    className={`flex-shrink-0 flex flex-col items-center justify-between p-3 w-[86px] sm:w-[90px] rounded-xl border transition-all text-center focus:outline-none focus:ring-2 focus:ring-sky-400 ${
                       isNow
                         ? "bg-gradient-to-b from-sky-500/25 via-surf-dark/90 to-surf-dark border-sky-400 ring-1 ring-sky-400/50 shadow-md shadow-sky-500/15"
                         : isUnsuitable
@@ -177,31 +179,34 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
                         : "bg-surf-dark/50 border-surf-border/60 hover:border-surf-border"
                     }`}
                   >
-                    <div className="flex flex-col items-center leading-tight">
-                      <span
-                        className={`text-[11px] font-bold font-mono ${
-                          isNow ? "text-sky-400 font-black tracking-wide" : "text-slate-300"
-                        }`}
-                      >
-                        {timeLabel}
-                      </span>
-                      {dayLabel && (
-                        <span className="text-[9px] text-slate-400 font-mono">
-                          {dayLabel}
+                    {/* High-Visibility Day and Time Header */}
+                    <div className="w-full flex flex-col items-center gap-0.5 mb-1">
+                      {isNow ? (
+                        <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded bg-sky-500/25 border border-sky-400/60 text-sky-300 tracking-wider">
+                          NOW
                         </span>
+                      ) : (
+                        <>
+                          <span className="text-xs font-black uppercase tracking-wider text-sky-400 [data-theme='daylight']_:text-sky-700 block">
+                            {dayLabel}
+                          </span>
+                          <span className="text-xs font-black font-mono text-slate-200">
+                            {timeLabel}
+                          </span>
+                        </>
                       )}
                     </div>
 
-                    <div className="my-1.5">
-                      <span className="text-xl font-black font-mono text-white block">
+                    <div className="my-1">
+                      <span className="text-2xl font-black font-mono text-white block leading-none">
                         {Math.round(item.localWind)}
                       </span>
-                      <span className="text-[9px] text-slate-400 uppercase font-mono">
+                      <span className="text-[9px] text-slate-400 uppercase font-mono mt-0.5 block">
                         kt
                       </span>
                     </div>
 
-                    <div className="flex flex-col items-center gap-1">
+                    <div className="flex flex-col items-center gap-1 my-1">
                       <WindArrow
                         rotation={item.arrowRotation}
                         directionLabel={item.directionLabel}
@@ -213,7 +218,7 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
                     </div>
 
                     {/* Style & Score Indicator */}
-                    <div className="w-full mt-2 pt-1 border-t border-surf-border/40 flex items-center justify-between text-[9px] font-mono text-slate-400">
+                    <div className="w-full mt-1.5 pt-1.5 border-t border-surf-border/40 flex items-center justify-between text-[9px] font-mono text-slate-400">
                       <span className="text-[8px] text-cyan-400 uppercase font-semibold">
                         {styleLabels[item.waterState] || item.waterState}
                       </span>
