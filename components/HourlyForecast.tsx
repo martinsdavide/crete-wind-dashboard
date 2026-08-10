@@ -8,6 +8,7 @@ import { ConfidenceBadge } from "./ConfidenceBadge";
 import { formatTimeHHMM } from "@/lib/bestWindow";
 import { getAthensTimeComponents } from "@/lib/localWind";
 import { SCORING_CONFIG } from "@/config/windProfiles";
+import { isDaylightHour } from "@/lib/solar";
 import { X, AlertTriangle, Waves, Sun } from "lucide-react";
 
 interface HourlyForecastProps {
@@ -54,14 +55,11 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
 
     // Filter future hourly items:
     // 1. Strictly in the future (timestamp > nowMs)
-    // 2. Strictly during daylight windsurfing window (sunrise to sunset, 07:00 - 20:00 Athens local time)
+    // 2. Strictly during solar daylight windsurfing window (sunrise to sunset calculated astronomically)
     const futureDaylightHours = activeForecast.hourly.filter((h) => {
       const hMs = new Date(h.timestamp).getTime();
       const isFuture = hMs > nowMs;
-      const { hour } = getAthensTimeComponents(h.timestamp);
-      const isDaylight =
-        hour >= SCORING_CONFIG.daytime.startHour &&
-        hour <= SCORING_CONFIG.daytime.endHour;
+      const isDaylight = isDaylightHour(h.timestamp);
 
       return isFuture && isDaylight;
     });
@@ -98,7 +96,7 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
               <span>HOURLY SESSION FORECAST</span>
             </h2>
             <p className="text-xs text-slate-400">
-              Daylight windsurfing hours (sunrise 07:00 to sunset 20:00)
+              Solar daylight windsurfing hours (sunrise to sunset)
             </p>
           </div>
 

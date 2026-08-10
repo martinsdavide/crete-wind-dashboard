@@ -13,6 +13,7 @@ import { getConditionLabel } from "./windScore";
 import { getAthensTimeComponents } from "./localWind";
 import { SCORING_CONFIG } from "@/config/windProfiles";
 import { calculateRegionalReferenceFlow } from "./windRegime";
+import { getSolarWindow } from "./solar";
 import { explainRecommendation } from "./sessionQuality";
 
 /**
@@ -50,12 +51,13 @@ export function calculateDailySummaries(hourlyItems: HourlyWind[]): DailyWindSum
   const summaries: DailyWindSummary[] = [];
 
   for (const [date, items] of groups.entries()) {
-    // Filter daytime items (09:00 - 20:00 Athens local time)
+    // Dynamic astronomical solar daylight window (sunrise to sunset for this specific date and coordinates)
+    const solarWindow = getSolarWindow(date);
     const daytimeItems = items.filter((item) => {
       const { hour } = getAthensTimeComponents(item.timestamp);
       return (
-        hour >= SCORING_CONFIG.daytime.startHour &&
-        hour <= SCORING_CONFIG.daytime.endHour
+        hour >= solarWindow.startHour &&
+        hour <= solarWindow.endHour
       );
     });
 

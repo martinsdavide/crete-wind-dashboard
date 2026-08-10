@@ -87,7 +87,7 @@ export const DailyForecast: React.FC<DailyForecastProps> = ({
               <span>4-DAY FORECAST OVERVIEW</span>
             </h2>
             <p className="text-xs text-slate-400">
-              Daylight peak windsurfing conditions (07:00 – 20:00) with session quality scores
+              Solar daylight peak windsurfing conditions (sunrise to sunset) with session quality scores
             </p>
           </div>
 

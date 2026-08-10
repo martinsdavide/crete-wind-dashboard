@@ -3,6 +3,7 @@ import { getConditionLabel } from "./windScore";
 import { getDominantDirection } from "./windDirection";
 import { SCORING_CONFIG } from "@/config/windProfiles";
 import { calculateWindowStability } from "./windowStability";
+import { getSolarWindow } from "./solar";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -137,8 +138,9 @@ export function findBestWindow(
     }).format(endDate);
     const endHour = parseInt(endHourStr, 10);
 
-    // Sunset limit: if end time exceeds sunset (SCORING_CONFIG.daytime.endHour, e.g. 20:00), clamp to sunset
-    const sunsetHour = SCORING_CONFIG.daytime.endHour;
+    // Astronomical Sunset limit: if end time exceeds astronomical sunset for this date, clamp to sunset
+    const solar = getSolarWindow(lastItem.timestamp);
+    const sunsetHour = solar.endHour;
     if (endHour > sunsetHour || endHour === 0) {
       endTimeStr = `${String(sunsetHour).padStart(2, "0")}:00`;
     } else {
