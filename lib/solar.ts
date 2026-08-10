@@ -1,23 +1,24 @@
 /**
  * Astronomical Solar Calculator (NOAA Solar Calculation Algorithm)
- * Computes exact sunrise, sunset, and daylight operating windows for any date
- * and geographic coordinates (Eastern Crete: Kouremenos, Tenda, Xerokampos).
+ * Computes exact sunrise, sunset, and daylight operating windows for any date,
+ * geographic coordinates, and regional timezone.
  */
 
 export interface SolarWindow {
   date: string; // YYYY-MM-DD
   sunriseUtc: Date;
   sunsetUtc: Date;
-  sunriseTime: string; // HH:MM in Europe/Athens
-  sunsetTime: string;  // HH:MM in Europe/Athens
-  startHour: number;   // Nearest local Athens hour starting after/at dawn (e.g. 6 or 7)
-  endHour: number;     // Nearest local Athens hour ending at/before dusk (e.g. 17 in Dec, 20 in Jun)
+  sunriseTime: string; // HH:MM in regional timezone
+  sunsetTime: string;  // HH:MM in regional timezone
+  startHour: number;   // Nearest local hour starting after/at dawn (e.g. 6 or 7)
+  endHour: number;     // Nearest local hour ending at/before dusk (e.g. 17 in Dec, 20 in Jun)
   daylightDurationHours: number;
 }
 
 // Default reference coordinates for Eastern Crete (Palekastro / Cape Sidero / Xerokampos)
 export const DEFAULT_CRETE_LAT = 35.19;
 export const DEFAULT_CRETE_LON = 26.27;
+export const DEFAULT_TIMEZONE = "Europe/Athens";
 
 /**
  * Calculates solar sunrise and sunset for a given UTC Date and Lat/Lon.
@@ -45,7 +46,6 @@ export function calculateSolarTimes(
     (0.000075 +
       0.001868 * Math.cos(gamma) -
       0.032077 * Math.sin(gamma) -
-      0.014615 * Math.cos(2 * gamma) -
       0.040849 * Math.sin(2 * gamma));
 
   // Solar declination (radians)
@@ -87,11 +87,11 @@ export function calculateSolarTimes(
 }
 
 /**
- * Formats a Date object to HH:MM in Europe/Athens timezone.
+ * Formats a Date object to HH:MM in the specified timezone.
  */
-function formatAthensHHMM(date: Date): string {
+export function formatLocalTimeHHMM(date: Date, timezone = DEFAULT_TIMEZONE): string {
   return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Athens",
+    timeZone: timezone,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -99,11 +99,11 @@ function formatAthensHHMM(date: Date): string {
 }
 
 /**
- * Extracts Athens local hour integer (0-23) from a Date.
+ * Extracts local hour integer (0-23) and minute from a Date in the specified timezone.
  */
-function getAthensHour(date: Date): { hour: number; minute: number } {
+export function getLocalHourAndMinute(date: Date, timezone = DEFAULT_TIMEZONE): { hour: number; minute: number } {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Europe/Athens",
+    timeZone: timezone,
     hour: "numeric",
     minute: "numeric",
     hour12: false,
@@ -120,26 +120,27 @@ function getAthensHour(date: Date): { hour: number; minute: number } {
 }
 
 /**
- * Computes the complete Solar Window for a specific date and coordinates in Athens local time.
+ * Computes the complete Solar Window for a specific date and coordinates in the regional local time.
  */
 export function getSolarWindow(
   date: Date | string,
   latitude = DEFAULT_CRETE_LAT,
-  longitude = DEFAULT_CRETE_LON
+  longitude = DEFAULT_CRETE_LON,
+  timezone = DEFAULT_TIMEZONE
 ): SolarWindow {
   const { sunrise, sunset } = calculateSolarTimes(date, latitude, longitude);
 
-  const sunriseTime = formatAthensHHMM(sunrise);
-  const sunsetTime = formatAthensHHMM(sunset);
+  const sunriseTime = formatLocalTimeHHMM(sunrise, timezone);
+  const sunsetTime = formatLocalTimeHHMM(sunset, timezone);
 
-  const sunriseAthens = getAthensHour(sunrise);
-  const sunsetAthens = getAthensHour(sunset);
+  const sunriseLocal = getLocalHourAndMinute(sunrise, timezone);
+  const sunsetLocal = getLocalHourAndMinute(sunset, timezone);
 
   // For windsurfing:
-  // startHour: earliest sailable hour after dawn (floor of sunrise hour or exact hour)
+  // startHour: earliest sailable hour after dawn
   // endHour: latest sailable hour before sunset (floor of sunset hour, e.g. 20:20 -> 20:00)
-  const startHour = Math.max(5, Math.min(9, sunriseAthens.hour));
-  const endHour = Math.max(16, Math.min(21, sunsetAthens.hour));
+  const startHour = Math.max(5, Math.min(9, sunriseLocal.hour));
+  const endHour = Math.max(16, Math.min(21, sunsetLocal.hour));
 
   const daylightDurationHours = Math.round(((sunset.getTime() - sunrise.getTime()) / (3600 * 1000)) * 10) / 10;
 

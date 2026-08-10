@@ -37,14 +37,16 @@ export function findBestWindow(
   hourlyItems: HourlyWind[],
   minScoreThreshold = 70,
   minConsecutiveHours = 2,
-  timezone = "Europe/Athens"
+  timezone = "Europe/Athens",
+  latitude = 35.19,
+  longitude = 26.27
 ): BestWindow | null {
   if (!hourlyItems || hourlyItems.length === 0) return null;
 
   // Filter strictly to astronomical daylight hours (sunrise to sunset)
   const daylightItems = hourlyItems.filter((item) => {
     try {
-      const solar = getSolarWindow(item.timestamp);
+      const solar = getSolarWindow(item.timestamp, latitude, longitude, timezone);
       const localHourStr = new Intl.DateTimeFormat("en-GB", {
         timeZone: timezone,
         hour: "2-digit",
@@ -158,7 +160,7 @@ export function findBestWindow(
     const endHour = parseInt(endHourStr, 10);
 
     // Astronomical Sunset limit: clamp to sunset
-    const solar = getSolarWindow(lastItem.timestamp);
+    const solar = getSolarWindow(lastItem.timestamp, latitude, longitude, timezone);
     const sunsetHour = solar.endHour;
     if (endHour > sunsetHour || endHour === 0) {
       endTimeStr = `${String(sunsetHour).padStart(2, "0")}:00`;

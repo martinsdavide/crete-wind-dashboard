@@ -22,6 +22,10 @@ import { getSolarWindow } from "@/lib/solar";
 
 interface BestSpotProps {
   recommendation: Recommendation;
+  spots?: Record<string, SpotResult>;
+  spotList?: SpotResult[];
+  timezone?: string;
+  // Legacy optional named props for backward compatibility
   kouremenosResult?: SpotResult;
   tendaResult?: SpotResult;
   xerokamposResult?: SpotResult;
@@ -29,6 +33,9 @@ interface BestSpotProps {
 
 export const BestSpot: React.FC<BestSpotProps> = ({
   recommendation,
+  spots,
+  spotList,
+  timezone = "Europe/Athens",
   kouremenosResult,
   tendaResult,
   xerokamposResult,
@@ -46,8 +53,18 @@ export const BestSpot: React.FC<BestSpotProps> = ({
     explanation,
   } = recommendation;
 
+  // Extract all spot results dynamically for ANY region
+  const spotResults = useMemo(() => {
+    if (spotList && spotList.length > 0) {
+      return spotList.filter(Boolean);
+    }
+    if (spots && Object.keys(spots).length > 0) {
+      return Object.values(spots).filter(Boolean);
+    }
+    return [kouremenosResult, tendaResult, xerokamposResult].filter(Boolean) as SpotResult[];
+  }, [spotList, spots, kouremenosResult, tendaResult, xerokamposResult]);
+
   // Find the winning spot forecast dynamically
-  const spotResults = [kouremenosResult, tendaResult, xerokamposResult].filter(Boolean);
   const chosenResult =
     spotResults.find((r) => {
       if (!r) return false;
@@ -60,17 +77,15 @@ export const BestSpot: React.FC<BestSpotProps> = ({
   const tomorrowSummary = chosenForecast?.days[1];
   const stability = bestWindow?.stability;
 
-  // Determine if it's currently post-sunset / nighttime in local spot timezone (Athens)
+  // Determine if it's currently post-sunset / nighttime in the region's local timezone
   const isPostSunset = useMemo(() => {
     try {
       const now = new Date();
-      const solar = getSolarWindow(
-        now,
-        chosenForecast?.spot.latitude ?? 35.2,
-        chosenForecast?.spot.longitude ?? 26.27
-      );
+      const lat = chosenForecast?.spot.latitude ?? 35.19;
+      const lon = chosenForecast?.spot.longitude ?? 26.27;
+      const solar = getSolarWindow(now, lat, lon, timezone);
       const localHourStr = new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Europe/Athens",
+        timeZone: timezone,
         hour: "2-digit",
         hour12: false,
       }).format(now);
@@ -79,7 +94,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
     } catch {
       return false;
     }
-  }, [chosenForecast]);
+  }, [chosenForecast, timezone]);
 
   const conditionGradients: Record<string, string> = {
     EXCELLENT: "from-sky-500/20 via-cyan-500/10 to-transparent border-sky-500/40 text-sky-200",

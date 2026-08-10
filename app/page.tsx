@@ -164,9 +164,9 @@ export default function HomePage() {
             {/* 1. Best Today Session Hero Card */}
             <BestSpot
               recommendation={data.recommendation}
-              kouremenosResult={kouremenosRes}
-              tendaResult={tendaRes}
-              xerokamposResult={xerokamposRes}
+              spots={data.spots}
+              spotList={orderedSpots}
+              timezone={data.timezone}
             />
 
             {/* 2. Spot Cards (Ordered dynamically by surf quality) */}
