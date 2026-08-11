@@ -135,7 +135,8 @@ export class RecommendationEngine {
         const isHardGated = spot.hardGates?.some((gate) => {
           const matchesRegime = !gate.regimes || (regimeId && gate.regimes.includes(regimeId));
           const dominantDir = todaySummary.dominantDirectionDegrees;
-          let matchesDir = true;
+          let matchesDir = false;
+
           if (gate.directionRange) {
             const [minD, maxD] = gate.directionRange;
             if (minD <= maxD) {
@@ -144,7 +145,40 @@ export class RecommendationEngine {
               matchesDir = dominantDir >= minD || dominantDir <= maxD;
             }
           }
-          return matchesRegime && matchesDir && gate.eligibility === "UNSUITABLE";
+
+          let matchesWind = false;
+          if (gate.minWind !== undefined && todaySummary.daytimeMaxWind >= gate.minWind) {
+            matchesWind = true;
+          }
+          if (gate.maxWind !== undefined && todaySummary.daytimeMinWind <= gate.maxWind) {
+            matchesWind = true;
+          }
+
+          let matchesMarine = false;
+          if (gate.minWaveHeight !== undefined) {
+            const maxWave = todaySummary.waveHeightRange?.max ?? 0;
+            if (maxWave >= gate.minWaveHeight) matchesMarine = true;
+          }
+          if (gate.maxWaveHeight !== undefined) {
+            const minWave = todaySummary.waveHeightRange?.min ?? 0;
+            if (minWave <= gate.maxWaveHeight) matchesMarine = true;
+          }
+
+          const hasCriteria =
+            gate.directionRange !== undefined ||
+            gate.minWind !== undefined ||
+            gate.maxWind !== undefined ||
+            gate.minWaveHeight !== undefined ||
+            gate.maxWaveHeight !== undefined;
+
+          const triggered =
+            matchesRegime &&
+            (gate.directionRange ? matchesDir : true) &&
+            (gate.minWind !== undefined || gate.maxWind !== undefined ? matchesWind : true) &&
+            (gate.minWaveHeight !== undefined || gate.maxWaveHeight !== undefined ? matchesMarine : true) &&
+            hasCriteria;
+
+          return triggered && gate.eligibility === "UNSUITABLE";
         });
 
         if (isHardGated) {
