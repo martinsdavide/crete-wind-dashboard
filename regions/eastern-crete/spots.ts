@@ -52,6 +52,26 @@ export const EasternCreteSpots: RegionSpotConfig[] = [
         N: 0.0,
       },
     },
+    seaProfile: {
+      exposureDirections: [
+        { direction: "NW", factor: 0.45 },
+        { direction: "NNW", factor: 0.45 },
+        { direction: "N", factor: 0.50 },
+        { direction: "WNW", factor: 0.40 },
+      ],
+      preferredWaveHeight: {
+        min: 0.2,
+        idealMin: 0.3,
+        idealMax: 0.8,
+        max: 1.4,
+      },
+      preferredStates: {
+        FLAT: 1.0,
+        CHOP: 0.85,
+        BUMP_AND_JUMP: 0.5,
+        WAVE: 0.2,
+      },
+    },
   },
   {
     id: "tenda",
@@ -99,6 +119,33 @@ export const EasternCreteSpots: RegionSpotConfig[] = [
         NW: 0.05,
         NNW: 0.05,
         N: 0.0,
+      },
+    },
+    seaProfile: {
+      exposureDirections: [
+        { direction: "N", factor: 1.00 },
+        { direction: "NNW", factor: 1.00 },
+        { direction: "NNE", factor: 0.95 },
+        { direction: "NW", factor: 0.90 },
+        { direction: "NE", factor: 0.85 },
+      ],
+      preferredWaveHeight: {
+        min: 0.8,
+        idealMin: 1.4,
+        idealMax: 2.8,
+        max: 4.0,
+      },
+      preferredPeriod: {
+        min: 5.5,
+        idealMin: 7.0,
+        idealMax: 10.5,
+      },
+      preferredWaveDirections: ["N", "NNW", "NNE", "NW"],
+      preferredStates: {
+        WAVE: 1.0,
+        BUMP_AND_JUMP: 0.8,
+        CHOP: 0.3,
+        FLAT: 0.1,
       },
     },
   },
@@ -157,6 +204,27 @@ export const EasternCreteSpots: RegionSpotConfig[] = [
         WSW: 0.05,
         SW: 0.0,
         W: 0.0,
+      },
+    },
+    seaProfile: {
+      exposureDirections: [
+        { direction: "SW", factor: 0.90 },
+        { direction: "WSW", factor: 0.90 },
+        { direction: "W", factor: 0.80 },
+        { direction: "SSW", factor: 0.85 },
+        { direction: "S", factor: 0.70 },
+      ],
+      preferredWaveHeight: {
+        min: 0.4,
+        idealMin: 0.8,
+        idealMax: 1.8,
+        max: 2.6,
+      },
+      preferredStates: {
+        BUMP_AND_JUMP: 1.0,
+        WAVE: 0.75,
+        FLAT: 0.6,
+        CHOP: 0.5,
       },
     },
   },

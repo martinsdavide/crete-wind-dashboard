@@ -226,23 +226,30 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
                     </div>
 
                     {/* Style & Score Indicator */}
-                    <div className="w-full mt-1.5 pt-1.5 border-t border-surf-border/40 flex items-center justify-between text-[9px] font-mono text-slate-400">
-                      <span className="text-[8px] text-cyan-400 uppercase font-semibold">
-                        {styleLabels[item.waterState] || item.waterState}
-                      </span>
-                      <span
-                        className={`font-bold ${
-                          isUnsuitable
-                            ? "text-rose-400"
-                            : isPrimeTime
-                            ? "text-cyan-400"
-                            : isGoodTime
-                            ? "text-emerald-400"
-                            : "text-slate-400"
-                        }`}
-                      >
-                        {item.sessionQualityScore}
-                      </span>
+                    <div className="w-full mt-1.5 pt-1.5 border-t border-surf-border/40 flex flex-col gap-0.5 text-[9px] font-mono text-slate-400">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[8px] text-cyan-400 uppercase font-semibold">
+                          {styleLabels[item.waterState] || item.waterState}
+                        </span>
+                        <span
+                          className={`font-bold ${
+                            isUnsuitable
+                              ? "text-rose-400"
+                              : isPrimeTime
+                              ? "text-cyan-400"
+                              : isGoodTime
+                              ? "text-emerald-400"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {item.sessionQualityScore}
+                        </span>
+                      </div>
+                      {item.seaState && item.seaState.waveHeight !== null && (
+                        <div className="text-[8px] text-slate-300 font-mono text-center truncate">
+                          🌊 {item.seaState.waveHeight.toFixed(1)}m{item.seaState.wavePeriod !== null ? ` • ${Math.round(item.seaState.wavePeriod)}s` : ""}
+                        </div>
+                      )}
                     </div>
                   </button>
                 );
@@ -329,12 +336,36 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
               </div>
 
               <div className="flex justify-between items-center">
-                <span className="text-slate-400">Sailing Style:</span>
+                <span className="text-slate-400">Sea State:</span>
                 <span className="font-bold text-cyan-300 flex items-center gap-1">
                   <Waves className="w-3.5 h-3.5" />
-                  <span>{activeItem.item.waterState} (ESTIMATED)</span>
+                  <span>{activeItem.item.waterState}</span>
+                  <span className="text-[10px] text-slate-400">
+                    ({activeItem.item.seaState?.source === "MARINE_FORECAST" ? "ECMWF WAM" : "ESTIMATED"})
+                  </span>
                 </span>
               </div>
+
+              {activeItem.item.seaState && activeItem.item.seaState.waveHeight !== null && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Wave & Period:</span>
+                  <span className="font-bold text-white font-mono">
+                    {activeItem.item.seaState.waveHeight.toFixed(1)}m
+                    {activeItem.item.seaState.wavePeriod !== null
+                      ? ` • ${activeItem.item.seaState.wavePeriod.toFixed(1)}s`
+                      : ""}
+                  </span>
+                </div>
+              )}
+
+              {activeItem.item.seaState && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Sea Quality Score:</span>
+                  <span className="font-bold text-sky-300 font-mono">
+                    {activeItem.item.seaState.seaQualityScore}/100
+                  </span>
+                </div>
+              )}
 
               <div className="flex justify-between items-center">
                 <span className="text-slate-400">Wind Direction:</span>

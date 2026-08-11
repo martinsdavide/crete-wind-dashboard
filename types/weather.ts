@@ -84,8 +84,11 @@ export interface HourlyWind {
   eligibility: SpotEligibility;
   eligibilityReason?: SpotEligibilityReason;
   waterState: WaterState;
+  seaState?: import("./marine").SeaStateEvaluation;
   spotWindQuality: number; // 0-100 (spot specific non-monotonic quality)
   directionQuality: number; // 0-100
+  waterStateQuality?: number; // legacy alias
+  seaQualityScore?: number; // 0-100 objective sea condition quality
   preferenceScore: number; // 0-100 (wave bonus, comfort limit)
   sessionQualityScore: number; // 0-100 (primary recommendation score)
 
@@ -173,6 +176,12 @@ export interface DailyWindSummary {
   condition: ConditionLabel;
   dominantEligibility: SpotEligibility;
   dominantStyle: WaterState;
+
+  // Marine Daily Aggregates
+  dominantSeaState?: WaterState;
+  bestSeaQuality?: number;
+  waveHeightRange?: { min: number; max: number };
+  dominantWaveDirection?: string;
 }
 
 export interface WindSpot extends SpotConfig {}

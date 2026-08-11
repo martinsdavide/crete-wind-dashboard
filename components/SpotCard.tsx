@@ -170,59 +170,48 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
       </div>
 
       {/* Style & Details Toggle */}
-      <div className="flex items-center justify-between pt-1">
-        <span className="badge-style inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-sky-950/80 text-sky-200 border border-sky-400/60 shadow-sm">
-          <Waves className="w-3.5 h-3.5 text-sky-400" />
-          <span>{styleLabels[current.waterState] || current.waterState}</span>
-        </span>
+      <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="badge-style inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-sky-950/80 text-sky-200 border border-sky-400/60 shadow-sm">
+            <Waves className="w-3.5 h-3.5 text-sky-400" />
+            <span>{styleLabels[current.waterState] || current.waterState}</span>
+          </span>
+          {current.seaState && current.seaState.waveHeight !== null && (
+            <span className="text-[11px] font-mono text-slate-300 bg-surf-dark/60 border border-surf-border/60 px-2 py-0.5 rounded-md flex items-center gap-1">
+              <span>🌊</span>
+              <span>{current.seaState.waveHeight.toFixed(1)}m</span>
+              {current.seaState.wavePeriod !== null && (
+                <span className="text-slate-400">• {Math.round(current.seaState.wavePeriod)}s</span>
+              )}
+            </span>
+          )}
+        </div>
 
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors px-2 py-1 rounded-md hover:bg-surf-cardHover font-medium"
-          aria-expanded={showDetails}
+          className="text-xs text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1 transition-colors"
         >
-          <span>{showDetails ? "Less" : "Quality Details"}</span>
-          {showDetails ? (
-            <ChevronUp className="w-3.5 h-3.5" />
-          ) : (
-            <ChevronDown className="w-3.5 h-3.5" />
-          )}
+          <span>{showDetails ? "Hide Diagnostic" : "View Diagnostic"}</span>
+          {showDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
 
-      {/* Expandable Model Correction & Quality Breakdown */}
+      {/* Expandable Diagnostic Breakdown */}
       {showDetails && (
-        <div className="mt-3 pt-3 border-t border-surf-border/60 text-xs text-slate-300 space-y-1.5 bg-surf-dark/40 p-3 rounded-xl">
-          <div className="flex justify-between">
-            <span className="text-slate-400">Correction Factor:</span>
-            <span className="font-mono font-bold text-sky-400">
-              x{current.correctionFactor.toFixed(2)}
-            </span>
+        <div className="mt-4 pt-4 border-t border-surf-border/40 text-xs space-y-2">
+          <div className="grid grid-cols-2 gap-2 text-slate-300 font-mono text-[11px]">
+            <div>Spot Wind Quality: <strong className="text-white">{Math.round(current.spotWindQuality)}/100</strong></div>
+            <div>Direction Score: <strong className="text-white">{Math.round(current.directionQuality)}/100</strong></div>
+            <div>Sea Quality Score: <strong className="text-white">{Math.round(current.seaState?.seaQualityScore ?? current.waterStateQuality ?? 60)}/100</strong></div>
+            <div>Rider Preference: <strong className="text-white">{Math.round(current.preferenceScore)}/100</strong></div>
+            <div>Correction Factor: <strong className="text-white">x{current.correctionFactor.toFixed(2)}</strong></div>
+            <div>Marine Source: <strong className="text-white">{current.seaState?.source || "WIND_DERIVED"}</strong></div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Spot Wind Quality:</span>
-            <span className="font-mono font-bold text-slate-200">
-              {Math.round(current.spotWindQuality)}/100
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Rider Preference Score:</span>
-            <span className="font-mono font-bold text-slate-200">
-              {Math.round(current.preferenceScore)}/100
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Classification:</span>
-            <span className="font-mono text-slate-200">
-              {current.classification} ({current.condition})
-            </span>
-          </div>
-          {current.temperature !== undefined && (
-            <div className="flex justify-between">
-              <span className="text-slate-400">Air Temp / Cloud:</span>
-              <span className="font-mono text-slate-200">
-                {Math.round(current.temperature)}°C • {Math.round(current.cloudCover ?? 0)}%
-              </span>
+          {current.seaState && current.seaState.source === "MARINE_FORECAST" && (
+            <div className="grid grid-cols-3 gap-1.5 pt-2 text-[10px] text-slate-400 font-mono bg-surf-dark/40 p-2 rounded-lg border border-surf-border/30">
+              <div>Exposure: <strong className="text-sky-300">{current.seaState.exposureScore}%</strong></div>
+              <div>Alignment: <strong className="text-sky-300">{current.seaState.alignmentScore}%</strong></div>
+              <div>Organization: <strong className="text-sky-300">{current.seaState.organizationScore}%</strong></div>
             </div>
           )}
         </div>

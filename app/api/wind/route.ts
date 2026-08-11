@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRegion } from "@/regions/registry";
 import { fetchSpotWeather } from "@/lib/weather/openMeteo";
+import { defaultMarineProvider } from "@/lib/marine/openMeteoMarine";
 import { normalizeSpotForecastGeneric } from "@/engine/forecast/ForecastNormalizer";
 import { RecommendationEngine } from "@/engine/recommendation/RecommendationEngine";
 import { SpotForecast, SpotResult, WindApiResponse } from "@/types/weather";
@@ -14,37 +15,48 @@ export async function GET(request: NextRequest) {
 
   const regionConfig = getRegion(regionId);
 
-  // Fetch all spots in the selected region in parallel with fault tolerance
-  const fetchPromises = regionConfig.spots.map((spot) =>
-    fetchSpotWeather(spot.latitude, spot.longitude, 4)
-  );
+  // Fetch atmospheric and marine forecasts for all spots in parallel with fault tolerance
+  const fetchPromises = regionConfig.spots.map(async (spot) => {
+    const [weatherRes, marineRes] = await Promise.allSettled([
+      fetchSpotWeather(spot.latitude, spot.longitude, 4),
+      defaultMarineProvider.fetchMarineForecast(spot.latitude, spot.longitude, 4),
+    ]);
 
-  const settledResults = await Promise.allSettled(fetchPromises);
+    return {
+      weather: weatherRes.status === "fulfilled" ? weatherRes.value : null,
+      marine: marineRes.status === "fulfilled" ? marineRes.value : null,
+      weatherError: weatherRes.status === "rejected" ? weatherRes.reason : null,
+    };
+  });
+
+  const settledResults = await Promise.all(fetchPromises);
 
   const spotsResults: Record<string, SpotResult> = {};
   const models: Record<string, string> = {};
   let anyFulfilled = false;
 
   regionConfig.spots.forEach((spot, idx) => {
-    const settled = settledResults[idx];
+    const { weather, marine, weatherError } = settledResults[idx];
 
-    if (settled.status === "fulfilled") {
+    if (weather) {
       anyFulfilled = true;
       const forecast: SpotForecast = normalizeSpotForecastGeneric(
         spot,
-        settled.value,
+        weather,
         currentTime,
-        regionConfig.timezone
+        regionConfig.timezone,
+        undefined,
+        marine
       );
       spotsResults[spot.id] = { status: "ok", data: forecast };
       models[spot.id] = forecast.providerModel || "ECMWF IFS HRES (via Open-Meteo)";
     } else {
-      console.error(`Forecast fetch failed for spot ${spot.id} (${spot.name}):`, settled.reason);
+      console.error(`Forecast fetch failed for spot ${spot.id} (${spot.name}):`, weatherError);
       spotsResults[spot.id] = {
         status: "error",
         message:
-          settled.reason instanceof Error
-            ? settled.reason.message
+          weatherError instanceof Error
+            ? weatherError.message
             : "Weather data unavailable",
         spot: {
           id: spot.id,

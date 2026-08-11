@@ -2,6 +2,7 @@ import { RegionSpotConfig, ThermalEvaluation } from "@/types/region";
 import {
   DailyWindSummary,
   HourlyWind,
+  SpotEligibility,
   SpotForecast,
   WaterState,
   WindDirection,
@@ -27,6 +28,8 @@ import {
   evaluateForecastConfidence,
 } from "../scoring/DirectionEvaluator";
 import { OpenMeteoRawResponse } from "@/lib/weather/openMeteo";
+import { evaluateSeaState } from "../marine/SeaStateEvaluator";
+import { MarineForecast, MarineForecastPoint, SeaStateEvaluation } from "@/types/marine";
 
 /**
  * Linear interpolation helper across a numeric sequence.
@@ -310,6 +313,7 @@ export function normalizeHourlyPoint(
     windDirection: number;
     temperature?: number;
     cloudCover?: number;
+    marine?: MarineForecastPoint | null;
   },
   referenceDate: Date = new Date(),
   regimeId?: string,
@@ -345,7 +349,14 @@ export function normalizeHourlyPoint(
   );
 
   const gustScore = calculateGustinessScore(localWind, localGust);
-  const waterState = estimateSpotWaterState(spotConfig, effectiveDirection, localWind);
+
+  // Independent Sea State Model Evaluation
+  const seaState: SeaStateEvaluation = evaluateSeaState(
+    spotConfig,
+    point.marine,
+    localWind,
+    effectiveDirection
+  );
 
   const quality = evaluateHourQuality(
     spotConfig,
@@ -354,7 +365,7 @@ export function normalizeHourlyPoint(
     effectiveDegrees,
     effectiveDirection,
     directionScore,
-    waterState,
+    seaState,
     gustScore,
     confidence,
     regimeId
@@ -378,8 +389,11 @@ export function normalizeHourlyPoint(
     eligibility: quality.eligibility,
     eligibilityReason: quality.eligibilityReason as any,
     waterState: quality.waterState,
+    seaState,
     spotWindQuality: quality.spotWindQuality,
     directionQuality: quality.directionQuality,
+    seaQualityScore: quality.seaQualityScore,
+    waterStateQuality: quality.seaQualityScore,
     preferenceScore: quality.preferenceScore,
     sessionQualityScore: quality.sessionQualityScore,
     score: quality.sessionQualityScore,
@@ -435,6 +449,28 @@ export function calculateCurrentConditionsGeneric(
       ? prev.cloudCover + t * (next.cloudCover - prev.cloudCover)
       : prev.cloudCover;
 
+  // Interpolate marine wave metrics if present
+  let marinePoint: MarineForecastPoint | null = null;
+  if (prev.seaState && next.seaState && prev.seaState.waveHeight !== null && next.seaState.waveHeight !== null) {
+    const waveHeight = prev.seaState.waveHeight + t * (next.seaState.waveHeight - prev.seaState.waveHeight);
+    const wavePeriod =
+      prev.seaState.wavePeriod !== null && next.seaState.wavePeriod !== null
+        ? prev.seaState.wavePeriod + t * (next.seaState.wavePeriod - prev.seaState.wavePeriod)
+        : prev.seaState.wavePeriod;
+    const waveDirection =
+      prev.seaState.waveDirection !== null && next.seaState.waveDirection !== null
+        ? interpolateAngle(prev.seaState.waveDirection, next.seaState.waveDirection, t)
+        : prev.seaState.waveDirection;
+
+    marinePoint = {
+      timestamp: currentTime.toISOString(),
+      waveHeight,
+      wavePeriod,
+      waveDirection,
+      provider: prev.seaState.source,
+    };
+  }
+
   return normalizeHourlyPoint(
     spotConfig,
     {
@@ -444,6 +480,7 @@ export function calculateCurrentConditionsGeneric(
       windDirection: directionDegrees,
       temperature,
       cloudCover,
+      marine: marinePoint,
     },
     currentTime,
     regimeId,
@@ -452,9 +489,6 @@ export function calculateCurrentConditionsGeneric(
 }
 
 /**
- * Aggregates normalized hourly data into daily wind summaries using astronomical solar hours.
- */
-/**
  * Extracts regional calendar date key (YYYY-MM-DD) based on regional timezone.
  */
 export function getRegionalDateKey(
@@ -462,19 +496,21 @@ export function getRegionalDateKey(
   timeZone = "Europe/Athens"
 ): string {
   try {
+    const d = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
     return new Intl.DateTimeFormat("en-CA", {
-      timeZone,
+      timeZone: timeZone || "Europe/Athens",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
-    }).format(new Date(timestamp));
+    }).format(d);
   } catch {
-    return new Date(timestamp).toISOString().split("T")[0];
+    const s = typeof timestamp === "string" ? timestamp : timestamp.toISOString();
+    return s.split("T")[0];
   }
 }
 
 /**
- * Aggregates normalized hourly data into daily wind summaries using astronomical solar hours.
+ * Aggregates normalized hourly data into daily wind and marine summaries using astronomical solar hours.
  */
 export function calculateDailySummariesGeneric(
   hourly: HourlyWind[],
@@ -484,11 +520,9 @@ export function calculateDailySummariesGeneric(
   const groups: Record<string, HourlyWind[]> = {};
 
   for (const h of hourly) {
-    const dateStr = getRegionalDateKey(h.timestamp, timeZone);
-    if (!groups[dateStr]) {
-      groups[dateStr] = [];
-    }
-    groups[dateStr].push(h);
+    const dateKey = getRegionalDateKey(h.timestamp, timeZone);
+    if (!groups[dateKey]) groups[dateKey] = [];
+    groups[dateKey].push(h);
   }
 
   const summaries: DailyWindSummary[] = [];
@@ -496,63 +530,66 @@ export function calculateDailySummariesGeneric(
   for (const [dateStr, hours] of Object.entries(groups)) {
     if (hours.length === 0) continue;
 
-    const dateObj = new Date(`${dateStr}T12:00:00.000Z`);
-    const solar = getSolarWindow(dateObj, spotConfig.latitude, spotConfig.longitude);
+    const noonDate = new Date(`${dateStr}T12:00:00.000Z`);
+    const solarWindow = getSolarWindow(
+      noonDate,
+      spotConfig.latitude,
+      spotConfig.longitude,
+      timeZone
+    );
 
-    const daytimeHours = hours.filter((h) => {
+    const activeHours = hours.filter((h) => {
       const { hour } = getLocalTimeComponents(h.timestamp, timeZone);
-      return hour >= solar.startHour && hour < solar.endHour;
+      return hour >= solarWindow.startHour && hour < solarWindow.endHour;
     });
 
-    const activeHours = daytimeHours.length > 0 ? daytimeHours : hours;
+    const candidateHours = activeHours.length > 0 ? activeHours : hours;
 
-    const windSpeeds = activeHours.map((h) => h.localWind);
-    const gustSpeeds = activeHours.map((h) => h.localGust);
-    const dirDegrees = activeHours.map((h) => h.directionDegrees);
+    const daytimeWinds = candidateHours.map((h) => h.localWind);
+    const daytimeGusts = candidateHours.map((h) => h.localGust);
+    const daytimeDirs = candidateHours.map((h) => h.directionDegrees);
 
-    const daytimeMinWind = Math.min(...windSpeeds);
-    const daytimeMaxWind = Math.max(...windSpeeds);
-    const minWind = Math.min(...hours.map((h) => h.localWind));
-    const maxWind = Math.max(...hours.map((h) => h.localWind));
-    const maxGust = Math.max(...gustSpeeds);
+    const daytimeMinWind = Math.min(...daytimeWinds);
+    const daytimeMaxWind = Math.max(...daytimeWinds);
+
+    const allWinds = hours.map((h) => h.localWind);
+    const minWind = Math.min(...allWinds);
+    const maxWind = Math.max(...allWinds);
+    const maxGust = Math.max(...daytimeGusts);
 
     const { degrees: dominantDirectionDegrees, label: dominantDirection } =
-      getDominantDirection(dirDegrees);
+      getDominantDirection(daytimeDirs);
 
-    // Daily spot score: average of the top 3 highest ELIGIBLE hourly sessionQualityScores (excluding UNSUITABLE)
-    const eligibleScores = activeHours
+    const eligibleScores = candidateHours
       .filter((h) => h.eligibility !== "UNSUITABLE")
       .map((h) => h.sessionQualityScore)
       .sort((a, b) => b - a);
 
     const topScores = eligibleScores.slice(0, 3);
-
     const dailyScore =
       topScores.length > 0
-        ? Math.round(
-            topScores.reduce((sum, score) => sum + score, 0) / topScores.length
-          )
+        ? Math.round(topScores.reduce((a, b) => a + b, 0) / topScores.length)
         : 0;
 
     const condition = getConditionLabel(dailyScore);
 
     // Dominant eligibility
-    const eligCounts: Record<string, number> = {};
-    for (const h of activeHours) {
-      eligCounts[h.eligibility] = (eligCounts[h.eligibility] || 0) + 1;
+    const eligibilityCounts: Record<string, number> = {};
+    for (const h of candidateHours) {
+      eligibilityCounts[h.eligibility] = (eligibilityCounts[h.eligibility] || 0) + 1;
     }
-    let dominantEligibility = activeHours[0].eligibility;
-    let maxCount = 0;
-    for (const [el, count] of Object.entries(eligCounts)) {
-      if (count > maxCount) {
-        maxCount = count;
-        dominantEligibility = el as any;
+    let dominantEligibility = candidateHours[0].eligibility;
+    let maxEligCount = 0;
+    for (const [el, count] of Object.entries(eligibilityCounts)) {
+      if (count > maxEligCount) {
+        maxEligCount = count;
+        dominantEligibility = el as SpotEligibility;
       }
     }
 
-    // Dominant style
+    // Dominant style & sea state
     const styleCounts: Record<string, number> = {};
-    for (const h of activeHours) {
+    for (const h of candidateHours) {
       styleCounts[h.waterState] = (styleCounts[h.waterState] || 0) + 1;
     }
     let dominantStyle = spotConfig.defaultStyle;
@@ -563,6 +600,21 @@ export function calculateDailySummariesGeneric(
         dominantStyle = st as WaterState;
       }
     }
+
+    // Marine metrics
+    const validWaveHeights = candidateHours
+      .map((h) => h.seaState?.waveHeight)
+      .filter((wh): wh is number => wh !== null && wh !== undefined);
+
+    const waveHeightRange =
+      validWaveHeights.length > 0
+        ? { min: Math.min(...validWaveHeights), max: Math.max(...validWaveHeights) }
+        : undefined;
+
+    const bestSeaQuality =
+      candidateHours.length > 0
+        ? Math.max(...candidateHours.map((h) => h.seaQualityScore ?? h.seaState?.seaQualityScore ?? 0))
+        : undefined;
 
     // Find Best Window
     const bestWindow = findBestWindow(
@@ -587,6 +639,9 @@ export function calculateDailySummariesGeneric(
       condition,
       dominantEligibility,
       dominantStyle,
+      dominantSeaState: dominantStyle,
+      bestSeaQuality,
+      waveHeightRange,
       bestWindow,
     });
   }
@@ -595,17 +650,25 @@ export function calculateDailySummariesGeneric(
 }
 
 /**
- * Master Generic Forecast Normalizer: converts raw Open-Meteo response into a fully normalized SpotForecast.
+ * Master Generic Forecast Normalizer: converts raw Open-Meteo response (and optional marine forecast) into a fully normalized SpotForecast.
  */
 export function normalizeSpotForecastGeneric(
   spotConfig: RegionSpotConfig,
   raw: OpenMeteoRawResponse,
   currentTime = new Date(),
   timeZone = "Europe/Athens",
-  regimeId?: string
+  regimeId?: string,
+  marineForecast?: MarineForecast | null
 ): SpotForecast {
   const hourlyData = raw.hourly;
   const count = hourlyData.time.length;
+
+  const marineByTimestamp = new Map<string, MarineForecastPoint>();
+  if (marineForecast && marineForecast.points) {
+    for (const mp of marineForecast.points) {
+      marineByTimestamp.set(mp.timestamp, mp);
+    }
+  }
 
   const hourly: HourlyWind[] = [];
 
@@ -616,6 +679,7 @@ export function normalizeSpotForecastGeneric(
     const windGust = Math.max(windSpeed, hourlyData.wind_gusts_10m[i] ?? windSpeed);
     const temperature = hourlyData.temperature_2m?.[i];
     const cloudCover = hourlyData.cloud_cover?.[i] ?? 0;
+    const marinePoint = marineByTimestamp.get(timestamp) || null;
 
     const normalizedPoint = normalizeHourlyPoint(
       spotConfig,
@@ -626,6 +690,7 @@ export function normalizeSpotForecastGeneric(
         windDirection,
         temperature,
         cloudCover,
+        marine: marinePoint,
       },
       currentTime,
       regimeId,

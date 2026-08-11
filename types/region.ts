@@ -1,5 +1,6 @@
 import { WindDirection, WaterState, SpotEligibility } from "./weather";
 import { RiderPreferences } from "@/config/riderPreferences";
+import { SpotSeaProfile } from "./marine";
 
 export interface QualityPoint {
   wind: number; // knots
@@ -19,6 +20,11 @@ export interface HardGateRule {
   directionRange?: [number, number]; // [minDegrees, maxDegrees]
   minWind?: number;
   maxWind?: number;
+  // Marine Hard Gate criteria
+  minWaveHeight?: number; // min required wave height (m)
+  maxWaveHeight?: number; // max allowable wave height (m)
+  minWavePeriod?: number; // min allowable wave period (s)
+  waveDirectionRange?: [number, number]; // hazardous wave direction range
   eligibility: SpotEligibility;
   reason: string;
 }
@@ -87,6 +93,7 @@ export interface RegionSpotConfig {
   comfortCeilingWind: number; // e.g. 30 kt
   qualityCurve: QualityPoint[];
   localCorrection: SpotLocalCorrectionConfig;
+  seaProfile?: SpotSeaProfile; // Marine exposure and coastal transformation profile
   hardGates?: HardGateRule[];
   defaultStyle: WaterState;
   preferredStyles?: Partial<Record<WaterState, number>>;
@@ -117,6 +124,8 @@ export interface ExplanationTemplateRule {
     regimeId?: string;
     minScore?: number;
     minWind?: number;
+    minWaveHeight?: number;
+    minSeaQuality?: number;
   };
   explanation: string;
 }

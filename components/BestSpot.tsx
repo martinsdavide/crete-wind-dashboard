@@ -328,11 +328,21 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                       {tomorrowWinnerName}
                     </h3>
                   </div>
-                  <div className="flex items-center gap-2 self-start">
+                  <div className="flex items-center gap-2 self-start flex-wrap">
                     <span className="badge-wave inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-extrabold tracking-wide shadow-sm border">
                       <Waves className="w-3.5 h-3.5 text-sky-400" />
                       <span>{styleLabels[tomorrowStyle] || tomorrowStyle}</span>
                     </span>
+                    {tomorrowSummary.waveHeightRange && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-surf-dark/70 border border-surf-border/60 text-slate-200 font-mono">
+                        <span>🌊</span>
+                        <span>
+                          {tomorrowSummary.waveHeightRange.min === tomorrowSummary.waveHeightRange.max
+                            ? `${tomorrowSummary.waveHeightRange.min.toFixed(1)}m`
+                            : `${tomorrowSummary.waveHeightRange.min.toFixed(1)}–${tomorrowSummary.waveHeightRange.max.toFixed(1)}m`}
+                        </span>
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -487,13 +497,27 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                 </p>
               </div>
 
-              {/* High-Contrast Sailing Style Badge */}
-              <div className="flex items-center gap-2 self-start">
+              {/* High-Contrast Sailing Style & Marine Badge */}
+              <div className="flex items-center gap-2 self-start flex-wrap">
                 <span className="badge-wave inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-extrabold tracking-wide shadow-sm border">
                   <Waves className="w-3.5 h-3.5 text-sky-400" />
                   <span>{styleLabels[sailingStyle] || sailingStyle}</span>
-                  <span className="text-[9px] opacity-75 font-medium">(ESTIMATED)</span>
+                  {chosenForecast?.current?.seaState?.source === "MARINE_FORECAST" ? (
+                    <span className="text-[9px] opacity-90 font-bold text-sky-300">ECMWF WAM</span>
+                  ) : (
+                    <span className="text-[9px] opacity-75 font-medium">ESTIMATED</span>
+                  )}
                 </span>
+                {todaySummary?.waveHeightRange && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-surf-dark/70 border border-surf-border/60 text-slate-200 font-mono">
+                    <span>🌊</span>
+                    <span>
+                      {todaySummary.waveHeightRange.min === todaySummary.waveHeightRange.max
+                        ? `${todaySummary.waveHeightRange.min.toFixed(1)}m`
+                        : `${todaySummary.waveHeightRange.min.toFixed(1)}–${todaySummary.waveHeightRange.max.toFixed(1)}m`}
+                    </span>
+                  </span>
+                )}
               </div>
             </div>
 

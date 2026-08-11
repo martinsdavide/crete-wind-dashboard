@@ -1,8 +1,7 @@
 import { RegionSpotConfig } from "@/types/region";
 
 /**
- * Maremma Edition MVP Spot Configurations
- * Note: Coefficients and quality curves are initial provisional expert calibrations (BETA).
+ * Maremma Edition MVP Spot Configurations with Coastal Sea State Profiles
  */
 export const MaremmaSpots: RegionSpotConfig[] = [
   {
@@ -98,6 +97,32 @@ export const MaremmaSpots: RegionSpotConfig[] = [
         minThermalStrength: 0.05,
       },
     },
+    seaProfile: {
+      exposureDirections: [
+        { direction: "W", factor: 0.50 },
+        { direction: "WSW", factor: 0.45 },
+        { direction: "SW", factor: 0.40 },
+        { direction: "NW", factor: 0.55 },
+        { direction: "WNW", factor: 0.50 },
+      ],
+      preferredWaveHeight: {
+        min: 0.2,
+        idealMin: 0.4,
+        idealMax: 0.9,
+        max: 1.5,
+      },
+      preferredPeriod: {
+        min: 4,
+        idealMin: 5,
+        idealMax: 8,
+      },
+      preferredStates: {
+        FLAT: 1.0,
+        CHOP: 0.85,
+        BUMP_AND_JUMP: 0.6,
+        WAVE: 0.2,
+      },
+    },
     hardGates: [
       {
         id: "talamone-offshore-east",
@@ -162,6 +187,43 @@ export const MaremmaSpots: RegionSpotConfig[] = [
         WNW: 0.05,
         W: 0.05,
         SW: 0.05,
+      },
+    },
+    seaProfile: {
+      exposureDirections: [
+        { direction: "SW", factor: 1.00 },
+        { direction: "SSW", factor: 0.95 },
+        { direction: "WSW", factor: 0.95 },
+        { direction: "W", factor: 0.90 },
+        { direction: "WNW", factor: 0.90 },
+        { direction: "NW", factor: 0.85 },
+      ],
+      preferredWaveHeight: {
+        min: 0.8,
+        idealMin: 1.2,
+        idealMax: 2.6,
+        max: 3.6,
+      },
+      heightQualityCurve: [
+        { height: 0.2, score: 20 },
+        { height: 0.6, score: 50 },
+        { height: 1.0, score: 85 },
+        { height: 1.6, score: 100 },
+        { height: 2.2, score: 95 },
+        { height: 2.8, score: 80 },
+        { height: 3.5, score: 40 },
+      ],
+      preferredPeriod: {
+        min: 5.5,
+        idealMin: 7.0,
+        idealMax: 11.0,
+      },
+      preferredWaveDirections: ["SW", "WSW", "W", "WNW", "NW"],
+      preferredStates: {
+        WAVE: 1.0,
+        BUMP_AND_JUMP: 0.85,
+        CHOP: 0.4,
+        FLAT: 0.2,
       },
     },
     hardGates: [
@@ -229,6 +291,34 @@ export const MaremmaSpots: RegionSpotConfig[] = [
         SW: 0.05,
       },
     },
+    seaProfile: {
+      exposureDirections: [
+        { direction: "SW", factor: 0.90 },
+        { direction: "SSW", factor: 0.85 },
+        { direction: "WSW", factor: 0.90 },
+        { direction: "W", factor: 0.85 },
+        { direction: "WNW", factor: 0.80 },
+        { direction: "NW", factor: 0.75 },
+      ],
+      preferredWaveHeight: {
+        min: 0.5,
+        idealMin: 0.9,
+        idealMax: 1.8,
+        max: 2.6,
+      },
+      preferredPeriod: {
+        min: 5.0,
+        idealMin: 6.5,
+        idealMax: 9.5,
+      },
+      preferredWaveDirections: ["SW", "WSW", "W", "WNW"],
+      preferredStates: {
+        BUMP_AND_JUMP: 1.0,
+        WAVE: 0.8,
+        CHOP: 0.6,
+        FLAT: 0.4,
+      },
+    },
     hardGates: [
       {
         id: "marina-grosseto-offshore",
@@ -293,6 +383,27 @@ export const MaremmaSpots: RegionSpotConfig[] = [
         N: 0.0,
       },
     },
+    seaProfile: {
+      exposureDirections: [
+        { direction: "NW", factor: 0.45 },
+        { direction: "NNW", factor: 0.40 },
+        { direction: "WNW", factor: 0.35 },
+        { direction: "W", factor: 0.25 },
+        { direction: "SW", factor: 0.20 },
+      ],
+      preferredWaveHeight: {
+        min: 0.2,
+        idealMin: 0.3,
+        idealMax: 0.8,
+        max: 1.3,
+      },
+      preferredStates: {
+        FLAT: 1.0,
+        CHOP: 0.7,
+        BUMP_AND_JUMP: 0.4,
+        WAVE: 0.1,
+      },
+    },
     hardGates: [
       {
         id: "giannella-offshore-south",
@@ -354,6 +465,33 @@ export const MaremmaSpots: RegionSpotConfig[] = [
         NW: 0.08,
         WNW: 0.05,
         W: 0.05,
+      },
+    },
+    seaProfile: {
+      exposureDirections: [
+        { direction: "NW", factor: 0.85 },
+        { direction: "WNW", factor: 0.85 },
+        { direction: "W", factor: 0.85 },
+        { direction: "WSW", factor: 0.80 },
+        { direction: "SW", factor: 0.80 },
+      ],
+      preferredWaveHeight: {
+        min: 0.5,
+        idealMin: 0.9,
+        idealMax: 1.9,
+        max: 2.8,
+      },
+      preferredPeriod: {
+        min: 5.0,
+        idealMin: 6.5,
+        idealMax: 10.0,
+      },
+      preferredWaveDirections: ["NW", "WNW", "W", "SW"],
+      preferredStates: {
+        BUMP_AND_JUMP: 1.0,
+        WAVE: 0.85,
+        CHOP: 0.5,
+        FLAT: 0.3,
       },
     },
     hardGates: [

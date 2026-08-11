@@ -102,9 +102,10 @@ export const SCORING_CONFIG = {
     confidence: 0.10,
   },
   sessionWeights: {
-    spotWindQuality: 0.35,
+    spotWindQuality: 0.30,
     directionQuality: 0.20,
-    waterStateQuality: 0.15,
+    seaQuality: 0.20,
+    waterStateQuality: 0.20, // legacy alias
     personalPreference: 0.15,
     gustQuality: 0.10,
     confidence: 0.05,

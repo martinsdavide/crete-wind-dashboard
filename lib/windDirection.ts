@@ -90,3 +90,23 @@ export function getDominantDirection(degreesArray: number[]): {
   const label = degreesToCompass(degrees);
   return { degrees, label };
 }
+
+/**
+ * Converts a compass direction label (e.g. "NW", "SW") to center degrees (0-359).
+ */
+export function compassToDegrees(dir: WindDirection | string): number {
+  const index = COMPASS_DIRECTIONS.indexOf(dir.toUpperCase() as WindDirection);
+  if (index === -1) return 0;
+  return normalizeDegrees(index * 22.5);
+}
+
+/**
+ * Calculates the shortest angular difference between two angles in degrees (0-180).
+ */
+export function getCircularAngleDifference(a: number, b: number): number {
+  const normA = normalizeDegrees(a);
+  const normB = normalizeDegrees(b);
+  const diff = Math.abs(normA - normB);
+  return diff > 180 ? 360 - diff : diff;
+}
+

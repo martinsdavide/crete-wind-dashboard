@@ -1,31 +1,36 @@
 import { RegionSpotConfig } from "@/types/region";
 import { SpotEligibility, WaterState, WindDirection } from "@/types/weather";
+import { SeaStateEvaluation } from "@/types/marine";
 import { SCORING_CONFIG } from "@/config/windProfiles";
 import { evaluateQualityCurve } from "./CurveEvaluator";
 import { evaluateWaterStateQuality, evaluatePreferenceScore } from "./PreferenceEvaluator";
 import { RiderPreferences } from "@/config/riderPreferences";
+import { evaluateFallbackSeaState } from "../marine/SeaStateEvaluator";
 
 export interface EvaluatedHourQuality {
   eligibility: SpotEligibility;
   eligibilityReason?: string;
   waterState: WaterState;
+  seaState?: SeaStateEvaluation;
   spotWindQuality: number;
   directionQuality: number;
-  waterStateQuality: number;
+  seaQualityScore: number;
+  waterStateQuality: number; // legacy backward-compatibility alias
   preferenceScore: number;
   sessionQualityScore: number;
 }
 
 /**
- * Generic spot eligibility evaluation driven exclusively by RegionSpotConfig and hard gates.
+ * Generic spot eligibility evaluation driven by RegionSpotConfig, wind, and marine hard gates.
  */
 export function evaluateSpotEligibility(
   spotConfig: RegionSpotConfig,
   localWind: number,
   directionDegrees: number,
-  regimeId?: string
+  regimeId?: string,
+  seaEval?: SeaStateEvaluation
 ): { eligibility: SpotEligibility; reason?: string } {
-  // 1. Evaluate configured Hard Gates
+  // 1. Evaluate configured Hard Gates (both atmospheric and marine)
   if (spotConfig.hardGates && spotConfig.hardGates.length > 0) {
     for (const gate of spotConfig.hardGates) {
       const matchesRegime = !gate.regimes || (regimeId && gate.regimes.includes(regimeId));
@@ -43,7 +48,27 @@ export function evaluateSpotEligibility(
       const matchesMinWind = gate.minWind === undefined || localWind >= gate.minWind;
       const matchesMaxWind = gate.maxWind === undefined || localWind <= gate.maxWind;
 
-      if (matchesRegime && matchesDirection && matchesMinWind && matchesMaxWind) {
+      // Optional Marine Hard Gates
+      let matchesMarine = true;
+      if (seaEval) {
+        if (gate.minWaveHeight !== undefined && seaEval.waveHeight !== null) {
+          if (seaEval.waveHeight < gate.minWaveHeight) matchesMarine = false;
+        }
+        if (gate.maxWaveHeight !== undefined && seaEval.waveHeight !== null) {
+          if (seaEval.waveHeight > gate.maxWaveHeight) matchesMarine = false;
+        }
+        if (gate.minWavePeriod !== undefined && seaEval.wavePeriod !== null) {
+          if (seaEval.wavePeriod < gate.minWavePeriod) matchesMarine = false;
+        }
+        if (gate.waveDirectionRange && seaEval.waveDirection !== null) {
+          const [minWD, maxWD] = gate.waveDirectionRange;
+          const wd = seaEval.waveDirection;
+          const inside = minWD <= maxWD ? wd >= minWD && wd <= maxWD : wd >= minWD || wd <= maxWD;
+          if (!inside) matchesMarine = false;
+        }
+      }
+
+      if (matchesRegime && matchesDirection && matchesMinWind && matchesMaxWind && matchesMarine) {
         return { eligibility: gate.eligibility, reason: gate.reason };
       }
     }
@@ -89,12 +114,13 @@ export function evaluateSpotEligibility(
 
 /**
  * Calculates total session quality score (0-100) from weighted composite factors.
+ * Incorporates independent Wind Quality, Direction Quality, Sea Quality, Rider Preference, Gust Stability, and Confidence.
  */
 export function computeSessionQualityScore(
   eligibility: SpotEligibility,
   spotWindQuality: number,
   directionQuality: number,
-  waterStateQuality: number,
+  seaQualityScore: number,
   preferenceScore: number,
   gustScore: number,
   confidenceScore: number
@@ -104,10 +130,12 @@ export function computeSessionQualityScore(
   }
 
   const w = SCORING_CONFIG.sessionWeights;
+  const seaWeight = (w as any).seaQuality ?? w.waterStateQuality ?? 0.20;
+
   const rawScore =
     spotWindQuality * w.spotWindQuality +
     directionQuality * w.directionQuality +
-    waterStateQuality * w.waterStateQuality +
+    seaQualityScore * seaWeight +
     preferenceScore * w.personalPreference +
     gustScore * w.gustQuality +
     confidenceScore * w.confidence;
@@ -121,7 +149,7 @@ export function computeSessionQualityScore(
 }
 
 /**
- * Evaluates full hourly quality packet for a spot.
+ * Evaluates full hourly quality packet for a spot combining wind and marine conditions.
  */
 export function evaluateHourQuality(
   spotConfig: RegionSpotConfig,
@@ -130,21 +158,30 @@ export function evaluateHourQuality(
   directionDegrees: number,
   directionLabel: WindDirection,
   directionQuality: number,
-  waterState: WaterState,
+  seaStateInput: SeaStateEvaluation | WaterState,
   gustScore: number,
   confidenceScore: number,
   regimeId?: string,
   riderPrefs?: RiderPreferences
 ): EvaluatedHourQuality {
+  // Support both full SeaStateEvaluation object and legacy WaterState string
+  const seaEval: SeaStateEvaluation =
+    typeof seaStateInput === "string"
+      ? evaluateFallbackSeaState(spotConfig, localWind, directionLabel)
+      : seaStateInput;
+
+  const waterState = seaEval.state;
+  const seaQualityScore = seaEval.seaQualityScore;
+
   const { eligibility, reason } = evaluateSpotEligibility(
     spotConfig,
     localWind,
     directionDegrees,
-    regimeId
+    regimeId,
+    seaEval
   );
 
   const spotWindQuality = Math.round(evaluateQualityCurve(spotConfig.qualityCurve, localWind));
-  const waterStateQuality = evaluateWaterStateQuality(waterState, riderPrefs);
   const preferenceScore = evaluatePreferenceScore(
     spotConfig,
     waterState,
@@ -157,7 +194,7 @@ export function evaluateHourQuality(
     eligibility,
     spotWindQuality,
     directionQuality,
-    waterStateQuality,
+    seaQualityScore,
     preferenceScore,
     gustScore,
     confidenceScore
@@ -167,9 +204,11 @@ export function evaluateHourQuality(
     eligibility,
     eligibilityReason: reason,
     waterState,
+    seaState: seaEval,
     spotWindQuality,
     directionQuality,
-    waterStateQuality,
+    seaQualityScore,
+    waterStateQuality: seaQualityScore,
     preferenceScore,
     sessionQualityScore,
   };
