@@ -100,6 +100,9 @@ export interface HourlyWind {
 
   temperature?: number; // °C
   cloudCover?: number; // %
+  precipitation12hMm?: number; // rolling 12h precipitation (mm)
+  precipitation6hMm?: number; // rolling 6h precipitation (mm)
+  lakeStateSource?: "LAKE_WIND_DERIVED" | "LOCAL_OBSERVATION" | "MANUAL_CALIBRATION";
 }
 
 export type GustinessLabel =

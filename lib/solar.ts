@@ -178,3 +178,56 @@ export function isDaylightHour(
 
   return t >= sunrise.getTime() - TWILIGHT_BUFFER_MS && t <= sunset.getTime() + TWILIGHT_BUFFER_MS;
 }
+
+/**
+ * Checks whether a given timestamp is within a spot's operational session window.
+ * Supports standard NOAA solar calculation, civil twilight extension (e.g. 45 min pre-sunrise for Valmadrera Tivano),
+ * and earliest/latest configured local time thresholds.
+ */
+export function isSpotOperatingHour(
+  timestamp: Date | string,
+  spotConfig: { latitude: number; longitude: number; operatingWindow?: import("@/types/region").OperatingWindow },
+  timezone = DEFAULT_TIMEZONE
+): boolean {
+  const d = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
+  if (isNaN(d.getTime())) return true;
+
+  const op = spotConfig.operatingWindow;
+  if (!op || op.mode === "SOLAR") {
+    return isDaylightHour(d, spotConfig.latitude, spotConfig.longitude);
+  }
+
+  const { sunrise, sunset } = calculateSolarTimes(d, spotConfig.latitude, spotConfig.longitude);
+  const preBufferMs = (op.preSunriseMinutes ?? 15) * 60 * 1000;
+  const postBufferMs = (op.postSunsetMinutes ?? 15) * 60 * 1000;
+  const t = d.getTime();
+
+  // If spot explicitly configures earliest / latest local time thresholds, evaluate against local time
+  if (op.earliestLocalTime || op.latestLocalTime) {
+    const { hour, minute } = getLocalHourAndMinute(d, timezone);
+    const localMinutes = hour * 60 + minute;
+
+    let earliestMins = 0;
+    if (op.earliestLocalTime) {
+      const [eH, eM] = op.earliestLocalTime.split(":").map((v) => parseInt(v, 10));
+      earliestMins = eH * 60 + (eM || 0);
+    }
+
+    let latestMins = 24 * 60;
+    if (op.latestLocalTime) {
+      const [lH, lM] = op.latestLocalTime.split(":").map((v) => parseInt(v, 10));
+      latestMins = lH * 60 + (lM || 0);
+    }
+
+    if (localMinutes < earliestMins || localMinutes > latestMins) {
+      return false;
+    }
+
+    // Within earliest-latest window: verify it is before post-sunset end
+    if (t <= sunset.getTime() + postBufferMs) {
+      return true;
+    }
+  }
+
+  return t >= sunrise.getTime() - preBufferMs && t <= sunset.getTime() + postBufferMs;
+}

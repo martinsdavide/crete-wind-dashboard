@@ -6,7 +6,7 @@ import { SpotId } from "@/types/spot";
 import { WindArrow } from "./WindArrow";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { formatTimeHHMM } from "@/lib/bestWindow";
-import { isDaylightHour } from "@/lib/solar";
+import { isSpotOperatingHour } from "@/lib/solar";
 import { X, AlertTriangle, Waves, Sun } from "lucide-react";
 
 interface HourlyForecastProps {
@@ -80,15 +80,12 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
     const lat = activeForecast.spot?.latitude ?? 35.19;
     const lon = activeForecast.spot?.longitude ?? 26.27;
 
-    // Filter future hourly items:
-    // 1. Strictly in the future (timestamp > nowMs)
-    // 2. Strictly during solar daylight windsurfing window (sunrise to sunset calculated astronomically)
     const futureDaylightHours = activeForecast.hourly.filter((h) => {
       const hMs = new Date(h.timestamp).getTime();
       const isFuture = hMs > nowMs;
-      const isDaylight = isDaylightHour(h.timestamp, lat, lon);
+      const isOperating = isSpotOperatingHour(h.timestamp, activeForecast.spot, timezone);
 
-      return isFuture && isDaylight;
+      return isFuture && isOperating;
     });
 
     // Build timeline: NOW followed strictly by upcoming daylight hours

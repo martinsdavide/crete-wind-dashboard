@@ -5,6 +5,7 @@ export interface OpenMeteoHourlyResponse {
   wind_gusts_10m: number[];
   temperature_2m?: number[];
   cloud_cover?: number[];
+  precipitation?: number[];
 }
 
 export interface OpenMeteoRawResponse {
@@ -50,6 +51,7 @@ export async function fetchSpotWeather(
       "wind_gusts_10m",
       "temperature_2m",
       "cloud_cover",
+      "precipitation",
     ].join(","),
     wind_speed_unit: "kn",
     timezone: "UTC", // Strict UTC retrieval

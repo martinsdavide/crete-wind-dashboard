@@ -67,6 +67,23 @@ export interface ThermalEvaluation {
   };
 }
 
+export interface OperatingWindow {
+  mode: "SOLAR" | "SOLAR_WITH_TWILIGHT" | "FIXED";
+  preSunriseMinutes?: number; // e.g. 45 min for dawn rigging
+  postSunsetMinutes?: number; // e.g. 15 min for dusk
+  earliestLocalTime?: string; // "HH:MM" e.g. "05:15"
+  latestLocalTime?: string;   // "HH:MM" e.g. "12:00" or "21:00"
+}
+
+export interface SpotLakeProfile {
+  fetchByDirectionKm: Partial<Record<WindDirection, number>>;
+  exposureByDirection?: Partial<Record<WindDirection, number>>;
+  flatThresholdKt: number;
+  chopThresholdKt: number;
+  rampThresholdKt?: number;
+  extremeThresholdKt: number;
+}
+
 export interface SpotLocalCorrectionConfig {
   baseCorrectionFactor: number;
   minFactor: number;
@@ -74,6 +91,11 @@ export interface SpotLocalCorrectionConfig {
   summerBoostMonths?: number[]; // [6, 7, 8]
   summerBoostAmount?: number;
   diurnalThermalBoost?: DiurnalThermalBoostConfig;
+  postRainBoost?: {
+    enabled?: boolean;
+    maxBoost?: number; // e.g. 0.20
+    minPrecipitation12hMm?: number; // e.g. 1.0
+  };
   directionModifiers?: Partial<Record<WindDirection, number>>;
   directionDeflections?: Partial<Record<WindDirection, WindDirection>>;
 }
@@ -93,7 +115,9 @@ export interface RegionSpotConfig {
   comfortCeilingWind: number; // e.g. 30 kt
   qualityCurve: QualityPoint[];
   localCorrection: SpotLocalCorrectionConfig;
-  seaProfile?: SpotSeaProfile; // Marine exposure and coastal transformation profile
+  seaProfile?: SpotSeaProfile; // Marine exposure and coastal transformation profile (ocean/sea)
+  lakeProfile?: SpotLakeProfile; // Inland lake wave & fetch profile
+  operatingWindow?: OperatingWindow; // Spot-specific operational daylight/twilight window
   hardGates?: HardGateRule[];
   defaultStyle: WaterState;
   preferredStyles?: Partial<Record<WaterState, number>>;

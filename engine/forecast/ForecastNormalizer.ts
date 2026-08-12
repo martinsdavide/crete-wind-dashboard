@@ -29,6 +29,7 @@ import {
 } from "../scoring/DirectionEvaluator";
 import { OpenMeteoRawResponse } from "@/lib/weather/openMeteo";
 import { evaluateSeaState } from "../marine/SeaStateEvaluator";
+import { evaluateLakeState } from "../marine/LakeStateEvaluator";
 import { MarineForecast, MarineForecastPoint, SeaStateEvaluation } from "@/types/marine";
 
 /**
@@ -205,7 +206,8 @@ export function calculateLocalCorrectionFactor(
   directionDegrees: number,
   modelWind = 12,
   cloudCover = 0,
-  timeZone = "Europe/Athens"
+  timeZone = "Europe/Athens",
+  regimeId?: string
 ): {
   factor: number;
   effectiveDirection: WindDirection;
@@ -243,6 +245,14 @@ export function calculateLocalCorrectionFactor(
     factor += thermal.boost;
   }
 
+  // 2b. Post-Rain Northerly Drainage Boost (e.g. for Valmadrera)
+  if (
+    cfg.postRainBoost?.enabled &&
+    regimeId === "COMO_POST_RAIN_NORTH"
+  ) {
+    factor += cfg.postRainBoost.maxBoost ?? 0.20;
+  }
+
   // 3. Direction Modifiers
   if (cfg.directionModifiers && cfg.directionModifiers[directionLabel] !== undefined) {
     factor += cfg.directionModifiers[directionLabel]!;
@@ -265,38 +275,34 @@ export function calculateLocalCorrectionFactor(
 }
 
 /**
- * Estimates water state dynamically from spot configuration and wind intensity.
+ * Maps water state classification according to spot configuration rules.
  */
 export function estimateSpotWaterState(
   spotConfig: RegionSpotConfig,
-  directionLabel: WindDirection,
-  localWind: number
+  localWind: number,
+  directionLabel: WindDirection
 ): WaterState {
-  const styleRules = spotConfig.styleRules;
+  const rules = spotConfig.styleRules;
+  if (!rules) return spotConfig.defaultStyle || "BUMP_AND_JUMP";
 
-  if (styleRules) {
-    const isFavoredDir =
-      !styleRules.favoredDirections || styleRules.favoredDirections.includes(directionLabel);
+  const isFavoredDirection =
+    !rules.favoredDirections || rules.favoredDirections.includes(directionLabel);
 
-    if (
-      isFavoredDir &&
-      styleRules.waveThresholdWind &&
-      localWind >= styleRules.waveThresholdWind
-    ) {
-      return "WAVE";
-    }
-
-    if (
-      isFavoredDir &&
-      styleRules.bumpAndJumpThresholdWind &&
-      localWind >= styleRules.bumpAndJumpThresholdWind
-    ) {
-      return "BUMP_AND_JUMP";
-    }
+  if (
+    rules.waveThresholdWind &&
+    localWind >= rules.waveThresholdWind &&
+    isFavoredDirection
+  ) {
+    return "WAVE";
   }
 
-  if (localWind < 15) return "FLAT";
-  if (localWind <= 22) return "CHOP";
+  if (
+    rules.bumpAndJumpThresholdWind &&
+    localWind >= rules.bumpAndJumpThresholdWind &&
+    isFavoredDirection
+  ) {
+    return "BUMP_AND_JUMP";
+  }
 
   return spotConfig.defaultStyle || "BUMP_AND_JUMP";
 }
@@ -313,6 +319,8 @@ export function normalizeHourlyPoint(
     windDirection: number;
     temperature?: number;
     cloudCover?: number;
+    precipitation6hMm?: number;
+    precipitation12hMm?: number;
     marine?: MarineForecastPoint | null;
   },
   referenceDate: Date = new Date(),
@@ -329,7 +337,8 @@ export function normalizeHourlyPoint(
       point.windDirection,
       point.windSpeed,
       point.cloudCover,
-      timeZone
+      timeZone,
+      regimeId
     );
 
   const localWind = Math.max(0, point.windSpeed * factor);
@@ -350,13 +359,26 @@ export function normalizeHourlyPoint(
 
   const gustScore = calculateGustinessScore(localWind, localGust);
 
-  // Independent Sea State Model Evaluation
-  const seaState: SeaStateEvaluation = evaluateSeaState(
-    spotConfig,
-    point.marine,
-    localWind,
-    effectiveDirection
-  );
+  // Inland Lake State Model vs Offshore Marine Model
+  let seaState: SeaStateEvaluation;
+  let lakeStateSource: "LAKE_WIND_DERIVED" | "LOCAL_OBSERVATION" | "MANUAL_CALIBRATION" | undefined = undefined;
+
+  if (spotConfig.lakeProfile) {
+    seaState = evaluateLakeState(
+      spotConfig,
+      localWind,
+      effectiveDirection,
+      localGust
+    );
+    lakeStateSource = "LAKE_WIND_DERIVED";
+  } else {
+    seaState = evaluateSeaState(
+      spotConfig,
+      point.marine,
+      localWind,
+      effectiveDirection
+    );
+  }
 
   const quality = evaluateHourQuality(
     spotConfig,
@@ -378,18 +400,21 @@ export function normalizeHourlyPoint(
     timestamp: point.timestamp,
     modelWind: point.windSpeed,
     modelGust: point.windGust || point.windSpeed * 1.25,
-    directionDegrees: effectiveDegrees,
-    directionLabel: effectiveDirection,
-    arrowRotation: compassToArrowRotation(effectiveDegrees),
     localWind,
     localGust,
     correctionFactor: factor,
+    directionDegrees: effectiveDegrees,
+    directionLabel: effectiveDirection,
+    arrowRotation: compassToArrowRotation(effectiveDegrees),
     confidence,
     confidenceLevel,
     eligibility: quality.eligibility,
     eligibilityReason: quality.eligibilityReason as any,
     waterState: quality.waterState,
     seaState,
+    lakeStateSource,
+    precipitation6hMm: point.precipitation6hMm,
+    precipitation12hMm: point.precipitation12hMm,
     spotWindQuality: quality.spotWindQuality,
     directionQuality: quality.directionQuality,
     seaQualityScore: quality.seaQualityScore,
@@ -694,6 +719,24 @@ export function normalizeSpotForecastGeneric(
     const cloudCover = hourlyData.cloud_cover?.[i] ?? 0;
     const marinePoint = marineByTimestamp.get(timestamp) || null;
 
+    const precipitationRaw = hourlyData.precipitation;
+    let precipitation6hMm = 0;
+    let precipitation12hMm = 0;
+
+    if (precipitationRaw && precipitationRaw.length > 0) {
+      // Sum past 6 hours and 12 hours up to index i
+      const start6 = Math.max(0, i - 5);
+      const start12 = Math.max(0, i - 11);
+      for (let p = start6; p <= i; p++) {
+        precipitation6hMm += precipitationRaw[p] ?? 0;
+      }
+      for (let p = start12; p <= i; p++) {
+        precipitation12hMm += precipitationRaw[p] ?? 0;
+      }
+      precipitation6hMm = Math.round(precipitation6hMm * 10) / 10;
+      precipitation12hMm = Math.round(precipitation12hMm * 10) / 10;
+    }
+
     const normalizedPoint = normalizeHourlyPoint(
       spotConfig,
       {
@@ -703,6 +746,8 @@ export function normalizeSpotForecastGeneric(
         windDirection,
         temperature,
         cloudCover,
+        precipitation6hMm,
+        precipitation12hMm,
         marine: marinePoint,
       },
       currentTime,
