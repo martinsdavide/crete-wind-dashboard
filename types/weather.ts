@@ -196,6 +196,8 @@ export interface SpotForecast {
   hourly: HourlyWind[];
   days: DailyWindSummary[];
   providerModel: string;
+  observationFusion?: import("@/engine/observations/types").ObservationFusionResult;
+  adjustedForecast?: HourlyWind;
 }
 
 export type SpotResult =

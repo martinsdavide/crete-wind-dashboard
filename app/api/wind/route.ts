@@ -112,6 +112,27 @@ export async function GET(request: NextRequest) {
     hourlyRegimes.push(regimeId);
   }
 
+  // Fetch live weather observations for region if configured
+  const regionBindings =
+    regionConfig.id === "como-lake"
+      ? (await import("@/engine/observations/bindings/comoLakeBindings")).COMO_LAKE_STATION_BINDINGS
+      : regionConfig.id === "garda-lake"
+      ? (await import("@/engine/observations/bindings/gardaLakeBindings")).GARDA_LAKE_STATION_BINDINGS
+      : null;
+
+  let observations: Record<string, any> = {};
+  if (regionBindings) {
+    const allStationIds = Array.from(
+      new Set(Object.values(regionBindings).flatMap((bList) => bList.map((b) => b.stationId)))
+    );
+    try {
+      const { ObservationRepository } = await import("@/engine/observations/ObservationRepository");
+      observations = await ObservationRepository.getObservationsForStations(allStationIds, currentTime);
+    } catch (e) {
+      console.warn("Observation fetch skipped:", e);
+    }
+  }
+
   const spotsResults: Record<string, SpotResult> = {};
   const models: Record<string, string> = {};
   let anyFulfilled = false;
@@ -129,6 +150,39 @@ export async function GET(request: NextRequest) {
         hourlyRegimes,
         marine
       );
+
+      // Apply Live Observation Fusion if station bindings exist
+      if (regionBindings && regionBindings[spot.id]) {
+        try {
+          const { ObservationFusionEngine } = require("@/engine/observations/ObservationFusionEngine");
+          const fusion = ObservationFusionEngine.fuseSpotForecast(
+            spot.id,
+            regionBindings[spot.id],
+            observations,
+            forecast.current.localWind,
+            forecast.current.localGust,
+            forecast.current.directionDegrees,
+            currentTime,
+            0
+          );
+          forecast.observationFusion = fusion;
+          if (fusion.status === "available" || fusion.status === "partial") {
+            forecast.adjustedForecast = {
+              ...forecast.current,
+              localWind: fusion.correctedWindSpeedKt,
+              localGust: fusion.correctedWindGustKt,
+              directionDegrees: fusion.correctedWindDirectionDeg ?? forecast.current.directionDegrees,
+              confidence: Math.min(
+                100,
+                Math.max(0, Math.round(forecast.current.confidence + fusion.confidenceAdjustment * 100))
+              ),
+            };
+          }
+        } catch (e) {
+          console.warn(`Observation fusion error on ${spot.id}:`, e);
+        }
+      }
+
       spotsResults[spot.id] = { status: "ok", data: forecast };
       models[spot.id] = forecast.providerModel || "ECMWF IFS HRES (via Open-Meteo)";
     } else {
