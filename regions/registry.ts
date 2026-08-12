@@ -3,6 +3,7 @@ import { EasternCreteRegion } from "./eastern-crete";
 import { MaremmaRegion } from "./maremma";
 import { AltaToscanaRegion } from "./alta-toscana";
 import { ComoLakeRegion } from "./como-lake";
+import { GardaLakeRegion } from "./garda-lake";
 
 /**
  * Central Region Registry (Plugin Architecture).
@@ -14,6 +15,7 @@ export const REGIONS: RegionConfig[] = [
   MaremmaRegion,
   AltaToscanaRegion,
   ComoLakeRegion,
+  GardaLakeRegion,
 ];
 
 export const DEFAULT_REGION: RegionConfig = EasternCreteRegion;

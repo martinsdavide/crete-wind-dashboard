@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   // Fetch atmospheric and marine forecasts for all spots in parallel with fault tolerance
   const fetchPromises = regionConfig.spots.map(async (spot) => {
-    const isLake = !!spot.lakeProfile || regionConfig.id === "como-lake";
+    const isLake = !!spot.lakeProfile || regionConfig.id === "como-lake" || regionConfig.id === "garda-lake";
     const [weatherRes, marineRes] = await Promise.allSettled([
       fetchSpotWeather(spot.latitude, spot.longitude, 4),
       isLake ? Promise.resolve(null) : defaultMarineProvider.fetchMarineForecast(spot.latitude, spot.longitude, 4),
