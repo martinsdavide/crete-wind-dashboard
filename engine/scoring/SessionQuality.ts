@@ -181,7 +181,9 @@ export function evaluateHourQuality(
     seaEval
   );
 
-  const spotWindQuality = Math.round(evaluateQualityCurve(spotConfig.qualityCurve, localWind));
+  const qualityCurveToUse =
+    (regimeId && spotConfig.regimeQualityCurves?.[regimeId]) || spotConfig.qualityCurve;
+  const spotWindQuality = Math.round(evaluateQualityCurve(qualityCurveToUse, localWind));
   const preferenceScore = evaluatePreferenceScore(
     spotConfig,
     waterState,

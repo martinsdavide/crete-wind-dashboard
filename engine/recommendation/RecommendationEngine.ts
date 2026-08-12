@@ -14,18 +14,66 @@ import { degreesToCompass } from "@/lib/windDirection";
 import { SCORING_CONFIG } from "@/config/windProfiles";
 
 /**
+ * Classifies regional wind regime for a specific hour/timestamp context.
+ */
+export function classifyRegionalRegimeForHour(
+  regionConfig: RegionConfig,
+  context: {
+    meanRawWind: number;
+    meanDirectionDegrees: number;
+    meanDirectionLabel?: WindDirection;
+    precipitation12hMm?: number;
+    currentPrecipitationMm?: number;
+    localHour?: number;
+    gustFactor?: number;
+  }
+): { regimeId: string; regimeLabel: string } {
+  const dirLabel = context.meanDirectionLabel ?? degreesToCompass(context.meanDirectionDegrees);
+
+  for (const regime of regionConfig.regimes) {
+    const c = regime.criteria;
+
+    const dirMatch = !c.directions || c.directions.length === 0 || c.directions.includes(dirLabel);
+    const minWindMatch = c.minRawWind === undefined || context.meanRawWind >= c.minRawWind;
+    const maxWindMatch = c.maxRawWind === undefined || context.meanRawWind <= c.maxRawWind;
+
+    let precip12hMatch = true;
+    if (c.minPrecipitation12hMm !== undefined) {
+      precip12hMatch = (context.precipitation12hMm ?? 0) >= c.minPrecipitation12hMm;
+    }
+
+    let precipCurrentMatch = true;
+    if (c.maxPrecipitationCurrentMm !== undefined) {
+      precipCurrentMatch = (context.currentPrecipitationMm ?? 0) <= c.maxPrecipitationCurrentMm;
+    }
+
+    let hourMatch = true;
+    if (c.allowedHours && context.localHour !== undefined) {
+      const [startH, endH] = c.allowedHours;
+      hourMatch = context.localHour >= startH && context.localHour <= endH;
+    }
+
+    if (dirMatch && minWindMatch && maxWindMatch && precip12hMatch && precipCurrentMatch && hourMatch) {
+      return { regimeId: regime.id, regimeLabel: regime.label };
+    }
+  }
+
+  return { regimeId: "OTHER_FLOW", regimeLabel: "Variable Airflow" };
+}
+
+/**
  * Classifies regional wind regime based on configured RegionConfig regime rules.
  */
 export function classifyRegionalRegime(
   regionConfig: RegionConfig,
-  spotForecasts: Record<string, SpotForecast | null | undefined>
+  spotForecasts: Record<string, SpotForecast | null | undefined>,
+  referenceDate: Date = new Date()
 ): { regimeId: string; regimeLabel: string } {
   const fallbackRegime = {
     regimeId: "OTHER_FLOW",
     regimeLabel: "Variable Airflow",
   };
 
-  // Find reference flow from configured reference spots
   const referenceForecasts: SpotForecast[] = [];
   for (const spot of regionConfig.spots) {
     const fc = spotForecasts[spot.id];
@@ -36,14 +84,17 @@ export function classifyRegionalRegime(
     return fallbackRegime;
   }
 
-  // Calculate average raw speed and dominant raw direction across reference spots
   const rawWinds: number[] = [];
   const rawDirs: number[] = [];
+  const precip12hs: number[] = [];
 
   for (const fc of referenceForecasts) {
     if (fc.current) {
       rawWinds.push(fc.current.modelWind);
       rawDirs.push(fc.current.directionDegrees);
+      if (fc.current.precipitation12hMm !== undefined) {
+        precip12hs.push(fc.current.precipitation12hMm);
+      }
     }
   }
 
@@ -60,29 +111,28 @@ export function classifyRegionalRegime(
     cosSum += Math.cos(rad);
   }
   const meanDirDeg = (Math.atan2(sinSum, cosSum) * (180 / Math.PI) + 360) % 360;
-  const meanDirectionLabel = degreesToCompass(meanDirDeg);
 
-  // Match against region's regime definitions
-  for (const regime of regionConfig.regimes) {
-    const dirMatch =
-      !regime.criteria.directions ||
-      regime.criteria.directions.length === 0 ||
-      regime.criteria.directions.includes(meanDirectionLabel);
+  const meanPrecip12h =
+    precip12hs.length > 0
+      ? precip12hs.reduce((a, b) => a + b, 0) / precip12hs.length
+      : 0;
 
-    const minMatch =
-      regime.criteria.minRawWind === undefined ||
-      meanRawWind >= regime.criteria.minRawWind;
+  let localHour = 12;
+  try {
+    const hourStr = new Intl.DateTimeFormat("en-GB", {
+      timeZone: regionConfig.timezone || "Europe/Athens",
+      hour: "2-digit",
+      hour12: false,
+    }).format(referenceDate);
+    localHour = parseInt(hourStr, 10);
+  } catch {}
 
-    const maxMatch =
-      regime.criteria.maxRawWind === undefined ||
-      meanRawWind <= regime.criteria.maxRawWind;
-
-    if (dirMatch && minMatch && maxMatch) {
-      return { regimeId: regime.id, regimeLabel: regime.label };
-    }
-  }
-
-  return fallbackRegime;
+  return classifyRegionalRegimeForHour(regionConfig, {
+    meanRawWind,
+    meanDirectionDegrees: meanDirDeg,
+    precipitation12hMm: meanPrecip12h,
+    localHour,
+  });
 }
 
 export class RecommendationEngine {
@@ -105,7 +155,8 @@ export class RecommendationEngine {
     // 2. Classify regional regime
     const { regimeId, regimeLabel } = classifyRegionalRegime(
       regionConfig,
-      validForecasts
+      validForecasts,
+      referenceDate
     );
 
     // 3. Resolve today's date in the region's configured timezone (e.g. "YYYY-MM-DD")
@@ -165,6 +216,7 @@ export class RecommendationEngine {
           }
 
           const hasCriteria =
+            gate.regimes !== undefined ||
             gate.directionRange !== undefined ||
             gate.minWind !== undefined ||
             gate.maxWind !== undefined ||

@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { ComoLakeRegion } from "@/regions/como-lake";
 import { normalizeSpotForecastGeneric } from "@/engine/forecast/ForecastNormalizer";
-import { RecommendationEngine } from "@/engine/recommendation/RecommendationEngine";
+import {
+  RecommendationEngine,
+  classifyRegionalRegimeForHour,
+} from "@/engine/recommendation/RecommendationEngine";
 import { OpenMeteoRawResponse } from "@/lib/weather/openMeteo";
 import { SpotResult } from "@/types/weather";
 import { isSpotOperatingHour } from "@/lib/solar";
@@ -31,7 +34,7 @@ describe("Como Lake Edition — Plugin & Scenario Validations", () => {
   const createSyntheticWeather = (
     windSpeed: number,
     windDirection: number,
-    referenceHour = "2026-08-12T06:00:00.000Z",
+    referenceHour = "2026-08-12T05:00:00.000Z",
     precipitation12h = 0,
     hoursCount = 24
   ): OpenMeteoRawResponse => {
@@ -81,11 +84,42 @@ describe("Como Lake Edition — Plugin & Scenario Validations", () => {
   const runScenario = (
     windSpeed: number,
     windDirection: number,
-    referenceHour = "2026-08-12T06:00:00.000Z",
-    precipitation12h = 0
+    referenceHour = "2026-08-12T05:00:00.000Z",
+    precipitation12h = 0,
+    overrideRegime?: string
   ) => {
     const rawWeather = createSyntheticWeather(windSpeed, windDirection, referenceHour, precipitation12h);
     const refDate = new Date(referenceHour);
+    const count = rawWeather.hourly.time.length;
+
+    // Compute hourly regimes pre-normalization just like route.ts
+    const hourlyRegimes: string[] = [];
+    for (let i = 0; i < count; i++) {
+      if (overrideRegime) {
+        hourlyRegimes.push(overrideRegime);
+      } else {
+        const timeStr = rawWeather.hourly.time[i];
+        let localH = 12;
+        try {
+          const hStr = new Intl.DateTimeFormat("en-GB", {
+            timeZone: "Europe/Rome",
+            hour: "2-digit",
+            hour12: false,
+          }).format(new Date(timeStr));
+          localH = parseInt(hStr, 10);
+        } catch {}
+
+        const { regimeId } = classifyRegionalRegimeForHour(ComoLakeRegion, {
+          meanRawWind: rawWeather.hourly.wind_speed_10m[i],
+          meanDirectionDegrees: rawWeather.hourly.wind_direction_10m[i],
+          precipitation12hMm: precipitation12h,
+          currentPrecipitationMm: 0,
+          localHour: localH,
+        });
+        hourlyRegimes.push(regimeId);
+      }
+    }
+
     const spotsResults: Record<string, SpotResult> = {};
 
     for (const spot of ComoLakeRegion.spots) {
@@ -94,7 +128,7 @@ describe("Como Lake Edition — Plugin & Scenario Validations", () => {
         rawWeather,
         refDate,
         ComoLakeRegion.timezone,
-        undefined,
+        hourlyRegimes,
         null // Lake Como skips ECMWF-WAM marine model
       );
       spotsResults[spot.id] = { status: "ok", data: forecast };
@@ -106,20 +140,19 @@ describe("Como Lake Edition — Plugin & Scenario Validations", () => {
 
   describe("Scenario 1: Valmadrera Tivano Morning Thermal", () => {
     it("detects Tivano and boosts Valmadrera local wind during morning NE flow (07:00 local CEST = 05:00 UTC)", () => {
-      const { rec, spotsResults } = runScenario(12, 35, "2026-08-12T05:00:00.000Z");
+      const { rec, spotsResults } = runScenario(12, 35, "2026-08-12T05:00:00.000Z", 0);
 
       expect(rec.regime).toBe("COMO_TIVANO");
       expect(rec.bestSpot).toBe("valmadrera-pare");
       expect(rec.score).toBeGreaterThanOrEqual(80);
 
       const valmadrera = (spotsResults["valmadrera-pare"] as any).data;
-      // Synoptic 12 kt should be accelerated above 14.5 kt by base + dynamic Tivano boost
       expect(valmadrera.current.localWind).toBeGreaterThan(14.5);
       expect(valmadrera.current.lakeStateSource).toBe("LAKE_WIND_DERIVED");
     });
 
     it("does not apply Tivano boost when morning wind is from the south, triggering Valmadrera shadow gate", () => {
-      const { spotsResults } = runScenario(10, 180, "2026-08-12T05:00:00.000Z");
+      const { spotsResults } = runScenario(10, 180, "2026-08-12T05:00:00.000Z", 0);
       const valmadrera = (spotsResults["valmadrera-pare"] as any).data;
 
       // Valmadrera is hard-gated for southerly wind shadow
@@ -128,7 +161,7 @@ describe("Como Lake Edition — Plugin & Scenario Validations", () => {
   });
 
   describe("Scenario 2: Valmadrera Post-Rain Northerly Drainage", () => {
-    it("detects post-rain North and applies post-rain drainage boost", () => {
+    it("detects post-rain North only when rainfall is present and applies drainage boost", () => {
       const { rec, spotsResults } = runScenario(14, 25, "2026-08-12T05:00:00.000Z", 6.0);
 
       expect(rec.regime).toBe("COMO_POST_RAIN_NORTH");
@@ -137,11 +170,18 @@ describe("Como Lake Edition — Plugin & Scenario Validations", () => {
       const valmadrera = (spotsResults["valmadrera-pare"] as any).data;
       expect(valmadrera.current.localWind).toBeGreaterThan(17);
     });
+
+    it("does NOT classify as post-rain North when rainfall is zero", () => {
+      const { rec } = runScenario(14, 25, "2026-08-12T05:00:00.000Z", 0);
+
+      expect(rec.regime).not.toBe("COMO_POST_RAIN_NORTH");
+      expect(rec.regime).toBe("COMO_TIVANO");
+    });
   });
 
   describe("Scenario 3: Dervio Breva Afternoon Thermal", () => {
     it("detects Breva in the afternoon under southerly flow (14:00 local CEST = 12:00 UTC)", () => {
-      const { rec, spotsResults } = runScenario(16, 190, "2026-08-12T12:00:00.000Z");
+      const { rec, spotsResults } = runScenario(16, 190, "2026-08-12T12:00:00.000Z", 0);
 
       expect(rec.regime).toBe("COMO_BREVA");
       expect(rec.bestSpot).toBe("dervio");
@@ -154,38 +194,44 @@ describe("Como Lake Edition — Plugin & Scenario Validations", () => {
   });
 
   describe("Scenario 4: Dervio Strong North & Föhn", () => {
-    it("scores Dervio highly under strong synoptic North (26 kt N / 360°)", () => {
-      const { rec, spotsResults } = runScenario(26, 360, "2026-08-12T12:00:00.000Z");
+    it("scores Dervio highly under strong synoptic North (26 kt N / 360°) using regime-specific quality curve", () => {
+      const { rec, spotsResults } = runScenario(26, 360, "2026-08-12T12:00:00.000Z", 0);
 
       expect(rec.regime).toBe("COMO_STRONG_NORTH");
       expect(rec.bestSpot).toBe("dervio");
       expect(rec.score).toBeGreaterThanOrEqual(80);
 
       const dervio = (spotsResults["dervio"] as any).data;
-      // Lake State estimator predicts chop / ramps on central lake basin
       expect(dervio.current.seaState.waveHeight).toBeGreaterThanOrEqual(0.7);
     });
   });
 
   describe("Scenario 5: Convective Hazard Safety Gate", () => {
-    it("triggers regional safety hard gate making spots unsuitable under convective storm winds", () => {
-      const { spotsResults } = runScenario(48, 180, "2026-08-12T14:00:00.000Z");
+    it("triggers regional safety hard gate making spots unsuitable under moderate wind (18 kt) in convective regime", () => {
+      const { spotsResults } = runScenario(18, 180, "2026-08-12T14:00:00.000Z", 0, "COMO_CONVECTIVE_HAZARD");
 
       for (const spotId of Object.keys(spotsResults)) {
         const data = (spotsResults[spotId] as any).data;
+        // Even at moderate 18 kt (well below 42 kt limit), convective hard gate forces UNSUITABLE
         expect(data.current.eligibility).toBe("UNSUITABLE");
       }
     });
   });
 
   describe("Scenario 6: Valmadrera Early-Morning Operating Window", () => {
-    it("includes 05:30 local time in Valmadrera operating window", () => {
+    it("includes 05:30 local time in Valmadrera operating window and preserves it in forecast.spot", () => {
       const valmadrera = ComoLakeRegion.spots.find((s) => s.id === "valmadrera-pare")!;
       // 05:30 CEST on August 12 (03:30 UTC)
       const earlyMorningDate = new Date("2026-08-12T03:30:00.000Z");
 
       const isOperating = isSpotOperatingHour(earlyMorningDate, valmadrera, "Europe/Rome");
       expect(isOperating).toBe(true);
+
+      const { spotsResults } = runScenario(12, 35, "2026-08-12T05:00:00.000Z", 0);
+      const forecast = (spotsResults["valmadrera-pare"] as any).data;
+      expect(forecast.spot.operatingWindow).toBeDefined();
+      expect(forecast.spot.operatingWindow.mode).toBe("SOLAR_WITH_TWILIGHT");
+      expect(forecast.spot.operatingWindow.earliestLocalTime).toBe("05:15");
     });
   });
 });

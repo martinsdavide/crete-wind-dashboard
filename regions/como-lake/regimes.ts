@@ -33,7 +33,10 @@ export const ComoLakeRegimes: RegimeDefinition[] = [
     description: "Reinforced morning northerly drainage following overnight rainfall in the alpine valleys.",
     criteria: {
       directions: ["N", "NNE", "NE", "ENE"],
-      minRawWind: 13,
+      minRawWind: 11,
+      minPrecipitation12hMm: 1.0,
+      maxPrecipitationCurrentMm: 0.5,
+      allowedHours: [5, 11],
     },
   },
   {
@@ -44,6 +47,7 @@ export const ComoLakeRegimes: RegimeDefinition[] = [
       directions: ["N", "NNE", "NE", "ENE"],
       minRawWind: 8,
       maxRawWind: 18,
+      allowedHours: [5, 11],
     },
   },
   {
@@ -53,6 +57,7 @@ export const ComoLakeRegimes: RegimeDefinition[] = [
     criteria: {
       directions: ["S", "SSW", "SSE", "SW"],
       minRawWind: 10,
+      allowedHours: [11, 20],
     },
   },
   {

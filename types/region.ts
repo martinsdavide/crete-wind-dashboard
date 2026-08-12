@@ -121,6 +121,7 @@ export interface RegionSpotConfig {
   hardGates?: HardGateRule[];
   defaultStyle: WaterState;
   preferredStyles?: Partial<Record<WaterState, number>>;
+  regimeQualityCurves?: Record<string, QualityPoint[]>;
   directionScores?: Partial<Record<WindDirection, number>> & { default?: number };
   styleRules?: {
     waveThresholdWind?: number;
@@ -129,16 +130,22 @@ export interface RegionSpotConfig {
   };
 }
 
+export interface RegimeCriteria {
+  referenceSpotIds?: string[]; // IDs of spots whose raw flow defines the regional regime
+  minRawWind?: number;
+  maxRawWind?: number;
+  directions?: WindDirection[];
+  minPrecipitation12hMm?: number;
+  maxPrecipitationCurrentMm?: number;
+  allowedHours?: [number, number]; // [startHour, endHour] in local timezone e.g. [5, 11]
+  convectiveThresholdGustRatio?: number;
+}
+
 export interface RegimeDefinition {
   id: string;
   label: string;
   description: string;
-  criteria: {
-    referenceSpotIds?: string[]; // IDs of spots whose raw flow defines the regional regime
-    minRawWind?: number;
-    maxRawWind?: number;
-    directions?: WindDirection[];
-  };
+  criteria: RegimeCriteria;
 }
 
 export interface ExplanationTemplateRule {

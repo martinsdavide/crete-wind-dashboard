@@ -3,7 +3,8 @@ import { getConditionLabel } from "./windScore";
 import { getDominantDirection } from "./windDirection";
 import { SCORING_CONFIG } from "@/config/windProfiles";
 import { calculateWindowStability } from "./windowStability";
-import { getSolarWindow } from "./solar";
+import { getSolarWindow, isSpotOperatingHour } from "./solar";
+import { OperatingWindow } from "@/types/region";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -31,7 +32,7 @@ export function formatTimeHHMM(timestamp: string, timezone = "Europe/Athens"): s
  * 2. eligibility !== "UNSUITABLE" (hard gate: unsuitable hours cannot be in best window)
  * 3. duration >= minDuration (default 2 consecutive hours)
  * 4. adjacent items are strictly 1 hour apart
- * 5. Window is strictly within astronomical daylight hours (sunrise to sunset)
+ * 5. Window is strictly within spot operating/solar hours
  */
 export function findBestWindow(
   hourlyItems: HourlyWind[],
@@ -39,24 +40,18 @@ export function findBestWindow(
   minConsecutiveHours = 2,
   timezone = "Europe/Athens",
   latitude = 35.19,
-  longitude = 26.27
+  longitude = 26.27,
+  operatingWindow?: OperatingWindow
 ): BestWindow | null {
   if (!hourlyItems || hourlyItems.length === 0) return null;
 
-  // Filter strictly to astronomical daylight hours (sunrise to sunset)
+  // Filter strictly to spot operating hours / astronomical daylight
   const daylightItems = hourlyItems.filter((item) => {
-    try {
-      const solar = getSolarWindow(item.timestamp, latitude, longitude, timezone);
-      const localHourStr = new Intl.DateTimeFormat("en-GB", {
-        timeZone: timezone,
-        hour: "2-digit",
-        hour12: false,
-      }).format(new Date(item.timestamp));
-      const localHour = parseInt(localHourStr, 10);
-      return localHour >= solar.startHour && localHour < solar.endHour;
-    } catch {
-      return true;
-    }
+    return isSpotOperatingHour(
+      item.timestamp,
+      { latitude, longitude, operatingWindow },
+      timezone
+    );
   });
 
   if (daylightItems.length === 0) return null;

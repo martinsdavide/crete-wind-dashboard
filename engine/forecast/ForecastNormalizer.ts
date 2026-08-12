@@ -19,7 +19,7 @@ import {
   calculateGustinessScore,
 } from "@/lib/windScore";
 import { getLocalTimeComponents } from "@/lib/localWind";
-import { getSolarWindow } from "@/lib/solar";
+import { getSolarWindow, isSpotOperatingHour } from "@/lib/solar";
 import { findBestWindow } from "@/lib/bestWindow";
 import { SCORING_CONFIG } from "@/config/windProfiles";
 import { evaluateHourQuality } from "../scoring/SessionQuality";
@@ -207,7 +207,8 @@ export function calculateLocalCorrectionFactor(
   modelWind = 12,
   cloudCover = 0,
   timeZone = "Europe/Athens",
-  regimeId?: string
+  regimeId?: string,
+  precipitation12hMm?: number
 ): {
   factor: number;
   effectiveDirection: WindDirection;
@@ -246,9 +247,11 @@ export function calculateLocalCorrectionFactor(
   }
 
   // 2b. Post-Rain Northerly Drainage Boost (e.g. for Valmadrera)
+  const minPrecip12h = cfg.postRainBoost?.minPrecipitation12hMm ?? 1.0;
   if (
     cfg.postRainBoost?.enabled &&
-    regimeId === "COMO_POST_RAIN_NORTH"
+    regimeId === "COMO_POST_RAIN_NORTH" &&
+    (precipitation12hMm ?? 0) >= minPrecip12h
   ) {
     factor += cfg.postRainBoost.maxBoost ?? 0.20;
   }
@@ -338,7 +341,8 @@ export function normalizeHourlyPoint(
       point.windSpeed,
       point.cloudCover,
       timeZone,
-      regimeId
+      regimeId,
+      point.precipitation12hMm
     );
 
   const localWind = Math.max(0, point.windSpeed * factor);
@@ -509,6 +513,15 @@ export function calculateCurrentConditionsGeneric(
     }
   }
 
+  const precipitation12hMm =
+    prev.precipitation12hMm !== undefined && next.precipitation12hMm !== undefined
+      ? prev.precipitation12hMm + t * (next.precipitation12hMm - prev.precipitation12hMm)
+      : prev.precipitation12hMm;
+  const precipitation6hMm =
+    prev.precipitation6hMm !== undefined && next.precipitation6hMm !== undefined
+      ? prev.precipitation6hMm + t * (next.precipitation6hMm - prev.precipitation6hMm)
+      : prev.precipitation6hMm;
+
   return normalizeHourlyPoint(
     spotConfig,
     {
@@ -518,6 +531,8 @@ export function calculateCurrentConditionsGeneric(
       windDirection: directionDegrees,
       temperature,
       cloudCover,
+      precipitation6hMm,
+      precipitation12hMm,
       marine: marinePoint,
     },
     currentTime,
@@ -577,8 +592,7 @@ export function calculateDailySummariesGeneric(
     );
 
     const activeHours = hours.filter((h) => {
-      const { hour } = getLocalTimeComponents(h.timestamp, timeZone);
-      return hour >= solarWindow.startHour && hour < solarWindow.endHour;
+      return isSpotOperatingHour(h.timestamp, spotConfig, timeZone);
     });
 
     const candidateHours = activeHours.length > 0 ? activeHours : hours;
@@ -661,7 +675,8 @@ export function calculateDailySummariesGeneric(
       SCORING_CONFIG.bestWindow?.minConsecutiveHours ?? 2,
       timeZone,
       spotConfig.latitude,
-      spotConfig.longitude
+      spotConfig.longitude,
+      spotConfig.operatingWindow
     );
 
     summaries.push({
@@ -695,7 +710,7 @@ export function normalizeSpotForecastGeneric(
   raw: OpenMeteoRawResponse,
   currentTime = new Date(),
   timeZone = "Europe/Athens",
-  regimeId?: string,
+  regimeIdOrHourlyRegimes?: string | (string | undefined)[],
   marineForecast?: MarineForecast | null
 ): SpotForecast {
   const hourlyData = raw.hourly;
@@ -737,6 +752,10 @@ export function normalizeSpotForecastGeneric(
       precipitation12hMm = Math.round(precipitation12hMm * 10) / 10;
     }
 
+    const pointRegimeId = Array.isArray(regimeIdOrHourlyRegimes)
+      ? regimeIdOrHourlyRegimes[i]
+      : regimeIdOrHourlyRegimes;
+
     const normalizedPoint = normalizeHourlyPoint(
       spotConfig,
       {
@@ -751,11 +770,28 @@ export function normalizeSpotForecastGeneric(
         marine: marinePoint,
       },
       currentTime,
-      regimeId,
+      pointRegimeId,
       timeZone
     );
 
     hourly.push(normalizedPoint);
+  }
+
+  let currentRegimeId: string | undefined = undefined;
+  if (Array.isArray(regimeIdOrHourlyRegimes)) {
+    const targetMs = currentTime.getTime();
+    let closestIdx = 0;
+    let minDiff = Infinity;
+    for (let i = 0; i < count; i++) {
+      const diff = Math.abs(new Date(hourlyData.time[i]).getTime() - targetMs);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = i;
+      }
+    }
+    currentRegimeId = regimeIdOrHourlyRegimes[closestIdx];
+  } else {
+    currentRegimeId = regimeIdOrHourlyRegimes;
   }
 
   const current = calculateCurrentConditionsGeneric(
@@ -763,7 +799,7 @@ export function normalizeSpotForecastGeneric(
     hourly,
     currentTime,
     timeZone,
-    regimeId
+    currentRegimeId
   );
 
   const days = calculateDailySummariesGeneric(hourly, spotConfig, timeZone);
@@ -776,6 +812,7 @@ export function normalizeSpotForecastGeneric(
       latitude: spotConfig.latitude,
       longitude: spotConfig.longitude,
       localCorrectionEnabled: true,
+      operatingWindow: spotConfig.operatingWindow,
     },
     current,
     hourly,

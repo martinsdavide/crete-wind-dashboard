@@ -9,6 +9,7 @@ export interface SpotConfig {
   latitude: number;
   longitude: number;
   localCorrectionEnabled?: boolean;
+  operatingWindow?: import("./region").OperatingWindow;
 }
 
 export type DirectionFactors = {
