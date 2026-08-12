@@ -1,37 +1,37 @@
 import { describe, it, expect } from "vitest";
 import { LombardiaOpenDataAdapter, LombardiaSensorRow } from "@/engine/observations/providers/LombardiaOpenDataAdapter";
-import { MeteotrentinoAdapter, MeteotrentinoRawPayload } from "@/engine/observations/providers/MeteotrentinoAdapter";
+import { MeteotrentinoAdapter } from "@/engine/observations/providers/MeteotrentinoAdapter";
 import { MeteoSwissAdapter, MeteoSwissRecord } from "@/engine/observations/providers/MeteoSwissAdapter";
 
 describe("Observation Adapters Contract Tests", () => {
   const refTime = new Date("2026-08-12T10:00:00.000Z");
 
   describe("LombardiaOpenDataAdapter", () => {
-    it("parses valid multi-sensor Socrata payload for Colico", () => {
+    it("parses valid multi-sensor Socrata payload for Colico (station 573)", () => {
       const rows: LombardiaSensorRow[] = [
         {
-          idstazione: "593",
+          idstazione: "573",
           data: "2026-08-12T09:55:00.000Z",
           nometiposensore: "Velocità Vento",
           valore: "7.5",
           unitamisura: "m/s",
         },
         {
-          idstazione: "593",
+          idstazione: "573",
           data: "2026-08-12T09:55:00.000Z",
           nometiposensore: "Raffica Vento",
           valore: "10.2",
           unitamisura: "m/s",
         },
         {
-          idstazione: "593",
+          idstazione: "573",
           data: "2026-08-12T09:55:00.000Z",
           nometiposensore: "Direzione Vento",
           valore: "15",
           unitamisura: "Gradi",
         },
         {
-          idstazione: "593",
+          idstazione: "573",
           data: "2026-08-12T09:55:00.000Z",
           nometiposensore: "Temperatura",
           valore: "23.4",
@@ -50,44 +50,55 @@ describe("Observation Adapters Contract Tests", () => {
       expect(obs?.quality.status).toBe("valid");
     });
 
-    it("converts km/h wind speed to m/s", () => {
+    it("parses Valmadrera (station 679) precipitation and temperature", () => {
       const rows: LombardiaSensorRow[] = [
         {
-          idstazione: "593",
-          data: "2026-08-12T09:55:00.000Z",
-          nometiposensore: "Velocità Vento",
-          valore: "36.0",
-          unitamisura: "km/h",
+          idstazione: "679",
+          data: "2026-08-12T09:50:00.000Z",
+          nometiposensore: "Precipitazione",
+          valore: "4.2",
+          unitamisura: "mm",
+        },
+        {
+          idstazione: "679",
+          data: "2026-08-12T09:50:00.000Z",
+          nometiposensore: "Temperatura",
+          valore: "19.8",
+          unitamisura: "°C",
         },
       ];
 
-      const obs = LombardiaOpenDataAdapter.parseObservations("lombardia:colico", rows, refTime);
-      expect(obs?.windSpeedMs).toBe(10.0);
+      const obs = LombardiaOpenDataAdapter.parseObservations("lombardia:valmadrera", rows, refTime);
+      expect(obs?.precipitationMm).toBe(4.2);
+      expect(obs?.temperatureC).toBe(19.8);
     });
   });
 
   describe("MeteotrentinoAdapter", () => {
-    it("parses Torbole T0193 payload into canonical observation", () => {
-      const raw: MeteotrentinoRawPayload = {
-        codiceStazione: "T0193",
-        nomeStazione: "Torbole Belvedere",
-        dataOra: "2026-08-12T09:52:00.000Z",
-        ventoVelocita: 8.4,
-        ventoRaffica: 11.2,
-        ventoDirezione: 185,
-        temperatura: 25.1,
-        pressione: 1012.3,
-        precipitazione: 0.0,
-      };
+    it("parses real Meteotrentino XML web service payload for Torbole T0193", () => {
+      const sampleXml = `<?xml version="1.0" encoding="utf-8"?>
+<DatiStazione xmlns="http://dati.meteotrentino.it/">
+  <codice>T0193</codice>
+  <nome>Torbole Belvedere</nome>
+  <data>2026-08-12T09:50:00</data>
+  <temperatura>24.8</temperatura>
+  <ventoVelocita>8.6</ventoVelocita>
+  <ventoRaffica>11.4</ventoRaffica>
+  <ventoDirezione>182</ventoDirezione>
+  <pressione>1013.5</pressione>
+  <precipitazione>0.0</precipitazione>
+  <umidita>58</umidita>
+</DatiStazione>`;
 
-      const obs = MeteotrentinoAdapter.parseObservation("meteotrentino:T0193", raw, refTime);
+      const obs = MeteotrentinoAdapter.parseXmlPayload("meteotrentino:T0193", sampleXml, refTime);
 
       expect(obs).not.toBeNull();
       expect(obs?.stationId).toBe("meteotrentino:T0193");
-      expect(obs?.windSpeedMs).toBe(8.4);
-      expect(obs?.windGustMs).toBe(11.2);
-      expect(obs?.windDirectionDeg).toBe(185);
-      expect(obs?.temperatureC).toBe(25.1);
+      expect(obs?.windSpeedMs).toBe(8.6);
+      expect(obs?.windGustMs).toBe(11.4);
+      expect(obs?.windDirectionDeg).toBe(182);
+      expect(obs?.temperatureC).toBe(24.8);
+      expect(obs?.pressureHpa).toBe(1013.5);
       expect(obs?.quality.status).toBe("valid");
     });
   });

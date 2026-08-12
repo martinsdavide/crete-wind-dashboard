@@ -59,7 +59,8 @@ export class ObservationFusionEngine {
       bindings,
       observations,
       forecastModelSpeedKt,
-      forecastModelDirDeg
+      forecastModelDirDeg,
+      referenceTime
     );
 
     const contributors: StationContribution[] = [];
@@ -203,7 +204,7 @@ export class ObservationFusionEngine {
         northerly: features.northerlySupportEvidence,
         disturbance: 0.0,
         transition: 0.0,
-        rainBoost: features.rainOvernightMm >= 1.0 ? 0.8 : 0.0,
+        rainBoost: features.rainBoostEvidence,
       },
       contributors,
       reasons: reasons.length > 0 ? reasons : ["OBSERVATIONS_STANDBY"],

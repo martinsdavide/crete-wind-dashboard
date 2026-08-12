@@ -19,6 +19,20 @@ describe("Observation Quality Control Tests", () => {
     expect(quality.score).toBe(1.0);
   });
 
+  it("rejects future-dated observations beyond 2 minutes tolerance", () => {
+    const obs: Partial<WeatherObservation> = {
+      stationId: "meteotrentino:T0193",
+      observedAt: "2026-08-12T12:10:00.000Z", // 10 min in future
+      windSpeedMs: 8.5,
+      windDirectionDeg: 180,
+    };
+
+    const quality = ObservationQualityControl.validateObservation(obs, refTime);
+    expect(quality.status).toBe("invalid");
+    expect(quality.score).toBe(0.0);
+    expect(quality.reasons).toContain("FUTURE_TIMESTAMP");
+  });
+
   it("decays weight for observations older than 20 minutes", () => {
     const obs: Partial<WeatherObservation> = {
       stationId: "meteotrentino:T0193",

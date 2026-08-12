@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
           );
           forecast.observationFusion = fusion;
           if (fusion.status === "available" || fusion.status === "partial") {
-            forecast.adjustedForecast = {
+            const adjustedHourly = {
               ...forecast.current,
               localWind: fusion.correctedWindSpeedKt,
               localGust: fusion.correctedWindGustKt,
@@ -177,6 +177,9 @@ export async function GET(request: NextRequest) {
                 Math.max(0, Math.round(forecast.current.confidence + fusion.confidenceAdjustment * 100))
               ),
             };
+            forecast.adjustedForecast = adjustedHourly;
+            // Update forecast.current directly so recommendation engine and spot cards evaluate the fused conditions
+            forecast.current = adjustedHourly;
           }
         } catch (e) {
           console.warn(`Observation fusion error on ${spot.id}:`, e);

@@ -14,12 +14,80 @@ export interface LombardiaSensorRow {
 export class LombardiaOpenDataAdapter {
   static readonly SENSOR_TYPES: Record<string, string> = {
     "Velocità Vento": "wind_speed",
-    "Direzione Vento": "wind_direction",
+    "Velocita Vento": "wind_speed",
     "Raffica Vento": "wind_gust",
-    Temperatura: "temperature",
-    Precipitazione: "precipitation",
+    "Raffica": "wind_gust",
+    "Direzione Vento": "wind_direction",
+    "Temperatura": "temperature",
+    "Precipitazione": "precipitation",
     "Umidità Relativa": "humidity",
+    "Umidita Relativa": "humidity",
   };
+
+  /**
+   * Fetches latest sensor data from Regione Lombardia Socrata Open Data endpoint.
+   */
+  static async fetchLatestObservations(
+    stationMapping: Record<string, string> = {
+      "573": "lombardia:colico",
+      "679": "lombardia:valmadrera",
+    },
+    referenceTime: Date = new Date(),
+    timeoutMs = 3000
+  ): Promise<Record<string, WeatherObservation | null>> {
+    const results: Record<string, WeatherObservation | null> = {};
+    const stationIdsList = Object.keys(stationMapping);
+    if (stationIdsList.length === 0) return results;
+
+    const inClause = stationIdsList.map((id) => `'${id}'`).join(",");
+    const url = `https://www.dati.lombardia.it/resource/647i-nhxk.json?$where=idstazione in (${inClause})&$order=Data desc&$limit=100`;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "SpotPilot/1.0",
+        },
+      });
+      clearTimeout(timer);
+
+      if (!res.ok) {
+        return results;
+      }
+
+      const rows: LombardiaSensorRow[] = await res.json();
+      if (!Array.isArray(rows) || rows.length === 0) return results;
+
+      // Group rows by station ID
+      const rowsByStation: Record<string, LombardiaSensorRow[]> = {};
+      for (const row of rows) {
+        if (!row.idstazione) continue;
+        if (!rowsByStation[row.idstazione]) {
+          rowsByStation[row.idstazione] = [];
+        }
+        rowsByStation[row.idstazione].push(row);
+      }
+
+      for (const [stId, rowsList] of Object.entries(rowsByStation)) {
+        const canonicalId = stationMapping[stId];
+        if (canonicalId) {
+          const parsed = this.parseObservations(canonicalId, rowsList, referenceTime);
+          if (parsed) {
+            results[canonicalId] = parsed;
+          }
+        }
+      }
+
+      return results;
+    } catch (e) {
+      clearTimeout(timer);
+      return results;
+    }
+  }
 
   /**
    * Normalizes raw rows from Lombardia Open Data Socrata API into canonical WeatherObservation objects.
@@ -53,17 +121,29 @@ export class LombardiaOpenDataAdapter {
       const unit = row.unitamisura?.toLowerCase();
 
       if (sensorType === "Velocità Vento" || sensorType === "Velocita Vento") {
-        windSpeedMs = unit === "km/h" ? val * 0.277778 : val;
+        if (windSpeedMs === null) {
+          windSpeedMs = unit === "km/h" ? val * 0.277778 : val;
+        }
       } else if (sensorType === "Raffica Vento" || sensorType === "Raffica") {
-        windGustMs = unit === "km/h" ? val * 0.277778 : val;
+        if (windGustMs === null) {
+          windGustMs = unit === "km/h" ? val * 0.277778 : val;
+        }
       } else if (sensorType === "Direzione Vento") {
-        windDirectionDeg = normalizeDirectionDeg(val);
+        if (windDirectionDeg === null) {
+          windDirectionDeg = normalizeDirectionDeg(val);
+        }
       } else if (sensorType === "Temperatura") {
-        temperatureC = val;
+        if (temperatureC === null) {
+          temperatureC = val;
+        }
       } else if (sensorType === "Precipitazione") {
-        precipitationMm = val;
+        if (precipitationMm === null) {
+          precipitationMm = val;
+        }
       } else if (sensorType === "Umidità Relativa" || sensorType === "Umidita Relativa") {
-        relativeHumidityPct = val;
+        if (relativeHumidityPct === null) {
+          relativeHumidityPct = val;
+        }
       }
     }
 

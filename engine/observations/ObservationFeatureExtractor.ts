@@ -1,5 +1,6 @@
 import { WeatherObservation, SpotStationBinding } from "./types";
 import { msToKnots } from "./ObservationNormalizer";
+import { ObservationQualityControl } from "./ObservationQualityControl";
 
 export interface ExtractedObservationFeatures {
   weightedWindSpeedKt: number | null;
@@ -14,6 +15,7 @@ export interface ExtractedObservationFeatures {
   recentPrecipitation1hMm: number;
   thermalSupportEvidence: number; // 0.0 to 1.0
   northerlySupportEvidence: number; // 0.0 to 1.0
+  rainBoostEvidence: number; // 0.0 to 1.0
 }
 
 export class ObservationFeatureExtractor {
@@ -27,31 +29,42 @@ export class ObservationFeatureExtractor {
   }
 
   /**
-   * Computes vector circular mean for a collection of weighted wind observations.
+   * Computes true meteorological vector average (u, v decomposition) for weighted wind observations.
+   * u = -s * sin(theta), v = -s * cos(theta)
    */
-  static calculateCircularVectorMean(
+  static calculateMeteorologicalVectorMean(
     samples: { speed: number; directionDeg: number; weight: number }[]
   ): { meanSpeed: number; meanDirectionDeg: number } | null {
     if (!samples || samples.length === 0) return null;
 
-    let sinSum = 0;
-    let cosSum = 0;
+    let uSum = 0;
+    let vSum = 0;
     let totalWeight = 0;
-    let weightedSpeedSum = 0;
 
     for (const sample of samples) {
       if (sample.weight <= 0) continue;
       const rad = (sample.directionDeg * Math.PI) / 180;
-      sinSum += sample.weight * Math.sin(rad);
-      cosSum += sample.weight * Math.cos(rad);
-      weightedSpeedSum += sample.weight * sample.speed;
+      // Meteorological convention: wind from direction theta has components
+      // u (eastward) = -speed * sin(theta)
+      // v (northward) = -speed * cos(theta)
+      const u = -sample.speed * Math.sin(rad);
+      const v = -sample.speed * Math.cos(rad);
+
+      uSum += sample.weight * u;
+      vSum += sample.weight * v;
       totalWeight += sample.weight;
     }
 
     if (totalWeight <= 0) return null;
 
-    const meanDirectionDeg = (Math.atan2(sinSum, cosSum) * (180 / Math.PI) + 360) % 360;
-    const meanSpeed = weightedSpeedSum / totalWeight;
+    const uMean = uSum / totalWeight;
+    const vMean = vSum / totalWeight;
+
+    // Vector magnitude (resultant speed)
+    const meanSpeed = Math.sqrt(uMean * uMean + vMean * vMean);
+
+    // Resultant meteorological direction (direction from which the wind blows)
+    const meanDirectionDeg = (Math.atan2(-uMean, -vMean) * (180 / Math.PI) + 360) % 360;
 
     return {
       meanSpeed: Math.round(meanSpeed * 10) / 10,
@@ -66,10 +79,11 @@ export class ObservationFeatureExtractor {
     bindings: SpotStationBinding[],
     observations: Record<string, WeatherObservation | null>,
     forecastModelSpeedKt: number,
-    forecastModelDirDeg: number
+    forecastModelDirDeg: number,
+    referenceTime: Date = new Date()
   ): ExtractedObservationFeatures {
-    const windSamples: { speed: number; directionDeg: number; weight: number }[] = [];
-    const gustSamples: { gust: number; weight: number }[] = [];
+    const directWindSamples: { speed: number; directionDeg: number; weight: number }[] = [];
+    const directGustSamples: { gust: number; weight: number }[] = [];
 
     let totalTrustedWeight = 0;
     let maxConfiguredWeight = 0;
@@ -85,8 +99,18 @@ export class ObservationFeatureExtractor {
         continue;
       }
 
-      // Compute effective weight based on quality and freshness
-      let effectiveWeight = binding.baseWeight * obs.quality.score;
+      // Check per-binding maxAgeMinutes
+      const { ageMinutes, freshnessFactor } = ObservationQualityControl.evaluateFreshness(
+        obs.observedAt,
+        referenceTime
+      );
+
+      if (ageMinutes > binding.maxAgeMinutes || freshnessFactor <= 0) {
+        continue; // Stale beyond binding limit
+      }
+
+      // Effective weight
+      let effectiveWeight = binding.baseWeight * obs.quality.score * freshnessFactor;
 
       // Direction compatibility filter if configured
       if (
@@ -98,48 +122,53 @@ export class ObservationFeatureExtractor {
           if (range.fromDeg <= range.toDeg) {
             return obs.windDirectionDeg! >= range.fromDeg && obs.windDirectionDeg! <= range.toDeg;
           } else {
-            // Crossing 0 degrees (e.g. 340 to 40)
+            // Crossing 0 degrees (e.g. 330 to 45)
             return obs.windDirectionDeg! >= range.fromDeg || obs.windDirectionDeg! <= range.toDeg;
           }
         });
         if (!isCompatible) {
-          effectiveWeight *= 0.4;
+          effectiveWeight *= 0.3;
         }
       }
 
       totalTrustedWeight += effectiveWeight;
 
-      if (obs.windSpeedMs !== null && obs.windDirectionDeg !== null) {
+      // Direct Wind Speed/Gust Correction: strictly require allowedEffects to include "speed-bias" or "current-condition"
+      const allowsSpeedBias =
+        binding.allowedEffects.includes("speed-bias") ||
+        binding.allowedEffects.includes("current-condition");
+
+      if (allowsSpeedBias && obs.windSpeedMs !== null && obs.windDirectionDeg !== null) {
         const speedKt = msToKnots(obs.windSpeedMs)!;
-        windSamples.push({
+        directWindSamples.push({
           speed: speedKt,
           directionDeg: obs.windDirectionDeg,
           weight: effectiveWeight,
         });
       }
 
-      if (obs.windGustMs !== null) {
+      if (allowsSpeedBias && obs.windGustMs !== null) {
         const gustKt = msToKnots(obs.windGustMs)!;
-        gustSamples.push({ gust: gustKt, weight: effectiveWeight });
+        directGustSamples.push({ gust: gustKt, weight: effectiveWeight });
       }
 
-      if (obs.precipitationMm !== null && obs.precipitationMm > 0) {
+      if (binding.allowedEffects.includes("rain-context") && obs.precipitationMm !== null && obs.precipitationMm > 0) {
         recentPrecipitation1hMm += obs.precipitationMm;
         rainOvernightMm += obs.precipitationMm;
       }
 
-      // Evidence updates based on station role
-      if (binding.role === "spot-local" || binding.role === "lake-upwind") {
+      // Regime & Context Evidence
+      if (binding.allowedEffects.includes("regime-detection") || binding.allowedEffects.includes("thermal-context")) {
         if (obs.windDirectionDeg !== null) {
           // Southerly sector (140-230) supports thermal Ora / Breva
           if (obs.windDirectionDeg >= 140 && obs.windDirectionDeg <= 230) {
-            thermalSupportEvidence = Math.min(1.0, thermalSupportEvidence + 0.3 * effectiveWeight);
-            northerlySupportEvidence = Math.max(0.0, northerlySupportEvidence - 0.3 * effectiveWeight);
+            thermalSupportEvidence = Math.min(1.0, thermalSupportEvidence + 0.35 * effectiveWeight);
+            northerlySupportEvidence = Math.max(0.0, northerlySupportEvidence - 0.35 * effectiveWeight);
           }
-          // Northerly sector (330-40) supports Pelèr / Tivano
+          // Northerly sector (330-40) supports Pelèr / Tivano / North
           else if (obs.windDirectionDeg >= 330 || obs.windDirectionDeg <= 40) {
-            northerlySupportEvidence = Math.min(1.0, northerlySupportEvidence + 0.3 * effectiveWeight);
-            thermalSupportEvidence = Math.max(0.0, thermalSupportEvidence - 0.3 * effectiveWeight);
+            northerlySupportEvidence = Math.min(1.0, northerlySupportEvidence + 0.35 * effectiveWeight);
+            thermalSupportEvidence = Math.max(0.0, thermalSupportEvidence - 0.35 * effectiveWeight);
           }
         }
       }
@@ -150,8 +179,8 @@ export class ObservationFeatureExtractor {
     let weightedWindSpeedKt: number | null = null;
     let circularMeanDirectionDeg: number | null = null;
 
-    if (windSamples.length > 0) {
-      const vectorRes = this.calculateCircularVectorMean(windSamples);
+    if (directWindSamples.length > 0) {
+      const vectorRes = this.calculateMeteorologicalVectorMean(directWindSamples);
       if (vectorRes) {
         weightedWindSpeedKt = vectorRes.meanSpeed;
         circularMeanDirectionDeg = vectorRes.meanDirectionDeg;
@@ -159,9 +188,9 @@ export class ObservationFeatureExtractor {
     }
 
     let weightedWindGustKt: number | null = null;
-    if (gustSamples.length > 0) {
-      const sum = gustSamples.reduce((a, b) => a + b.gust * b.weight, 0);
-      const wSum = gustSamples.reduce((a, b) => a + b.weight, 0);
+    if (directGustSamples.length > 0) {
+      const sum = directGustSamples.reduce((a, b) => a + b.gust * b.weight, 0);
+      const wSum = directGustSamples.reduce((a, b) => a + b.weight, 0);
       weightedWindGustKt = wSum > 0 ? Math.round((sum / wSum) * 10) / 10 : null;
     }
 
@@ -174,6 +203,12 @@ export class ObservationFeatureExtractor {
       circularMeanDirectionDeg !== null
         ? Math.round(this.angularDifference(circularMeanDirectionDeg, forecastModelDirDeg))
         : null;
+
+    // Calculate Valmadrera Rain Boost evidence: requires overnight rain + northerly morning direction
+    let rainBoostEvidence = 0.0;
+    if (rainOvernightMm >= 1.0 && (forecastModelDirDeg >= 330 || forecastModelDirDeg <= 50)) {
+      rainBoostEvidence = Math.min(1.0, 0.4 + (rainOvernightMm / 10.0) * 0.6);
+    }
 
     return {
       weightedWindSpeedKt,
@@ -188,6 +223,7 @@ export class ObservationFeatureExtractor {
       recentPrecipitation1hMm: Math.round(recentPrecipitation1hMm * 10) / 10,
       thermalSupportEvidence: Math.round(thermalSupportEvidence * 100) / 100,
       northerlySupportEvidence: Math.round(northerlySupportEvidence * 100) / 100,
+      rainBoostEvidence: Math.round(rainBoostEvidence * 100) / 100,
     };
   }
 }

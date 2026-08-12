@@ -30,6 +30,17 @@ export function normalizeDirectionDeg(deg: number | null | undefined): number | 
 
 export function normalizeTimestampToUtc(rawDate: string | number | Date): string {
   try {
+    if (typeof rawDate === "string") {
+      let str = rawDate.trim();
+      // If string is naive ISO like "2026-08-12T09:50:00" without timezone/offset, append Z
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(str)) {
+        str += "Z";
+      }
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString();
+      }
+    }
     const d = new Date(rawDate);
     if (isNaN(d.getTime())) {
       return new Date().toISOString();

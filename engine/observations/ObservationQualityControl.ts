@@ -40,6 +40,13 @@ export class ObservationQualityControl {
   ): { ageMinutes: number; freshnessFactor: number; status: ObservationQualityStatus } {
     const obsTime = new Date(observedAt).getTime();
     const refTime = referenceTime.getTime();
+
+    // Check for clock skew / future timestamps (allow max 2 min tolerance)
+    if (obsTime > refTime + 2 * 60 * 1000) {
+      const futureMinutes = Math.round(((obsTime - refTime) / (1000 * 60)) * 10) / 10;
+      return { ageMinutes: -futureMinutes, freshnessFactor: 0.0, status: "invalid" };
+    }
+
     const ageMs = Math.max(0, refTime - obsTime);
     const ageMinutes = Math.round((ageMs / (1000 * 60)) * 10) / 10;
 
@@ -79,6 +86,14 @@ export class ObservationQualityControl {
 
     const { ageMinutes, freshnessFactor, status: freshnessStatus } =
       this.evaluateFreshness(obs.observedAt, referenceTime);
+
+    if (freshnessStatus === "invalid") {
+      return {
+        status: "invalid",
+        score: 0.0,
+        reasons: [`FUTURE_TIMESTAMP`],
+      };
+    }
 
     if (freshnessStatus === "missing") {
       return {

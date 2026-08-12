@@ -5,7 +5,7 @@ export const WEATHER_STATIONS: Record<string, WeatherStation> = {
   "lombardia:colico": {
     id: "lombardia:colico",
     provider: "Regione Lombardia / ARPA Lombardia",
-    providerStationId: "593",
+    providerStationId: "573",
     name: "Colico – v. La Madoneta",
     latitude: 46.136,
     longitude: 9.371,
@@ -20,7 +20,7 @@ export const WEATHER_STATIONS: Record<string, WeatherStation> = {
   "lombardia:valmadrera": {
     id: "lombardia:valmadrera",
     provider: "Regione Lombardia / ARPA Lombardia",
-    providerStationId: "587",
+    providerStationId: "679",
     name: "Valmadrera – v. Pozzi",
     latitude: 45.845,
     longitude: 9.360,
