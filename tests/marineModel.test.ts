@@ -243,6 +243,26 @@ describe("Sea State Model & Evaluator", () => {
       expect(forecast.days[0].dominantSeaState).toBe("WAVE");
     });
 
+    it("interpolates current conditions without double-attenuating coastal wave height for sheltered spots", () => {
+      // Talamone has exposure factor 0.40 for SW 225°
+      // At 11:00 UTC (1.6m raw) -> hourly waveHeight = 1.6 * 0.40 = 0.64 -> 0.6m
+      // At 12:00 UTC (1.7m raw) -> hourly waveHeight = 1.7 * 0.40 = 0.68 -> 0.7m
+      // Current condition at 11:30 UTC interpolates raw 1.65m -> single attenuation gives 1.65 * 0.40 = 0.66 -> 0.7m
+      // (If double-attenuated, it would have been ~0.65 * 0.40 = 0.26m -> 0.3m!)
+      const forecast = normalizeSpotForecastGeneric(
+        talamone,
+        rawWeather,
+        new Date("2026-08-11T11:30:00.000Z"),
+        "Europe/Rome",
+        undefined,
+        marineForecast
+      );
+
+      expect(forecast.current.seaState?.source).toBe("MARINE_FORECAST");
+      expect(forecast.current.seaState?.waveHeight).toBe(0.7);
+      expect(forecast.current.seaState?.rawWaveHeight).toBe(1.7); // 1.65 rounded to 1.7
+    });
+
     it("falls back cleanly when marine forecast is null", () => {
       const forecast = normalizeSpotForecastGeneric(
         puntaAla,
@@ -255,6 +275,8 @@ describe("Sea State Model & Evaluator", () => {
 
       expect(forecast.hourly.length).toBe(4);
       expect(forecast.hourly[0].seaState?.source).toBe("WIND_DERIVED_FALLBACK");
+      expect(forecast.current.seaState?.source).toBe("WIND_DERIVED_FALLBACK");
+      expect(forecast.current.seaState?.rawWaveHeight).toBeNull();
       expect(forecast.days[0].score).toBeGreaterThan(0);
     });
   });

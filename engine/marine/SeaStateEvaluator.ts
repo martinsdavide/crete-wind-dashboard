@@ -252,6 +252,7 @@ export function evaluateSeaState(
     state,
     seaQualityScore,
     waveHeight: Math.round(effectiveHeight * 10) / 10,
+    rawWaveHeight: waveHeight !== null ? Math.round(waveHeight * 10) / 10 : null,
     wavePeriod: wavePeriod !== null ? Math.round(wavePeriod * 10) / 10 : null,
     waveDirection,
     swellHeight: marinePoint.swellHeight,
@@ -278,23 +279,27 @@ export function evaluateFallbackSeaState(
 
   if (styleRules) {
     const isFavoredDir =
-      !styleRules.favoredDirections || styleRules.favoredDirections.includes(windDirection);
+      !styleRules.favoredDirections ||
+      styleRules.favoredDirections.includes(windDirection);
 
-    if (isFavoredDir && styleRules.waveThresholdWind && localWind >= styleRules.waveThresholdWind) {
+    if (
+      styleRules.waveThresholdWind &&
+      localWind >= styleRules.waveThresholdWind &&
+      isFavoredDir
+    ) {
       state = "WAVE";
     } else if (
-      isFavoredDir &&
       styleRules.bumpAndJumpThresholdWind &&
       localWind >= styleRules.bumpAndJumpThresholdWind
     ) {
       state = "BUMP_AND_JUMP";
     } else if (localWind < 15) {
-      state = "FLAT";
+      state = spotConfig.defaultStyle === "FLAT" ? "FLAT" : "CHOP";
     } else if (localWind <= 22) {
       state = "CHOP";
     }
   } else {
-    if (localWind < 15) state = "FLAT";
+    if (localWind < 15) state = spotConfig.defaultStyle === "FLAT" ? "FLAT" : "CHOP";
     else if (localWind <= 22) state = "CHOP";
   }
 
@@ -312,6 +317,7 @@ export function evaluateFallbackSeaState(
     state,
     seaQualityScore,
     waveHeight: estHeight,
+    rawWaveHeight: null,
     wavePeriod: estPeriod,
     waveDirection: null,
     exposureScore: 70,

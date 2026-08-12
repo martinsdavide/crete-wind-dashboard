@@ -177,13 +177,27 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
             <span>{styleLabels[current.waterState] || current.waterState}</span>
           </span>
           {current.seaState && current.seaState.waveHeight !== null && (
-            <span className="text-[11px] font-mono text-slate-300 bg-surf-dark/60 border border-surf-border/60 px-2 py-0.5 rounded-md flex items-center gap-1">
-              <span>🌊</span>
-              <span>{current.seaState.waveHeight.toFixed(1)}m</span>
-              {current.seaState.wavePeriod !== null && (
-                <span className="text-slate-400">• {Math.round(current.seaState.wavePeriod)}s</span>
-              )}
-            </span>
+            current.seaState.source === "MARINE_FORECAST" ? (
+              <span
+                title="ECMWF WAM wave model"
+                className="text-[11px] font-mono text-slate-200 bg-surf-dark/80 border border-sky-500/40 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm"
+              >
+                <span>🌊</span>
+                <span className="font-bold text-sky-200">{current.seaState.waveHeight.toFixed(1)}m</span>
+                {current.seaState.wavePeriod !== null && (
+                  <span className="text-slate-400">• {Math.round(current.seaState.wavePeriod)}s</span>
+                )}
+              </span>
+            ) : (
+              <span
+                title="Estimated from local wind speed (marine model unavailable)"
+                className="text-[10px] font-mono text-slate-400/80 bg-surf-dark/30 border border-surf-border/30 px-1.5 py-0.5 rounded-md flex items-center gap-1 italic"
+              >
+                <span>🌊</span>
+                <span>~{current.seaState.waveHeight.toFixed(1)}m</span>
+                <span className="text-[9px] text-slate-400 font-sans not-italic">(est. from wind)</span>
+              </span>
+            )
           )}
         </div>
 

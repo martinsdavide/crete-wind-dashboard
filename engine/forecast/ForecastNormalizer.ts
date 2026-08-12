@@ -449,26 +449,39 @@ export function calculateCurrentConditionsGeneric(
       ? prev.cloudCover + t * (next.cloudCover - prev.cloudCover)
       : prev.cloudCover;
 
-  // Interpolate marine wave metrics if present
+  // Interpolate marine wave metrics if present from real marine model (using unattenuated raw wave height)
   let marinePoint: MarineForecastPoint | null = null;
-  if (prev.seaState && next.seaState && prev.seaState.waveHeight !== null && next.seaState.waveHeight !== null) {
-    const waveHeight = prev.seaState.waveHeight + t * (next.seaState.waveHeight - prev.seaState.waveHeight);
-    const wavePeriod =
-      prev.seaState.wavePeriod !== null && next.seaState.wavePeriod !== null
-        ? prev.seaState.wavePeriod + t * (next.seaState.wavePeriod - prev.seaState.wavePeriod)
-        : prev.seaState.wavePeriod;
-    const waveDirection =
-      prev.seaState.waveDirection !== null && next.seaState.waveDirection !== null
-        ? interpolateAngle(prev.seaState.waveDirection, next.seaState.waveDirection, t)
-        : prev.seaState.waveDirection;
+  const prevSea = prev.seaState;
+  const nextSea = next.seaState;
 
-    marinePoint = {
-      timestamp: currentTime.toISOString(),
-      waveHeight,
-      wavePeriod,
-      waveDirection,
-      provider: prev.seaState.source,
-    };
+  if (
+    prevSea &&
+    nextSea &&
+    prevSea.source === "MARINE_FORECAST" &&
+    nextSea.source === "MARINE_FORECAST"
+  ) {
+    const prevRaw = prevSea.rawWaveHeight ?? prevSea.waveHeight;
+    const nextRaw = nextSea.rawWaveHeight ?? nextSea.waveHeight;
+
+    if (prevRaw !== null && prevRaw !== undefined && nextRaw !== null && nextRaw !== undefined) {
+      const rawWaveHeight = prevRaw + t * (nextRaw - prevRaw);
+      const wavePeriod =
+        prevSea.wavePeriod !== null && nextSea.wavePeriod !== null
+          ? prevSea.wavePeriod + t * (nextSea.wavePeriod - prevSea.wavePeriod)
+          : prevSea.wavePeriod;
+      const waveDirection =
+        prevSea.waveDirection !== null && nextSea.waveDirection !== null
+          ? interpolateAngle(prevSea.waveDirection, nextSea.waveDirection, t)
+          : prevSea.waveDirection;
+
+      marinePoint = {
+        timestamp: currentTime.toISOString(),
+        waveHeight: rawWaveHeight,
+        wavePeriod,
+        waveDirection,
+        provider: "ECMWF WAM",
+      };
+    }
   }
 
   return normalizeHourlyPoint(

@@ -503,20 +503,38 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                   <Waves className="w-3.5 h-3.5 text-sky-400" />
                   <span>{styleLabels[sailingStyle] || sailingStyle}</span>
                   {chosenForecast?.current?.seaState?.source === "MARINE_FORECAST" ? (
-                    <span className="text-[9px] opacity-90 font-bold text-sky-300">ECMWF WAM</span>
+                    <span className="text-[9px] font-bold text-sky-300 bg-sky-950/60 px-1.5 py-0.5 rounded border border-sky-500/30">ECMWF WAM</span>
                   ) : (
-                    <span className="text-[9px] opacity-75 font-medium">ESTIMATED</span>
+                    <span className="text-[9px] font-medium text-slate-400 italic">(est. from wind)</span>
                   )}
                 </span>
                 {todaySummary?.waveHeightRange && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-surf-dark/70 border border-surf-border/60 text-slate-200 font-mono">
-                    <span>🌊</span>
-                    <span>
-                      {todaySummary.waveHeightRange.min === todaySummary.waveHeightRange.max
-                        ? `${todaySummary.waveHeightRange.min.toFixed(1)}m`
-                        : `${todaySummary.waveHeightRange.min.toFixed(1)}–${todaySummary.waveHeightRange.max.toFixed(1)}m`}
+                  chosenForecast?.current?.seaState?.source === "MARINE_FORECAST" ? (
+                    <span
+                      title="ECMWF WAM modelled significant wave height range"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-surf-dark/80 border border-sky-500/40 text-slate-200 font-mono shadow-sm"
+                    >
+                      <span>🌊</span>
+                      <span>
+                        {todaySummary.waveHeightRange.min === todaySummary.waveHeightRange.max
+                          ? `${todaySummary.waveHeightRange.min.toFixed(1)}m`
+                          : `${todaySummary.waveHeightRange.min.toFixed(1)}–${todaySummary.waveHeightRange.max.toFixed(1)}m`}
+                      </span>
                     </span>
-                  </span>
+                  ) : (
+                    <span
+                      title="Estimated from wind speed (marine model unavailable)"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-mono text-slate-400/80 bg-surf-dark/30 border border-surf-border/30 italic"
+                    >
+                      <span>🌊</span>
+                      <span>
+                        ~{todaySummary.waveHeightRange.min === todaySummary.waveHeightRange.max
+                          ? `${todaySummary.waveHeightRange.min.toFixed(1)}m`
+                          : `${todaySummary.waveHeightRange.min.toFixed(1)}–${todaySummary.waveHeightRange.max.toFixed(1)}m`}
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-sans not-italic">(est.)</span>
+                    </span>
+                  )
                 )}
               </div>
             </div>

@@ -40,6 +40,7 @@ export interface SeaStateEvaluation {
   seaQualityScore: number; // 0-100 objective marine condition score
 
   waveHeight: number | null; // transformed significant wave height in metres
+  rawWaveHeight?: number | null; // raw unattenuated offshore significant wave height (Hs) in metres
   wavePeriod: number | null; // wave period in seconds
   waveDirection: number | null; // wave direction in degrees
 

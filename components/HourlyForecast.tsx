@@ -246,8 +246,16 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
                         </span>
                       </div>
                       {item.seaState && item.seaState.waveHeight !== null && (
-                        <div className="text-[8px] text-slate-300 font-mono text-center truncate">
-                          🌊 {item.seaState.waveHeight.toFixed(1)}m{item.seaState.wavePeriod !== null ? ` • ${Math.round(item.seaState.wavePeriod)}s` : ""}
+                        <div className="text-[8px] font-mono text-center truncate">
+                          {item.seaState.source === "MARINE_FORECAST" ? (
+                            <span className="text-slate-300">
+                              🌊 {item.seaState.waveHeight.toFixed(1)}m{item.seaState.wavePeriod !== null ? ` • ${Math.round(item.seaState.wavePeriod)}s` : ""}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400/80 italic">
+                              🌊 ~{item.seaState.waveHeight.toFixed(1)}m <span className="not-italic text-[7px] text-slate-400">(est.)</span>
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -340,9 +348,15 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
                 <span className="font-bold text-cyan-300 flex items-center gap-1">
                   <Waves className="w-3.5 h-3.5" />
                   <span>{activeItem.item.waterState}</span>
-                  <span className="text-[10px] text-slate-400">
-                    ({activeItem.item.seaState?.source === "MARINE_FORECAST" ? "ECMWF WAM" : "ESTIMATED"})
-                  </span>
+                  {activeItem.item.seaState?.source === "MARINE_FORECAST" ? (
+                    <span className="text-[10px] text-sky-400 font-normal">
+                      (ECMWF WAM)
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 font-normal italic">
+                      (est. from wind)
+                    </span>
+                  )}
                 </span>
               </div>
 
@@ -350,10 +364,18 @@ export const HourlyForecast: React.FC<HourlyForecastProps> = ({
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Wave & Period:</span>
                   <span className="font-bold text-white font-mono">
-                    {activeItem.item.seaState.waveHeight.toFixed(1)}m
-                    {activeItem.item.seaState.wavePeriod !== null
-                      ? ` • ${activeItem.item.seaState.wavePeriod.toFixed(1)}s`
-                      : ""}
+                    {activeItem.item.seaState.source === "MARINE_FORECAST" ? (
+                      <>
+                        {activeItem.item.seaState.waveHeight.toFixed(1)}m
+                        {activeItem.item.seaState.wavePeriod !== null
+                          ? ` • ${activeItem.item.seaState.wavePeriod.toFixed(1)}s`
+                          : ""}
+                      </>
+                    ) : (
+                      <span className="text-slate-300 italic font-normal">
+                        ~{activeItem.item.seaState.waveHeight.toFixed(1)}m <span className="text-xs text-slate-400 font-sans not-italic">(est. from wind)</span>
+                      </span>
+                    )}
                   </span>
                 </div>
               )}
