@@ -55,6 +55,7 @@ export async function fetchSpotWeather(
     ].join(","),
     wind_speed_unit: "kn",
     timezone: "UTC", // Strict UTC retrieval
+    past_days: "1",
     forecast_days: forecastDays.toString(),
   });
 
@@ -113,9 +114,11 @@ async function fetchFallbackWeather(
       "wind_gusts_10m",
       "temperature_2m",
       "cloud_cover",
+      "precipitation",
     ].join(","),
     wind_speed_unit: "kn",
     timezone: "UTC",
+    past_days: "1",
     forecast_days: forecastDays.toString(),
   });
 

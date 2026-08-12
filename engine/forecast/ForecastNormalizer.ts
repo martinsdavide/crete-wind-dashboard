@@ -322,6 +322,7 @@ export function normalizeHourlyPoint(
     windDirection: number;
     temperature?: number;
     cloudCover?: number;
+    precipitationMm?: number;
     precipitation6hMm?: number;
     precipitation12hMm?: number;
     marine?: MarineForecastPoint | null;
@@ -417,6 +418,7 @@ export function normalizeHourlyPoint(
     waterState: quality.waterState,
     seaState,
     lakeStateSource,
+    precipitationMm: point.precipitationMm,
     precipitation6hMm: point.precipitation6hMm,
     precipitation12hMm: point.precipitation12hMm,
     spotWindQuality: quality.spotWindQuality,
@@ -521,6 +523,10 @@ export function calculateCurrentConditionsGeneric(
     prev.precipitation6hMm !== undefined && next.precipitation6hMm !== undefined
       ? prev.precipitation6hMm + t * (next.precipitation6hMm - prev.precipitation6hMm)
       : prev.precipitation6hMm;
+  const precipitationMm =
+    prev.precipitationMm !== undefined && next.precipitationMm !== undefined
+      ? prev.precipitationMm + t * (next.precipitationMm - prev.precipitationMm)
+      : prev.precipitationMm;
 
   return normalizeHourlyPoint(
     spotConfig,
@@ -531,6 +537,7 @@ export function calculateCurrentConditionsGeneric(
       windDirection: directionDegrees,
       temperature,
       cloudCover,
+      precipitationMm,
       precipitation6hMm,
       precipitation12hMm,
       marine: marinePoint,
@@ -551,7 +558,7 @@ export function getRegionalDateKey(
   try {
     const d = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
     return new Intl.DateTimeFormat("en-CA", {
-      timeZone: timeZone || "Europe/Athens",
+      timeZone,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -568,7 +575,8 @@ export function getRegionalDateKey(
 export function calculateDailySummariesGeneric(
   hourly: HourlyWind[],
   spotConfig: RegionSpotConfig,
-  timeZone = "Europe/Athens"
+  timeZone = "Europe/Athens",
+  referenceDate?: Date
 ): DailyWindSummary[] {
   const groups: Record<string, HourlyWind[]> = {};
 
@@ -578,10 +586,20 @@ export function calculateDailySummariesGeneric(
     groups[dateKey].push(h);
   }
 
+  let relevantDates = Object.keys(groups).sort();
+  if (referenceDate) {
+    const todayKey = getRegionalDateKey(referenceDate, timeZone);
+    const filtered = relevantDates.filter((d) => d >= todayKey);
+    if (filtered.length > 0) {
+      relevantDates = filtered;
+    }
+  }
+
   const summaries: DailyWindSummary[] = [];
 
-  for (const [dateStr, hours] of Object.entries(groups)) {
-    if (hours.length === 0) continue;
+  for (const dateStr of relevantDates) {
+    const hours = groups[dateStr];
+    if (!hours || hours.length === 0) continue;
 
     const noonDate = new Date(`${dateStr}T12:00:00.000Z`);
     const solarWindow = getSolarWindow(
@@ -765,6 +783,7 @@ export function normalizeSpotForecastGeneric(
         windDirection,
         temperature,
         cloudCover,
+        precipitationMm: precipitationRaw?.[i] ?? 0,
         precipitation6hMm,
         precipitation12hMm,
         marine: marinePoint,
@@ -802,7 +821,7 @@ export function normalizeSpotForecastGeneric(
     currentRegimeId
   );
 
-  const days = calculateDailySummariesGeneric(hourly, spotConfig, timeZone);
+  const days = calculateDailySummariesGeneric(hourly, spotConfig, timeZone, currentTime);
 
   return {
     spot: {

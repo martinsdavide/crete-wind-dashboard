@@ -87,6 +87,7 @@ export function classifyRegionalRegime(
   const rawWinds: number[] = [];
   const rawDirs: number[] = [];
   const precip12hs: number[] = [];
+  const currPrecips: number[] = [];
 
   for (const fc of referenceForecasts) {
     if (fc.current) {
@@ -94,6 +95,9 @@ export function classifyRegionalRegime(
       rawDirs.push(fc.current.directionDegrees);
       if (fc.current.precipitation12hMm !== undefined) {
         precip12hs.push(fc.current.precipitation12hMm);
+      }
+      if (fc.current.precipitationMm !== undefined) {
+        currPrecips.push(fc.current.precipitationMm);
       }
     }
   }
@@ -117,6 +121,11 @@ export function classifyRegionalRegime(
       ? precip12hs.reduce((a, b) => a + b, 0) / precip12hs.length
       : 0;
 
+  const meanCurrPrecip =
+    currPrecips.length > 0
+      ? currPrecips.reduce((a, b) => a + b, 0) / currPrecips.length
+      : 0;
+
   let localHour = 12;
   try {
     const hourStr = new Intl.DateTimeFormat("en-GB", {
@@ -131,6 +140,7 @@ export function classifyRegionalRegime(
     meanRawWind,
     meanDirectionDegrees: meanDirDeg,
     precipitation12hMm: meanPrecip12h,
+    currentPrecipitationMm: meanCurrPrecip,
     localHour,
   });
 }

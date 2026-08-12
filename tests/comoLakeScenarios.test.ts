@@ -56,8 +56,8 @@ describe("Como Lake Edition — Plugin & Scenario Validations", () => {
       wind_gusts_10m.push(Math.round(windSpeed * 1.25));
       temperature_2m.push(22);
       cloud_cover.push(10);
-      // Allocate precipitation to past hours if specified
-      precipitation.push(i < 6 && precipitation12h > 0 ? precipitation12h / 6 : 0);
+      // Allocate precipitation to past hours (hours 0..4) so rain has stopped by reference hour 5
+      precipitation.push(i < 5 && precipitation12h > 0 ? precipitation12h / 5 : 0);
     }
 
     return {
@@ -176,6 +176,93 @@ describe("Como Lake Edition — Plugin & Scenario Validations", () => {
 
       expect(rec.regime).not.toBe("COMO_POST_RAIN_NORTH");
       expect(rec.regime).toBe("COMO_TIVANO");
+    });
+
+    it("does NOT classify as post-rain North when ongoing rain exceeds 0.5 mm/h", () => {
+      // Create weather with 6.0mm in 12h, but currently raining 1.5 mm/h
+      const rawWeather = createSyntheticWeather(14, 25, "2026-08-12T05:00:00.000Z", 6.0);
+      // Inject ongoing rain at index 5 (which is 05:00 UTC)
+      rawWeather.hourly.precipitation![5] = 1.5;
+
+      const refDate = new Date("2026-08-12T05:00:00.000Z");
+      const spotsResults: Record<string, SpotResult> = {};
+
+      for (const spot of ComoLakeRegion.spots) {
+        const forecast = normalizeSpotForecastGeneric(
+          spot,
+          rawWeather,
+          refDate,
+          ComoLakeRegion.timezone,
+          undefined,
+          null
+        );
+        spotsResults[spot.id] = { status: "ok", data: forecast };
+      }
+
+      const rec = RecommendationEngine.run(ComoLakeRegion, spotsResults, refDate);
+      // Ongoing heavy rain must prevent post-rain drainage classification
+      expect(rec.regime).not.toBe("COMO_POST_RAIN_NORTH");
+    });
+
+    it("captures previous-evening overnight rainfall spanning past_days=1 into morning 12h rolling total", () => {
+      // Create 48-hour timeline: 24h yesterday (Aug 11) + 24h today (Aug 12)
+      const time: string[] = [];
+      const wind_speed_10m: number[] = [];
+      const wind_direction_10m: number[] = [];
+      const wind_gusts_10m: number[] = [];
+      const temperature_2m: number[] = [];
+      const cloud_cover: number[] = [];
+      const precipitation: number[] = [];
+
+      const yesterdayMidnight = new Date("2026-08-11T00:00:00.000Z");
+      for (let i = 0; i < 48; i++) {
+        const d = new Date(yesterdayMidnight.getTime() + i * 3600 * 1000);
+        time.push(d.toISOString());
+        wind_speed_10m.push(14);
+        wind_direction_10m.push(25);
+        wind_gusts_10m.push(18);
+        temperature_2m.push(20);
+        cloud_cover.push(15);
+        // Rain yesterday evening between 18:00 and 22:00 (hours 18, 19, 20, 21) = 8.0 mm total
+        precipitation.push(i >= 18 && i <= 21 ? 2.0 : 0);
+      }
+
+      const rawWeather: OpenMeteoRawResponse = {
+        latitude: 46.0,
+        longitude: 9.3,
+        generationtime_ms: 10,
+        utc_offset_seconds: 7200,
+        timezone: "Europe/Rome",
+        timezone_abbreviation: "CEST",
+        elevation: 200,
+        providerModel: "ECMWF IFS HRES",
+        hourly: {
+          time,
+          wind_speed_10m,
+          wind_direction_10m,
+          wind_gusts_10m,
+          temperature_2m,
+          cloud_cover,
+          precipitation,
+        },
+      };
+
+      // Current time is 05:00 UTC on Aug 12 (hour index 29)
+      const refDate = new Date("2026-08-12T05:00:00.000Z");
+      const valmadrera = ComoLakeRegion.spots.find((s) => s.id === "valmadrera-pare")!;
+
+      const forecast = normalizeSpotForecastGeneric(
+        valmadrera,
+        rawWeather,
+        refDate,
+        ComoLakeRegion.timezone,
+        "COMO_POST_RAIN_NORTH",
+        null
+      );
+
+      // Verify that rolling 12h precipitation captured the 8mm from yesterday evening!
+      expect(forecast.current.precipitation12hMm).toBe(8.0);
+      expect(forecast.current.localWind).toBeGreaterThan(17);
     });
   });
 

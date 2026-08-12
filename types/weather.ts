@@ -100,8 +100,9 @@ export interface HourlyWind {
 
   temperature?: number; // °C
   cloudCover?: number; // %
-  precipitation12hMm?: number; // rolling 12h precipitation (mm)
+  precipitationMm?: number; // current hourly precipitation (mm)
   precipitation6hMm?: number; // rolling 6h precipitation (mm)
+  precipitation12hMm?: number; // rolling 12h precipitation (mm)
   lakeStateSource?: "LAKE_WIND_DERIVED" | "LOCAL_OBSERVATION" | "MANUAL_CALIBRATION";
 }
 
