@@ -1,6 +1,7 @@
 import { WeatherObservation } from "../types";
 import { ObservationQualityControl } from "../ObservationQualityControl";
 import { normalizeTimestampToUtc, normalizeDirectionDeg } from "../ObservationNormalizer";
+import { MeteoSwissClient } from "../clients/MeteoSwissClient";
 
 export interface MeteoSwissRecord {
   station_code?: string;
@@ -20,56 +21,41 @@ export class MeteoSwissAdapter {
   static async fetchLatestObservations(
     stationMapping: Record<string, string> = { SBO: "meteoswiss:san_bernardino" },
     referenceTime: Date = new Date(),
-    timeoutMs = 3000
+    timeoutMs = 3000,
+    requestId: string = `req_${Date.now()}`
   ): Promise<Record<string, WeatherObservation | null>> {
     const results: Record<string, WeatherObservation | null> = {};
-    const url = "https://data.geo.admin.ch/ch.meteoschweiz.messwerte-aktuell/ch.meteoschweiz.messwerte-aktuell_it.json";
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const res = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "SpotPilot/1.0",
-        },
-      });
-      clearTimeout(timer);
-
-      if (!res.ok) return results;
-
-      const data = await res.json();
-      const features: any[] = data?.features || [];
-
-      for (const feat of features) {
-        const stationCode = feat?.id || feat?.properties?.station_code;
-        const canonicalId = stationMapping[stationCode];
-        if (canonicalId) {
-          const props = feat.properties || {};
-          const record: MeteoSwissRecord = {
-            station_code: stationCode,
-            timestamp: props.reference_ts,
-            tre200s0: props.tre200s0,
-            fu3010z0: props.fu3010z0,
-            fu3010z1: props.fu3010z1,
-            dkl010z0: props.dkl010z0,
-            prestas0: props.prestas0,
-            rre150z0: props.rre150z0,
-          };
-          const obs = this.parseObservation(canonicalId, record, referenceTime);
-          if (obs) {
-            results[canonicalId] = obs;
-          }
-        }
-      }
-
-      return results;
-    } catch {
-      clearTimeout(timer);
+    const fetchRes = await MeteoSwissClient.fetchLatestGeoJson(timeoutMs, requestId);
+    if (!fetchRes.success || !fetchRes.data) {
       return results;
     }
+
+    const features: any[] = fetchRes.data?.features || [];
+
+    for (const feat of features) {
+      const stationCode = feat?.id || feat?.properties?.station_code;
+      const canonicalId = stationMapping[stationCode];
+      if (canonicalId) {
+        const props = feat.properties || {};
+        const record: MeteoSwissRecord = {
+          station_code: stationCode,
+          timestamp: props.reference_ts,
+          tre200s0: props.tre200s0,
+          fu3010z0: props.fu3010z0,
+          fu3010z1: props.fu3010z1,
+          dkl010z0: props.dkl010z0,
+          prestas0: props.prestas0,
+          rre150z0: props.rre150z0,
+        };
+        const obs = this.parseObservation(canonicalId, record, referenceTime);
+        if (obs) {
+          results[canonicalId] = obs;
+        }
+      }
+    }
+
+    return results;
   }
 
   static parseObservation(

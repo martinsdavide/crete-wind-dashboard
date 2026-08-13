@@ -9,6 +9,8 @@ import { ObservationFeatureExtractor } from "./ObservationFeatureExtractor";
 import { ObservationQualityControl } from "./ObservationQualityControl";
 import { msToKnots } from "./ObservationNormalizer";
 
+import { ObservationLogger } from "./ObservationLogger";
+
 export class ObservationFusionEngine {
   /**
    * Maximum short-term wind speed correction in knots (~3.0 m/s = 5.8 kt)
@@ -26,7 +28,9 @@ export class ObservationFusionEngine {
     forecastModelGustKt: number,
     forecastModelDirDeg: number,
     referenceTime: Date = new Date(),
-    forecastHorizonHours = 0
+    forecastHorizonHours = 0,
+    regionId = "unknown",
+    requestId?: string
   ): ObservationFusionResult {
     const reasons: string[] = [];
 
@@ -188,7 +192,7 @@ export class ObservationFusionEngine {
 
     confidenceAdjustment = Math.max(-0.20, Math.min(0.20, Math.round(confidenceAdjustment * 100) / 100));
 
-    return {
+    const result: ObservationFusionResult = {
       status,
       observationCoverage: features.observationCoverage,
       latestObservedAt: latestObsTime,
@@ -209,5 +213,25 @@ export class ObservationFusionEngine {
       contributors,
       reasons: reasons.length > 0 ? reasons : ["OBSERVATIONS_STANDBY"],
     };
+
+    if (requestId) {
+      const activeContributors = contributors
+        .filter((c) => c.qualityScore > 0)
+        .map((c) => c.stationId);
+      ObservationLogger.logFusion(
+        regionId,
+        spotId,
+        status,
+        activeContributors,
+        features.observationCoverage,
+        forecastModelSpeedKt,
+        correctedWindSpeedKt,
+        speedCorrectionKt,
+        confidenceAdjustment,
+        requestId
+      );
+    }
+
+    return result;
   }
 }

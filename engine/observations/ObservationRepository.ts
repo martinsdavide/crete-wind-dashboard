@@ -17,7 +17,8 @@ export class ObservationRepository {
    */
   static async getObservationsForStations(
     stationIds: string[],
-    referenceTime: Date = new Date()
+    referenceTime: Date = new Date(),
+    requestId?: string
   ): Promise<Record<string, WeatherObservation | null>> {
     const results: Record<string, WeatherObservation | null> = {};
     const missingStationIds: string[] = [];
@@ -54,7 +55,8 @@ export class ObservationRepository {
                 "679": "lombardia:valmadrera",
               },
               referenceTime,
-              3000
+              3000,
+              requestId
             );
             for (const [stId, obs] of Object.entries(fetched)) {
               if (obs) {
@@ -76,7 +78,8 @@ export class ObservationRepository {
             const fetched = await MeteotrentinoAdapter.fetchLatestObservations(
               ["T0193", "T0401", "T0354"],
               referenceTime,
-              3000
+              3000,
+              requestId
             );
             for (const [stId, obs] of Object.entries(fetched)) {
               if (obs) {
@@ -98,7 +101,8 @@ export class ObservationRepository {
             const fetched = await MeteoSwissAdapter.fetchLatestObservations(
               { SBO: "meteoswiss:san_bernardino" },
               referenceTime,
-              3000
+              3000,
+              requestId
             );
             for (const [stId, obs] of Object.entries(fetched)) {
               if (obs) {

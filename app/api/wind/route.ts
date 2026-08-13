@@ -8,10 +8,12 @@ import {
   classifyRegionalRegimeForHour,
 } from "@/engine/recommendation/RecommendationEngine";
 import { SpotForecast, SpotResult, WindApiResponse } from "@/types/weather";
+import { ObservationLogger } from "@/engine/observations/ObservationLogger";
 
 export const revalidate = 900; // 15 minutes cache
 
 export async function GET(request: NextRequest) {
+  const requestId = "req_" + Math.random().toString(36).substring(2, 11);
   const currentTime = new Date();
   const searchParams = request.nextUrl.searchParams;
   const regionId = searchParams.get("region");
@@ -127,7 +129,7 @@ export async function GET(request: NextRequest) {
     );
     try {
       const { ObservationRepository } = await import("@/engine/observations/ObservationRepository");
-      observations = await ObservationRepository.getObservationsForStations(allStationIds, currentTime);
+      observations = await ObservationRepository.getObservationsForStations(allStationIds, currentTime, requestId);
     } catch (e) {
       console.warn("Observation fetch skipped:", e);
     }
@@ -163,7 +165,9 @@ export async function GET(request: NextRequest) {
             forecast.current.localGust,
             forecast.current.directionDegrees,
             currentTime,
-            0
+            0,
+            regionConfig.id,
+            requestId
           );
           forecast.observationFusion = fusion;
           if (fusion.status === "available" || fusion.status === "partial") {
@@ -231,6 +235,24 @@ export async function GET(request: NextRequest) {
     "ECMWF IFS HRES (via Open-Meteo)";
 
   const spotList = regionConfig.spots.map((s) => spotsResults[s.id]);
+
+  // Log structured Vercel events for engine consumption
+  regionConfig.spots.forEach((spot) => {
+    const res = spotsResults[spot.id];
+    if (res && res.status === "ok") {
+      const isFused =
+        !!res.data.observationFusion &&
+        (res.data.observationFusion.status === "available" || res.data.observationFusion.status === "partial");
+      ObservationLogger.logRecommendation(
+        regionConfig.id,
+        spot.id,
+        isFused ? "observation-adjusted" : "forecast-only",
+        res.data.current.localWind,
+        res.data.observationFusion?.status || "unavailable",
+        requestId
+      );
+    }
+  });
 
   const response: WindApiResponse = {
     generatedAt: currentTime.toISOString(),

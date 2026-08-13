@@ -1,6 +1,7 @@
 import { WeatherObservation } from "../types";
 import { ObservationQualityControl } from "../ObservationQualityControl";
 import { normalizeTimestampToUtc, normalizeDirectionDeg } from "../ObservationNormalizer";
+import { MeteotrentinoClient } from "../clients/MeteotrentinoClient";
 
 export class MeteotrentinoAdapter {
   /**
@@ -9,35 +10,19 @@ export class MeteotrentinoAdapter {
   static async fetchLatestObservations(
     stationCodes: string[] = ["T0193", "T0401", "T0354"],
     referenceTime: Date = new Date(),
-    timeoutMs = 3000
+    timeoutMs = 3000,
+    requestId: string = `req_${Date.now()}`
   ): Promise<Record<string, WeatherObservation | null>> {
     const results: Record<string, WeatherObservation | null> = {};
 
     const fetchPromises = stationCodes.map(async (code) => {
       const canonicalId = `meteotrentino:${code}`;
-      const url = `https://dati.meteotrentino.it/service.asmx/ultimiDatiStazione?codice=${code}`;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-      try {
-        const res = await fetch(url, {
-          signal: controller.signal,
-          headers: {
-            Accept: "application/xml, text/xml, */*",
-            "User-Agent": "SpotPilot/1.0",
-          },
-        });
-        clearTimeout(timer);
-
-        if (!res.ok) return;
-
-        const xmlText = await res.text();
-        const obs = this.parseXmlPayload(canonicalId, xmlText, referenceTime);
+      const fetchRes = await MeteotrentinoClient.fetchStationXml(code, timeoutMs, requestId);
+      if (fetchRes.success && fetchRes.data) {
+        const obs = this.parseXmlPayload(canonicalId, fetchRes.data, referenceTime);
         if (obs) {
           results[canonicalId] = obs;
         }
-      } catch {
-        clearTimeout(timer);
       }
     });
 

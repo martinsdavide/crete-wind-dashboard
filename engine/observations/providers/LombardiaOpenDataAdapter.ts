@@ -2,6 +2,9 @@ import { WeatherObservation } from "../types";
 import { ObservationQualityControl } from "../ObservationQualityControl";
 import { normalizeTimestampToUtc, normalizeDirectionDeg } from "../ObservationNormalizer";
 
+import { LombardiaClient } from "../clients/LombardiaClient";
+import { ObservationLogger } from "../ObservationLogger";
+
 export interface LombardiaSensorRow {
   idsensore?: string;
   idstazione?: string;
@@ -33,60 +36,41 @@ export class LombardiaOpenDataAdapter {
       "679": "lombardia:valmadrera",
     },
     referenceTime: Date = new Date(),
-    timeoutMs = 3000
+    timeoutMs = 3000,
+    requestId: string = `req_${Date.now()}`
   ): Promise<Record<string, WeatherObservation | null>> {
     const results: Record<string, WeatherObservation | null> = {};
     const stationIdsList = Object.keys(stationMapping);
     if (stationIdsList.length === 0) return results;
 
-    const inClause = stationIdsList.map((id) => `'${id}'`).join(",");
-    const url = `https://www.dati.lombardia.it/resource/647i-nhxk.json?$where=idstazione in (${inClause})&$order=Data desc&$limit=100`;
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const res = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "SpotPilot/1.0",
-        },
-      });
-      clearTimeout(timer);
-
-      if (!res.ok) {
-        return results;
-      }
-
-      const rows: LombardiaSensorRow[] = await res.json();
-      if (!Array.isArray(rows) || rows.length === 0) return results;
-
-      // Group rows by station ID
-      const rowsByStation: Record<string, LombardiaSensorRow[]> = {};
-      for (const row of rows) {
-        if (!row.idstazione) continue;
-        if (!rowsByStation[row.idstazione]) {
-          rowsByStation[row.idstazione] = [];
-        }
-        rowsByStation[row.idstazione].push(row);
-      }
-
-      for (const [stId, rowsList] of Object.entries(rowsByStation)) {
-        const canonicalId = stationMapping[stId];
-        if (canonicalId) {
-          const parsed = this.parseObservations(canonicalId, rowsList, referenceTime);
-          if (parsed) {
-            results[canonicalId] = parsed;
-          }
-        }
-      }
-
-      return results;
-    } catch (e) {
-      clearTimeout(timer);
+    const fetchRes = await LombardiaClient.fetchSensorRows(stationIdsList, timeoutMs, requestId);
+    if (!fetchRes.success || !fetchRes.data || fetchRes.data.length === 0) {
       return results;
     }
+
+    const rows: LombardiaSensorRow[] = fetchRes.data;
+
+    // Group rows by station ID
+    const rowsByStation: Record<string, LombardiaSensorRow[]> = {};
+    for (const row of rows) {
+      if (!row.idstazione) continue;
+      if (!rowsByStation[row.idstazione]) {
+        rowsByStation[row.idstazione] = [];
+      }
+      rowsByStation[row.idstazione].push(row);
+    }
+
+    for (const [stId, rowsList] of Object.entries(rowsByStation)) {
+      const canonicalId = stationMapping[stId];
+      if (canonicalId) {
+        const parsed = this.parseObservations(canonicalId, rowsList, referenceTime);
+        if (parsed) {
+          results[canonicalId] = parsed;
+        }
+      }
+    }
+
+    return results;
   }
 
   /**
