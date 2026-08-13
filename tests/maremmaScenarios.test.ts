@@ -44,9 +44,9 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
     it("defines non-empty wind regimes and explanation rules", () => {
       expect(MaremmaRegion.regimes.length).toBeGreaterThanOrEqual(5);
       const regimeIds = MaremmaRegion.regimes.map((r) => r.id);
-      expect(regimeIds).toContain("MAESTRALE");
-      expect(regimeIds).toContain("LIBECCIO");
-      expect(regimeIds).toContain("PONENTE");
+      expect(regimeIds).toContain("MAREMMA_MAESTRALE");
+      expect(regimeIds).toContain("MAREMMA_LIBECCIO");
+      expect(regimeIds).toContain("MAREMMA_PONENTE");
 
       expect(MaremmaRegion.explanationRules.length).toBeGreaterThanOrEqual(5);
     });
@@ -57,7 +57,7 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
     baseDirection: number,
     gustMultiplier = 1.25,
     hoursCount = 48
-  ): OpenMeteoRawResponse {
+  ): any {
     const times: string[] = [];
     const speeds: number[] = [];
     const dirs: number[] = [];
@@ -120,7 +120,7 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
 
       expect(recommendation.bestSpot).not.toBeNull();
       expect(recommendation.score).toBeGreaterThanOrEqual(75);
-      expect(recommendation.regimeLabel).toBe("Maestrale");
+      expect(recommendation.regimeLabel).toBe("Maremma Maestrale");
       expect(Object.keys(recommendation.spotScores).length).toBe(5);
     });
   });
@@ -140,7 +140,7 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
       const recommendation = RecommendationEngine.run(MaremmaRegion, spotsResults, refDate);
 
       expect(recommendation.bestSpot).not.toBeNull();
-      expect(recommendation.regimeLabel).toBe("Libeccio");
+      expect(recommendation.regimeLabel).toBe("Maremma Libeccio");
       expect(recommendation.bestWindow).not.toBeNull();
     });
   });
@@ -248,8 +248,8 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
       }
 
       const rec = RecommendationEngine.run(MaremmaRegion, spotsResults, refDate);
-      expect(rec.regime).toBe("OTHER_FLOW");
-      expect(rec.regimeLabel).toBe("Variable Airflow");
+      expect(rec.regime).toBe("MAREMMA_OTHER");
+      expect(rec.regimeLabel).toBe("Maremma Other");
     });
   });
 

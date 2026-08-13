@@ -102,6 +102,36 @@ export const WEATHER_STATIONS: Record<string, WeatherStation> = {
     attribution: "Dati forniti dal Servizio Meteotrentino della Provincia Autonoma di Trento",
     sourceUrl: "https://www.meteotrentino.it/",
   },
+  "siar:marina_grosseto": {
+    id: "siar:marina_grosseto",
+    provider: "SIR Toscana / Settore Idrologico Regionale",
+    providerStationId: "TOS01_Grosseto",
+    name: "Marina di Grosseto – Port",
+    latitude: 42.718,
+    longitude: 10.985,
+    elevationM: 2,
+    timezone: "Europe/Rome",
+    status: "active",
+    roles: ["spot-local", "lake-upwind"],
+    capabilities: ["wind_speed", "wind_direction", "wind_gust", "temperature", "precipitation"],
+    attribution: "Dati meteorologici forniti da SIR Toscana Open Data",
+    sourceUrl: "http://www.sir.toscana.it/",
+  },
+  "siar:talamone_sentinel": {
+    id: "siar:talamone_sentinel",
+    provider: "SIR Toscana / Settore Idrologico Regionale",
+    providerStationId: "TOS02_Talamone",
+    name: "Talamone – Wind Sentinel",
+    latitude: 42.555,
+    longitude: 11.132,
+    elevationM: 10,
+    timezone: "Europe/Rome",
+    status: "active",
+    roles: ["spot-local", "lake-upwind"],
+    capabilities: ["wind_speed", "wind_direction", "wind_gust", "temperature", "precipitation"],
+    attribution: "Dati meteorologici forniti da SIR Toscana Open Data",
+    sourceUrl: "http://www.sir.toscana.it/",
+  },
 };
 
 export class StationRegistry {
@@ -119,6 +149,9 @@ export class StationRegistry {
     }
     if (regionId === "garda-lake") {
       return Object.values(WEATHER_STATIONS).filter((s) => s.id.startsWith("meteotrentino:"));
+    }
+    if (regionId === "maremma") {
+      return Object.values(WEATHER_STATIONS).filter((s) => s.id.startsWith("siar:"));
     }
     return [];
   }

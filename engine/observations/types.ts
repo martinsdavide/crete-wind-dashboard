@@ -119,4 +119,5 @@ export interface ObservationFusionResult {
   };
   contributors: StationContribution[];
   reasons: string[];
+  evidenceTypes?: string[];
 }

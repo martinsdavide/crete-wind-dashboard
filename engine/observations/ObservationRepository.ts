@@ -2,6 +2,7 @@ import { WeatherObservation } from "./types";
 import { LombardiaOpenDataAdapter } from "./providers/LombardiaOpenDataAdapter";
 import { MeteotrentinoAdapter } from "./providers/MeteotrentinoAdapter";
 import { MeteoSwissAdapter } from "./providers/MeteoSwissAdapter";
+import { SiarAdapter } from "./providers/SiarAdapter";
 
 export interface CacheEntry {
   observation: WeatherObservation;
@@ -42,6 +43,8 @@ export class ObservationRepository {
     const needsLombardia = missingStationIds.some((id) => id.startsWith("lombardia:"));
     const needsMeteotrentino = missingStationIds.some((id) => id.startsWith("meteotrentino:"));
     const needsMeteoSwiss = missingStationIds.some((id) => id.startsWith("meteoswiss:"));
+
+    const needsSiar = missingStationIds.some((id) => id.startsWith("siar:"));
 
     const providerPromises: Promise<void>[] = [];
 
@@ -112,6 +115,32 @@ export class ObservationRepository {
             }
           } catch (e) {
             console.warn("MeteoSwiss observation fetch error:", e);
+          }
+        })()
+      );
+    }
+
+    if (needsSiar) {
+      providerPromises.push(
+        (async () => {
+          try {
+            const fetched = await SiarAdapter.fetchLatestObservations(
+              {
+                TOS01_Grosseto: "siar:marina_grosseto",
+                TOS02_Talamone: "siar:talamone_sentinel",
+              },
+              referenceTime,
+              3000,
+              requestId
+            );
+            for (const [stId, obs] of Object.entries(fetched)) {
+              if (obs) {
+                this.setObservation(obs);
+                results[stId] = obs;
+              }
+            }
+          } catch (e) {
+            console.warn("SIAR observation fetch error:", e);
           }
         })()
       );

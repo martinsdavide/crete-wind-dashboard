@@ -85,6 +85,12 @@ export const interpolateAngle = interpolateDirection;
  * Calculates dynamic thermal strength and boost contribution based on:
  * Season x Time-of-day x Wind direction x Synoptic wind intensity x Solar heating / Cloud cover.
  */
+import { ThermalEffectEvaluator } from "./ThermalEffectEvaluator";
+
+/**
+ * Calculates dynamic thermal strength and boost contribution based on:
+ * Season x Time-of-day x Wind direction x Synoptic wind intensity x Solar heating / Cloud cover.
+ */
 export function calculateThermalStrength(
   spotConfig: RegionSpotConfig,
   timestamp: string | Date,
@@ -93,107 +99,14 @@ export function calculateThermalStrength(
   cloudCover = 0,
   timeZone = "Europe/Athens"
 ): ThermalEvaluation {
-  const cfg = spotConfig.localCorrection.diurnalThermalBoost;
-
-  if (!cfg || cfg.enabled === false) {
-    return {
-      strength: 0,
-      boost: 0,
-      active: false,
-      factors: { season: 1, time: 0, direction: 1, synopticWind: 1, solar: 1 },
-    };
-  }
-
-  const { month, hour } = getLocalTimeComponents(timestamp, timeZone);
-
-  // Backward-compatible FIXED model
-  if (!("model" in cfg) || cfg.model !== "DYNAMIC") {
-    const isHourActive = hour >= cfg.startHour && hour <= cfg.endHour;
-    return {
-      strength: isHourActive ? 1.0 : 0,
-      boost: isHourActive ? cfg.boostAmount : 0,
-      active: isHourActive,
-      factors: { season: 1, time: isHourActive ? 1 : 0, direction: 1, synopticWind: 1, solar: 1 },
-    };
-  }
-
-  // DYNAMIC multi-factor thermal model
-  // 1. Season Factor
-  let seasonFactor = 1.0;
-  if (cfg.monthFactors) {
-    seasonFactor = cfg.monthFactors[month] ?? 0.0;
-  }
-
-  // 2. Time-of-Day Factor
-  let timeFactor = 0.0;
-  if (cfg.timeProfile && cfg.timeProfile.length > 0) {
-    const firstH = cfg.timeProfile[0].hour;
-    const lastH = cfg.timeProfile[cfg.timeProfile.length - 1].hour;
-    if (hour >= firstH && hour <= lastH) {
-      timeFactor = interpolateCurve(
-        hour,
-        cfg.timeProfile.map((p) => ({ x: p.hour, y: p.factor }))
-      );
-    } else {
-      timeFactor = 0.0;
-    }
-  } else {
-    timeFactor = 1.0;
-  }
-
-  // 3. Direction Factor
-  let directionFactor = 1.0;
-  if (cfg.directionFactors) {
-    directionFactor =
-      cfg.directionFactors[directionLabel] ?? cfg.defaultDirectionFactor ?? 0.10;
-  }
-
-  // 4. Synoptic Wind Factor
-  let synopticWindFactor = 1.0;
-  if (cfg.synopticWindCurve && cfg.synopticWindCurve.length > 0) {
-    synopticWindFactor = interpolateCurve(
-      modelWind,
-      cfg.synopticWindCurve.map((p) => ({ x: p.wind, y: p.factor }))
-    );
-  }
-
-  // 5. Solar / Cloud Cover Factor
-  let solarFactor = 1.0;
-  const effectiveCloud = cloudCover !== undefined && !isNaN(cloudCover) ? cloudCover : 0;
-  if (cfg.cloudCoverCurve && cfg.cloudCoverCurve.length > 0) {
-    solarFactor = interpolateCurve(
-      effectiveCloud,
-      cfg.cloudCoverCurve.map((p) => ({ x: p.cloud, y: p.factor }))
-    );
-  } else {
-    solarFactor = Math.max(0, 1.0 - effectiveCloud / 100);
-  }
-
-  // Multiply all factors
-  const rawStrength =
-    seasonFactor * timeFactor * directionFactor * synopticWindFactor * solarFactor;
-  let strength = Math.max(0, Math.min(1, rawStrength));
-
-  const minStrength = cfg.minThermalStrength ?? 0.05;
-  if (strength < minStrength) {
-    strength = 0;
-  }
-
-  const boost = cfg.maxBoost * strength;
-  const active = strength > 0 && boost > 0;
-
-  return {
-    strength,
-    boost,
-    active,
-    factors: {
-      season: seasonFactor,
-      time: timeFactor,
-      direction: directionFactor,
-      synopticWind: synopticWindFactor,
-      solar: solarFactor,
-    },
-  };
+  return ThermalEffectEvaluator.evaluate(
+    spotConfig,
+    timestamp,
+    directionLabel,
+    modelWind,
+    cloudCover,
+    timeZone
+  );
 }
 
 /**
@@ -220,7 +133,7 @@ export function calculateLocalCorrectionFactor(
   let effectiveDirection = directionLabel;
   let effectiveDegrees = directionDegrees;
 
-  const { month } = getLocalTimeComponents(timestamp, timeZone);
+  const { month, hour } = getLocalTimeComponents(timestamp, timeZone);
 
   // 1. Seasonal / Summer Boost (applied only if not configured with dynamic thermal)
   const isDynamicThermal =
@@ -232,7 +145,7 @@ export function calculateLocalCorrectionFactor(
     factor += cfg.summerBoostAmount ?? 0.10;
   }
 
-  // 2. Diurnal Thermal Boost (evaluated via calculateThermalStrength)
+  // 2. Diurnal Thermal Boost
   const thermal = calculateThermalStrength(
     spotConfig,
     timestamp,
@@ -242,18 +155,57 @@ export function calculateLocalCorrectionFactor(
     timeZone
   );
 
-  if (thermal.active) {
-    factor += thermal.boost;
+  // Exclude additive/hybrid adjustments from factor calculations
+  if (thermal.active && (thermal.correctionMode === "MULTIPLICATIVE" || thermal.correctionMode === "HYBRID")) {
+    factor += thermal.multiplicativeBoost ?? thermal.boost;
   }
 
-  // 2b. Post-Rain Northerly Drainage Boost (e.g. for Valmadrera)
-  const minPrecip12h = cfg.postRainBoost?.minPrecipitation12hMm ?? 1.0;
-  if (
-    cfg.postRainBoost?.enabled &&
-    regimeId === "COMO_POST_RAIN_NORTH" &&
-    (precipitation12hMm ?? 0) >= minPrecip12h
-  ) {
-    factor += cfg.postRainBoost.maxBoost ?? 0.20;
+  // 2b. Conditional Boosts (Generic replacement for postRainBoost checking)
+  if (cfg.conditionalBoosts && cfg.conditionalBoosts.length > 0) {
+    for (const boost of cfg.conditionalBoosts) {
+      if (boost.applicableRegimeIds && regimeId && !boost.applicableRegimeIds.includes(regimeId)) {
+        continue;
+      }
+      if (boost.localTimeWindow) {
+        if (hour < boost.localTimeWindow.startHour || hour > boost.localTimeWindow.endHour) {
+          continue;
+        }
+      }
+      if (boost.allowedDirectionSectors && boost.allowedDirectionSectors.length > 0) {
+        const isDirAllowed = boost.allowedDirectionSectors.some((range) => {
+          if (range.fromDeg <= range.toDeg) {
+            return directionDegrees >= range.fromDeg && directionDegrees <= range.toDeg;
+          } else {
+            return directionDegrees >= range.fromDeg || directionDegrees <= range.toDeg;
+          }
+        });
+        if (!isDirAllowed) {
+          continue;
+        }
+      }
+      if (boost.minModelWind !== undefined && modelWind < boost.minModelWind) {
+        continue;
+      }
+      if (boost.maxModelWind !== undefined && modelWind > boost.maxModelWind) {
+        continue;
+      }
+      if (boost.minRecentPrecipitation !== undefined && (precipitation12hMm ?? 0) < boost.minRecentPrecipitation) {
+        continue;
+      }
+      const amount = boost.boostAmount ?? boost.maxAdditiveBoost ?? 0;
+      factor += amount;
+    }
+  } else {
+    // Legacy fallback postRainBoost for backward compatibility
+    const minPrecip12h = cfg.postRainBoost?.minPrecipitation12hMm ?? 1.0;
+    if (
+      cfg.postRainBoost?.enabled &&
+      regimeId &&
+      regimeId.includes("POST_RAIN") &&
+      (precipitation12hMm ?? 0) >= minPrecip12h
+    ) {
+      factor += cfg.postRainBoost.maxBoost ?? 0.20;
+    }
   }
 
   // 3. Direction Modifiers
@@ -333,7 +285,7 @@ export function normalizeHourlyPoint(
 ): HourlyWind {
   const rawDirectionLabel = degreesToCompass(point.windDirection);
 
-  const { factor, effectiveDirection, effectiveDegrees } =
+  const { factor, effectiveDirection, effectiveDegrees, thermal } =
     calculateLocalCorrectionFactor(
       spotConfig,
       point.timestamp,
@@ -346,8 +298,15 @@ export function normalizeHourlyPoint(
       point.precipitation12hMm
     );
 
-  const localWind = Math.max(0, point.windSpeed * factor);
-  const localGust = Math.max(localWind, (point.windGust || point.windSpeed * 1.25) * factor);
+  let localWind = Math.max(0, point.windSpeed * factor);
+  if (thermal && thermal.active && (thermal.correctionMode === "ADDITIVE" || thermal.correctionMode === "HYBRID")) {
+    localWind += thermal.additiveBoostKt || 0;
+  }
+
+  let localGust = Math.max(localWind, (point.windGust || point.windSpeed * 1.25) * factor);
+  if (thermal && thermal.active && (thermal.correctionMode === "ADDITIVE" || thermal.correctionMode === "HYBRID")) {
+    localGust += thermal.additiveBoostKt || 0;
+  }
 
   const directionScore = evaluateDirectionScore(spotConfig, effectiveDirection);
 
@@ -432,6 +391,15 @@ export function normalizeHourlyPoint(
     condition,
     temperature: point.temperature,
     cloudCover: point.cloudCover,
+    thermal: thermal
+      ? {
+          state: thermal.state || "ABSENT",
+          strength: thermal.strength,
+          confidence: thermal.confidence || 1.0,
+          additiveBoostKt: thermal.additiveBoostKt || 0,
+          multiplicativeBoost: thermal.multiplicativeBoost || 0,
+        }
+      : undefined,
   };
 }
 

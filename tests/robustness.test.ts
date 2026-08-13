@@ -64,7 +64,7 @@ describe("Robustness & Edge Case Suite", () => {
   });
 
   it("interpolates current NOW conditions when current time is between hourly points", () => {
-    const mockHourly: HourlyWind[] = [
+    const mockHourly: any[] = [
       {
         timestamp: "2026-08-08T14:00:00+03:00",
         modelWind: 20,

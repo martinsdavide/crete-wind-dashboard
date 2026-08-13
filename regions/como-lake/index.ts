@@ -24,4 +24,21 @@ export const ComoLakeRegion: RegionConfig = {
   spots: ComoLakeSpots,
   regimes: ComoLakeRegimes,
   explanationRules: ComoLakeExplanationRules,
+  observationEvidenceProfiles: [
+    {
+      id: "como-breva-thermal",
+      evidenceType: "THERMAL_SUPPORT",
+      directionSectors: [{ fromDeg: 140, toDeg: 230 }],
+    },
+    {
+      id: "como-tivano-north",
+      evidenceType: "SYNOPTIC_SUPPORT",
+      directionSectors: [{ fromDeg: 330, toDeg: 40 }],
+    },
+    {
+      id: "como-post-rain-boost",
+      evidenceType: "POST_RAIN_SUPPORT",
+      directionSectors: [{ fromDeg: 330, toDeg: 50 }],
+    },
+  ],
 };

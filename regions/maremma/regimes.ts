@@ -2,17 +2,25 @@ import { RegimeDefinition } from "@/types/region";
 
 export const MaremmaRegimes: RegimeDefinition[] = [
   {
-    id: "MAESTRALE",
-    label: "Maestrale",
-    description: "North-westerly gradient flow (NW/WNW) exceeding 14 knots with classic clear sky conditions.",
+    id: "MAREMMA_CONVECTIVE_HAZARD",
+    label: "Maremma Convective Hazard",
+    description: "Active convective hazard or thunderstorm risk on the Maremma coast.",
+    criteria: {
+      convectiveThresholdGustRatio: 1.45,
+    },
+  },
+  {
+    id: "MAREMMA_MAESTRALE",
+    label: "Maremma Maestrale",
+    description: "North-westerly gradient flow (NW/WNW/NNW) exceeding 14 knots with classic clear sky conditions.",
     criteria: {
       directions: ["NW", "WNW", "NNW"],
       minRawWind: 14,
     },
   },
   {
-    id: "PONENTE",
-    label: "Ponente",
+    id: "MAREMMA_PONENTE",
+    label: "Maremma Ponente",
     description: "Direct westerly Tyrrhenian airflow (W) bringing steady side-onshore breeze.",
     criteria: {
       directions: ["W", "WSW", "WNW"],
@@ -20,8 +28,8 @@ export const MaremmaRegimes: RegimeDefinition[] = [
     },
   },
   {
-    id: "LIBECCIO",
-    label: "Libeccio",
+    id: "MAREMMA_LIBECCIO",
+    label: "Maremma Libeccio",
     description: "South-westerly gradient (SW/SSW) generating building chop and wave swell across the coast.",
     criteria: {
       directions: ["SW", "SSW", "WSW"],
@@ -29,17 +37,17 @@ export const MaremmaRegimes: RegimeDefinition[] = [
     },
   },
   {
-    id: "SCIROCCO",
-    label: "Scirocco",
-    description: "Warm south-easterly airflow (SE/SSE) accelerating along the southern Tuscan coastline.",
+    id: "MAREMMA_SCIROCCO",
+    label: "Maremma Scirocco",
+    description: "Warm south-easterly airflow (SE/SSE/ESE/S) accelerating along the southern Tuscan coastline.",
     criteria: {
       directions: ["SE", "SSE", "ESE", "S"],
       minRawWind: 12,
     },
   },
   {
-    id: "TRAMONTANA",
-    label: "Tramontana",
+    id: "MAREMMA_TRAMONTANA",
+    label: "Maremma Tramontana",
     description: "Cold gusty northerly airflow (N/NNE/NNW) from the Tuscan hills.",
     criteria: {
       directions: ["N", "NNE", "NNW"],
@@ -47,21 +55,39 @@ export const MaremmaRegimes: RegimeDefinition[] = [
     },
   },
   {
-    id: "THERMAL",
-    label: "Thermal Breeze",
-    description: "Typical summer afternoon sea breeze (NW/W) activated by inland heating.",
+    id: "MAREMMA_THERMAL",
+    label: "Maremma Thermal",
+    description: "Typical summer afternoon sea breeze (NW/W/SW) activated by inland heating.",
     criteria: {
-      directions: ["NW", "WNW", "W", "WSW"],
+      directions: ["NW", "WNW", "W", "SW", "WSW"],
       minRawWind: 8,
-      maxRawWind: 15,
+      maxRawWind: 16,
+      allowedHours: [12, 18],
     },
   },
   {
-    id: "WEAK_VARIABLE",
-    label: "Weak Variable",
-    description: "Light and variable atmospheric conditions under 10 knots.",
+    id: "MAREMMA_THERMAL_REINFORCED",
+    label: "Maremma Thermal Reinforced",
+    description: "Thermally reinforced Maestrale or Ponente afternoon breeze exceeding 16 knots.",
     criteria: {
-      maxRawWind: 10,
+      directions: ["NW", "WNW", "W", "SW", "WSW"],
+      minRawWind: 16,
+      maxRawWind: 25,
+      allowedHours: [12, 18],
     },
+  },
+  {
+    id: "MAREMMA_WEAK_VARIABLE",
+    label: "Maremma Weak Variable",
+    description: "Light and variable atmospheric conditions under 8 knots.",
+    criteria: {
+      maxRawWind: 8,
+    },
+  },
+  {
+    id: "MAREMMA_OTHER",
+    label: "Maremma Other",
+    description: "Neutral Maremma flow that does not match other configured regimes.",
+    criteria: {},
   },
 ];

@@ -7,6 +7,7 @@ import { EasternCreteRegion } from "@/regions/eastern-crete";
 import { REGIONS, getRegion, isValidRegionId } from "@/regions/registry";
 import { getRegionalDateKey, calculateDailySummariesGeneric } from "@/engine/forecast/ForecastNormalizer";
 import { SpotForecast, SpotResult, WindSpot, HourlyWind } from "@/types/weather";
+import { RegionConfig } from "@/types/region";
 
 describe("Engine / Region Decoupling Refactor", () => {
   describe("Region Registry", () => {
@@ -358,7 +359,7 @@ describe("Engine / Region Decoupling Refactor", () => {
         score: number,
         wind: number
       ): SpotForecast {
-        const spot = MockSyntheticRegion.spots.find((s) => s.id === spotId)!;
+        const spot = MockSyntheticRegion.spots.find((s: any) => s.id === spotId)!;
         const windSpot: WindSpot = {
           id: spot.id,
           name: spot.name,
@@ -416,6 +417,8 @@ describe("Engine / Region Decoupling Refactor", () => {
                 dominantDirection: "NW",
                 dominantDirectionDegrees: 315,
                 score,
+                meanScore: score,
+                sailingStyle: "FLAT",
               },
             },
           ],

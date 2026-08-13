@@ -16,6 +16,8 @@ export interface ExtractedObservationFeatures {
   thermalSupportEvidence: number; // 0.0 to 1.0
   northerlySupportEvidence: number; // 0.0 to 1.0
   rainBoostEvidence: number; // 0.0 to 1.0
+  hasSpeedConflict?: boolean;
+  hasDirectionConflict?: boolean;
 }
 
 export class ObservationFeatureExtractor {
@@ -80,10 +82,12 @@ export class ObservationFeatureExtractor {
     observations: Record<string, WeatherObservation | null>,
     forecastModelSpeedKt: number,
     forecastModelDirDeg: number,
-    referenceTime: Date = new Date()
-  ): ExtractedObservationFeatures {
+    referenceTime: Date = new Date(),
+    evidenceProfiles?: import("@/types/region").ObservationEvidenceProfile[]
+  ): ExtractedObservationFeatures & { evidenceMap?: Record<string, number>; evidenceTypes?: string[] } {
     const directWindSamples: { speed: number; directionDeg: number; weight: number }[] = [];
     const directGustSamples: { gust: number; weight: number }[] = [];
+    const activeObservations: WeatherObservation[] = [];
 
     let totalTrustedWeight = 0;
     let maxConfiguredWeight = 0;
@@ -91,6 +95,7 @@ export class ObservationFeatureExtractor {
     let recentPrecipitation1hMm = 0;
     let thermalSupportEvidence = 0.5;
     let northerlySupportEvidence = 0.5;
+    let rainBoostEvidence = 0.0;
 
     for (const binding of bindings) {
       maxConfiguredWeight += binding.baseWeight;
@@ -108,6 +113,8 @@ export class ObservationFeatureExtractor {
       if (ageMinutes > binding.maxAgeMinutes || freshnessFactor <= 0) {
         continue; // Stale beyond binding limit
       }
+
+      activeObservations.push(obs);
 
       // Effective weight
       let effectiveWeight = binding.baseWeight * obs.quality.score * freshnessFactor;
@@ -156,22 +163,6 @@ export class ObservationFeatureExtractor {
         recentPrecipitation1hMm += obs.precipitationMm;
         rainOvernightMm += obs.precipitationMm;
       }
-
-      // Regime & Context Evidence
-      if (binding.allowedEffects.includes("regime-detection") || binding.allowedEffects.includes("thermal-context")) {
-        if (obs.windDirectionDeg !== null) {
-          // Southerly sector (140-230) supports thermal Ora / Breva
-          if (obs.windDirectionDeg >= 140 && obs.windDirectionDeg <= 230) {
-            thermalSupportEvidence = Math.min(1.0, thermalSupportEvidence + 0.35 * effectiveWeight);
-            northerlySupportEvidence = Math.max(0.0, northerlySupportEvidence - 0.35 * effectiveWeight);
-          }
-          // Northerly sector (330-40) supports Pelèr / Tivano / North
-          else if (obs.windDirectionDeg >= 330 || obs.windDirectionDeg <= 40) {
-            northerlySupportEvidence = Math.min(1.0, northerlySupportEvidence + 0.35 * effectiveWeight);
-            thermalSupportEvidence = Math.max(0.0, thermalSupportEvidence - 0.35 * effectiveWeight);
-          }
-        }
-      }
     }
 
     const coverage = maxConfiguredWeight > 0 ? Math.min(1.0, totalTrustedWeight / maxConfiguredWeight) : 0;
@@ -204,10 +195,150 @@ export class ObservationFeatureExtractor {
         ? Math.round(this.angularDifference(circularMeanDirectionDeg, forecastModelDirDeg))
         : null;
 
-    // Calculate Valmadrera Rain Boost evidence: requires overnight rain + northerly morning direction
-    let rainBoostEvidence = 0.0;
-    if (rainOvernightMm >= 1.0 && (forecastModelDirDeg >= 330 || forecastModelDirDeg <= 50)) {
-      rainBoostEvidence = Math.min(1.0, 0.4 + (rainOvernightMm / 10.0) * 0.6);
+    // Evaluate evidence profiles
+    const evidenceMap: Record<string, number> = {};
+    const evidenceTypes: string[] = [];
+
+    if (evidenceProfiles && evidenceProfiles.length > 0) {
+      const { getLocalTimeComponents } = require("@/lib/localWind");
+      const { hour } = getLocalTimeComponents(referenceTime, "Europe/Rome");
+
+      for (const profile of evidenceProfiles) {
+        let score = 0.5; // Neutral starting point
+        let hasValidStation = false;
+
+        if (profile.localTimeWindow) {
+          if (hour < profile.localTimeWindow.startHour || hour > profile.localTimeWindow.endHour) {
+            evidenceMap[profile.id] = 0.0;
+            continue;
+          }
+        }
+
+        for (const binding of bindings) {
+          const obs = observations[binding.stationId];
+          if (!obs || obs.quality.status === "invalid" || obs.quality.status === "missing") {
+            continue;
+          }
+
+          if (profile.requiredStationRoles && !profile.requiredStationRoles.includes(binding.role)) {
+            continue;
+          }
+
+          const { ageMinutes, freshnessFactor } = ObservationQualityControl.evaluateFreshness(
+            obs.observedAt,
+            referenceTime
+          );
+          if (ageMinutes > binding.maxAgeMinutes || freshnessFactor <= 0) {
+            continue;
+          }
+
+          const effectiveWeight = binding.baseWeight * obs.quality.score * freshnessFactor;
+
+          if (obs.windDirectionDeg !== null && profile.directionSectors.length > 0) {
+            const matchesDir = profile.directionSectors.some((range) => {
+              if (range.fromDeg <= range.toDeg) {
+                return obs.windDirectionDeg! >= range.fromDeg && obs.windDirectionDeg! <= range.toDeg;
+              } else {
+                return obs.windDirectionDeg! >= range.fromDeg || obs.windDirectionDeg! <= range.toDeg;
+              }
+            });
+
+            if (matchesDir) {
+              hasValidStation = true;
+              score = Math.min(1.0, score + 0.35 * effectiveWeight);
+            } else {
+              score = Math.max(0.0, score - 0.35 * effectiveWeight);
+            }
+          }
+        }
+
+        const finalScore = hasValidStation ? Math.round(score * 100) / 100 : 0.5;
+        evidenceMap[profile.id] = finalScore;
+
+        if (finalScore >= 0.70) {
+          evidenceTypes.push(profile.evidenceType);
+        }
+      }
+
+      // Map back to legacy fields for backward compatibility
+      const thermalProf = Object.entries(evidenceMap).find(([id]) => {
+        const prof = evidenceProfiles.find((p) => p.id === id);
+        return prof?.evidenceType === "THERMAL_SUPPORT";
+      });
+      if (thermalProf) {
+        thermalSupportEvidence = thermalProf[1];
+      }
+
+      const northerlyProf = Object.entries(evidenceMap).find(([id]) => {
+        const prof = evidenceProfiles.find((p) => p.id === id);
+        return (
+          prof?.id.includes("north") ||
+          prof?.id.includes("peler") ||
+          prof?.id.includes("tivano") ||
+          prof?.id.includes("synoptic")
+        );
+      });
+      if (northerlyProf) {
+        northerlySupportEvidence = northerlyProf[1];
+      }
+
+      const rainProf = Object.entries(evidenceMap).find(([id]) => {
+        const prof = evidenceProfiles.find((p) => p.id === id);
+        return prof?.evidenceType === "POST_RAIN_SUPPORT";
+      });
+      if (rainProf) {
+        rainBoostEvidence = rainProf[1];
+      }
+    } else {
+      // Legacy hardcoded fallback logic
+      for (const binding of bindings) {
+        const obs = observations[binding.stationId];
+        if (!obs) continue;
+        if (binding.allowedEffects.includes("regime-detection") || binding.allowedEffects.includes("thermal-context")) {
+          if (obs.windDirectionDeg !== null) {
+            const { ageMinutes, freshnessFactor } = ObservationQualityControl.evaluateFreshness(
+              obs.observedAt,
+              referenceTime
+            );
+            if (ageMinutes <= binding.maxAgeMinutes && freshnessFactor > 0) {
+              const effectiveWeight = binding.baseWeight * obs.quality.score * freshnessFactor;
+              if (obs.windDirectionDeg >= 140 && obs.windDirectionDeg <= 230) {
+                thermalSupportEvidence = Math.min(1.0, thermalSupportEvidence + 0.35 * effectiveWeight);
+                northerlySupportEvidence = Math.max(0.0, northerlySupportEvidence - 0.35 * effectiveWeight);
+              } else if (obs.windDirectionDeg >= 330 || obs.windDirectionDeg <= 40) {
+                northerlySupportEvidence = Math.min(1.0, northerlySupportEvidence + 0.35 * effectiveWeight);
+                thermalSupportEvidence = Math.max(0.0, thermalSupportEvidence - 0.35 * effectiveWeight);
+              }
+            }
+          }
+        }
+      }
+
+      if (rainOvernightMm >= 1.0 && (forecastModelDirDeg >= 330 || forecastModelDirDeg <= 50)) {
+        rainBoostEvidence = Math.min(1.0, 0.4 + (rainOvernightMm / 10.0) * 0.6);
+      }
+    }
+
+    let hasDirectionConflict = false;
+    let hasSpeedConflict = false;
+    for (let i = 0; i < activeObservations.length; i++) {
+      for (let j = i + 1; j < activeObservations.length; j++) {
+        const obsA = activeObservations[i];
+        const obsB = activeObservations[j];
+        if (obsA.windSpeedMs !== null && obsB.windSpeedMs !== null) {
+          const speedA = msToKnots(obsA.windSpeedMs)!;
+          const speedB = msToKnots(obsB.windSpeedMs)!;
+          if (Math.abs(speedA - speedB) > 8.0) {
+            hasSpeedConflict = true;
+          }
+        }
+        if (obsA.windDirectionDeg !== null && obsB.windDirectionDeg !== null) {
+          const diff = Math.abs(this.angularDifference(obsA.windDirectionDeg, obsB.windDirectionDeg));
+          if (diff > 60) {
+            hasDirectionConflict = true;
+          }
+        }
+      }
     }
 
     return {
@@ -224,6 +355,10 @@ export class ObservationFeatureExtractor {
       thermalSupportEvidence: Math.round(thermalSupportEvidence * 100) / 100,
       northerlySupportEvidence: Math.round(northerlySupportEvidence * 100) / 100,
       rainBoostEvidence: Math.round(rainBoostEvidence * 100) / 100,
+      hasSpeedConflict,
+      hasDirectionConflict,
+      evidenceMap,
+      evidenceTypes,
     };
   }
 }

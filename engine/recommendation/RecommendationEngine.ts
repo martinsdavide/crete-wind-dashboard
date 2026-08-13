@@ -53,12 +53,18 @@ export function classifyRegionalRegimeForHour(
       hourMatch = context.localHour >= startH && context.localHour <= endH;
     }
 
-    if (dirMatch && minWindMatch && maxWindMatch && precip12hMatch && precipCurrentMatch && hourMatch) {
+    let convectiveMatch = true;
+    if (c.convectiveThresholdGustRatio !== undefined) {
+      convectiveMatch = context.gustFactor !== undefined && context.gustFactor >= c.convectiveThresholdGustRatio;
+    }
+
+    if (dirMatch && minWindMatch && maxWindMatch && precip12hMatch && precipCurrentMatch && hourMatch && convectiveMatch) {
       return { regimeId: regime.id, regimeLabel: regime.label };
     }
   }
 
-  return { regimeId: "OTHER_FLOW", regimeLabel: "Variable Airflow" };
+  const fallbackId = regionConfig.id === "maremma" ? "MAREMMA_OTHER" : "OTHER_FLOW";
+  return { regimeId: fallbackId, regimeLabel: "Variable Airflow" };
 }
 
 /**

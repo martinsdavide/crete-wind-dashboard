@@ -14,4 +14,16 @@ export const MaremmaRegion: RegionConfig = {
   defaultSpotId: "talamone",
   explanationRules: MaremmaExplanationRules,
   defaultRiderPreferences: DEFAULT_RIDER_PREFERENCES,
+  observationEvidenceProfiles: [
+    {
+      id: "maremma-thermal-breeze",
+      evidenceType: "THERMAL_SUPPORT",
+      directionSectors: [{ fromDeg: 210, toDeg: 320 }],
+    },
+    {
+      id: "maremma-maestrale-synoptic",
+      evidenceType: "SYNOPTIC_SUPPORT",
+      directionSectors: [{ fromDeg: 290, toDeg: 340 }],
+    },
+  ],
 };

@@ -48,14 +48,17 @@ export async function GET(request: NextRequest) {
   for (let i = 0; i < hoursCount; i++) {
     const rawWinds: number[] = [];
     const rawDirs: number[] = [];
+    const rawGusts: number[] = [];
     const precip12hs: number[] = [];
     const currPrecips: number[] = [];
 
     for (const w of availableWeather) {
       const spd = w.hourly.wind_speed_10m[i];
       const dir = w.hourly.wind_direction_10m[i];
+      const gst = w.hourly.wind_gusts_10m ? w.hourly.wind_gusts_10m[i] : undefined;
       if (spd !== undefined) rawWinds.push(spd);
       if (dir !== undefined) rawDirs.push(dir);
+      if (gst !== undefined) rawGusts.push(gst);
 
       if (w.hourly.precipitation) {
         const start12 = Math.max(0, i - 11);
@@ -72,6 +75,13 @@ export async function GET(request: NextRequest) {
       rawWinds.length > 0
         ? rawWinds.reduce((a, b) => a + b, 0) / rawWinds.length
         : 12;
+
+    const meanGust =
+      rawGusts.length > 0
+        ? rawGusts.reduce((a, b) => a + b, 0) / rawGusts.length
+        : meanRawWind;
+
+    const gustFactor = meanRawWind > 0 ? meanGust / meanRawWind : 1.0;
 
     let sinSum = 0;
     let cosSum = 0;
@@ -109,6 +119,7 @@ export async function GET(request: NextRequest) {
       precipitation12hMm: mean12hPrecip,
       currentPrecipitationMm: meanCurrPrecip,
       localHour,
+      gustFactor,
     });
 
     hourlyRegimes.push(regimeId);
@@ -120,6 +131,8 @@ export async function GET(request: NextRequest) {
       ? (await import("@/engine/observations/bindings/comoLakeBindings")).COMO_LAKE_STATION_BINDINGS
       : regionConfig.id === "garda-lake"
       ? (await import("@/engine/observations/bindings/gardaLakeBindings")).GARDA_LAKE_STATION_BINDINGS
+      : regionConfig.id === "maremma"
+      ? (await import("@/engine/observations/bindings/maremmaBindings")).MAREMMA_STATION_BINDINGS
       : null;
 
   let observations: Record<string, any> = {};

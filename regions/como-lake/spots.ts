@@ -99,11 +99,13 @@ export const ComoLakeSpots: RegionSpotConfig[] = [
         ],
         minThermalStrength: 0.05,
       },
-      postRainBoost: {
-        enabled: true,
-        maxBoost: 0.20,
-        minPrecipitation12hMm: 1.0,
-      },
+      conditionalBoosts: [
+        {
+          applicableRegimeIds: ["COMO_POST_RAIN_NORTH"],
+          minRecentPrecipitation: 1.0,
+          boostAmount: 0.20,
+        },
+      ],
     },
     lakeProfile: {
       fetchByDirectionKm: { N: 14, NNE: 16, NE: 10, ENE: 6, NNW: 8, S: 2 },

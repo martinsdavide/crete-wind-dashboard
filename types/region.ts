@@ -42,14 +42,19 @@ export interface FixedThermalBoostConfig {
 export interface DynamicThermalBoostConfig {
   model: "DYNAMIC";
   enabled?: boolean;
-  maxBoost: number; // e.g. 0.20
+  maxBoost?: number; // e.g. 0.20
   monthFactors?: Record<number, number>; // 1-12 -> 0-1
   timeProfile?: { hour: number; factor: number }[]; // [{ hour: 11, factor: 0.10 }, ...]
   directionFactors?: Partial<Record<WindDirection, number>>;
   defaultDirectionFactor?: number;
   synopticWindCurve?: { wind: number; factor: number }[]; // [{ wind: 0, factor: 0.20 }, ...]
   cloudCoverCurve?: { cloud: number; factor: number }[]; // [{ cloud: 0, factor: 1.0 }, ...]
+  solarRadiationCurve?: { solar: number; factor: number }[]; // [{ solar: 0, factor: 1.0 }, ...]
   minThermalStrength?: number;
+  correctionMode?: "MULTIPLICATIVE" | "ADDITIVE" | "HYBRID";
+  maxMultiplicativeBoost?: number;
+  maxAdditiveBoostKt?: number;
+  minimumConfidenceForCorrection?: number;
 }
 
 export type DiurnalThermalBoostConfig = FixedThermalBoostConfig | DynamicThermalBoostConfig;
@@ -65,6 +70,13 @@ export interface ThermalEvaluation {
     synopticWind: number;
     solar: number;
   };
+  state?: "ABSENT" | "BUILDING" | "ACTIVE" | "DECAYING" | "UNKNOWN";
+  confidence?: number;
+  correctionMode?: "MULTIPLICATIVE" | "ADDITIVE" | "HYBRID";
+  additiveBoostKt?: number;
+  multiplicativeBoost?: number;
+  contributingFactors?: string[];
+  limitingFactors?: string[];
 }
 
 export interface OperatingWindow {
@@ -84,6 +96,20 @@ export interface SpotLakeProfile {
   extremeThresholdKt: number;
 }
 
+export interface ConditionalBoost {
+  applicableRegimeIds: string[];
+  localTimeWindow?: { startHour: number; endHour: number };
+  allowedDirectionSectors?: { fromDeg: number; toDeg: number }[];
+  minModelWind?: number;
+  maxModelWind?: number;
+  minRecentPrecipitation?: number; // e.g. precipitation12hMm
+  maxCurrentPrecipitation?: number; // e.g. precipitationMm
+  maxAdditiveBoost?: number; // factor boost
+  maxMultiplicativeBoost?: number;
+  boostAmount?: number;
+  confidencePenalty?: number;
+}
+
 export interface SpotLocalCorrectionConfig {
   baseCorrectionFactor: number;
   minFactor: number;
@@ -96,6 +122,7 @@ export interface SpotLocalCorrectionConfig {
     maxBoost?: number; // e.g. 0.20
     minPrecipitation12hMm?: number; // e.g. 1.0
   };
+  conditionalBoosts?: ConditionalBoost[];
   directionModifiers?: Partial<Record<WindDirection, number>>;
   directionDeflections?: Partial<Record<WindDirection, WindDirection>>;
 }
@@ -173,6 +200,17 @@ export interface RegionMetadata {
   };
 }
 
+export interface ObservationEvidenceProfile {
+  id: string;
+  evidenceType: "THERMAL_SUPPORT" | "SYNOPTIC_SUPPORT" | "POST_RAIN_SUPPORT" | "CONVECTIVE_RISK" | "REGIME_CONTRADICTION";
+  directionSectors: { fromDeg: number; toDeg: number }[];
+  localTimeWindow?: { startHour: number; endHour: number };
+  applicableRegimeIds?: string[];
+  minimumMeanWind?: number;
+  minimumPersistence?: number;
+  requiredStationRoles?: string[];
+}
+
 export interface RegionConfig {
   id: string;
   metadata: RegionMetadata;
@@ -182,4 +220,5 @@ export interface RegionConfig {
   defaultSpotId: string;
   explanationRules: ExplanationTemplateRule[];
   defaultRiderPreferences?: RiderPreferences;
+  observationEvidenceProfiles?: ObservationEvidenceProfile[];
 }

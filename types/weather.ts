@@ -21,10 +21,12 @@ export type WindDirection =
 export type WindClassification =
   | "LOW"
   | "LIGHT"
+  | "MODERATE"
   | "GOOD"
   | "GREAT"
   | "STRONG"
-  | "VERY STRONG";
+  | "VERY STRONG"
+  | "GALE";
 
 export type ForecastConfidenceLevel = "HIGH" | "MEDIUM" | "LOW";
 
@@ -104,6 +106,14 @@ export interface HourlyWind {
   precipitation6hMm?: number; // rolling 6h precipitation (mm)
   precipitation12hMm?: number; // rolling 12h precipitation (mm)
   lakeStateSource?: "LAKE_WIND_DERIVED" | "LOCAL_OBSERVATION" | "MANUAL_CALIBRATION";
+  thermal?: {
+    state: "ABSENT" | "BUILDING" | "ACTIVE" | "DECAYING" | "UNKNOWN";
+    strength: number;
+    confidence: number;
+    additiveBoostKt: number;
+    multiplicativeBoost: number;
+  };
+  observationFusion?: import("@/engine/observations/types").ObservationFusionResult;
 }
 
 export type GustinessLabel =

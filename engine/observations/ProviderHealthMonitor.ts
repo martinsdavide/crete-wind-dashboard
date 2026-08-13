@@ -3,9 +3,11 @@ import { StationRegistry } from "./StationRegistry";
 import { ObservationQualityControl } from "./ObservationQualityControl";
 import { COMO_LAKE_STATION_BINDINGS } from "./bindings/comoLakeBindings";
 import { GARDA_LAKE_STATION_BINDINGS } from "./bindings/gardaLakeBindings";
+import { MAREMMA_STATION_BINDINGS } from "./bindings/maremmaBindings";
 import { LombardiaOpenDataAdapter } from "./providers/LombardiaOpenDataAdapter";
 import { MeteotrentinoAdapter } from "./providers/MeteotrentinoAdapter";
 import { MeteoSwissAdapter } from "./providers/MeteoSwissAdapter";
+import { SiarAdapter } from "./providers/SiarAdapter";
 
 export type OverallHealthStatus = "healthy" | "degraded" | "unavailable";
 export type StationHealthStatus = "fresh" | "suspect" | "stale" | "invalid" | "unavailable";
@@ -78,6 +80,7 @@ export class ProviderHealthMonitor {
     const allBindings = {
       ...COMO_LAKE_STATION_BINDINGS,
       ...GARDA_LAKE_STATION_BINDINGS,
+      ...MAREMMA_STATION_BINDINGS,
     };
 
     // Calculate station bindings metadata
@@ -256,6 +259,58 @@ export class ProviderHealthMonitor {
       errorCode: swissStatus === "healthy" ? undefined : swissErrorCode,
       errorMessage: swissStatus === "healthy" ? undefined : swissError,
       stations: swissStationReports,
+    });
+
+    // --- 4. SIAR Toscana ---
+    const siarStart = Date.now();
+    let siarStatus: OverallHealthStatus = "unavailable";
+    let siarError: string | undefined;
+    let siarErrorCode: string | undefined;
+    let siarObs: Record<string, WeatherObservation | null> = {};
+
+    try {
+      siarObs = await SiarAdapter.fetchLatestObservations(
+        { TOS01_Grosseto: "siar:marina_grosseto", TOS02_Talamone: "siar:talamone_sentinel" },
+        referenceTime,
+        3000,
+        requestId
+      );
+    } catch (e: any) {
+      siarError = e?.message || "Connection failed";
+      siarErrorCode = "PROVIDER_HTTP_ERROR";
+    }
+    const siarDuration = Date.now() - siarStart;
+
+    const siarStationIds = ["siar:marina_grosseto", "siar:talamone_sentinel"];
+    const siarStationReports = siarStationIds.map((stId) =>
+      this.evaluateStationHealth(stId, siarObs[stId] || null, stationBindingsMeta[stId], referenceTime)
+    );
+
+    const siarAnySuccess = siarStationReports.some((s) => s.testLevels.level1_connectivity);
+    const siarAllFresh = siarStationReports.every((s) => s.status === "fresh");
+
+    if (siarAllFresh) {
+      siarStatus = "healthy";
+      this.lastSuccessMap.set("siar-toscana", referenceTime.toISOString());
+    } else if (siarAnySuccess) {
+      siarStatus = "degraded";
+      this.lastSuccessMap.set("siar-toscana", referenceTime.toISOString());
+    } else {
+      siarStatus = "unavailable";
+      siarErrorCode = siarErrorCode || "PROVIDER_TIMEOUT";
+      siarError = siarError || "No station observations retrieved";
+    }
+
+    providersReport.push({
+      provider: "siar-toscana",
+      displayName: "SIR Toscana Open Data",
+      status: siarStatus,
+      responseTimeMs: siarDuration,
+      lastAttemptAt: referenceTime.toISOString(),
+      lastSuccessAt: this.lastSuccessMap.get("siar-toscana") || null,
+      errorCode: siarStatus === "healthy" ? undefined : siarErrorCode,
+      errorMessage: siarStatus === "healthy" ? undefined : siarError,
+      stations: siarStationReports,
     });
 
     // Overall System Status

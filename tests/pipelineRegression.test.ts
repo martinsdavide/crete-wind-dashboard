@@ -10,7 +10,7 @@ describe("Regression Validation: Generic Normalization & Recommendation Pipeline
   const tendaConfig = EasternCreteRegion.spots.find((s) => s.id === "tenda")!;
   const xerokamposConfig = EasternCreteRegion.spots.find((s) => s.id === "xerokampos")!;
 
-  function generateSampleMeltemiRawData(baseSpeed: number, baseDirection: number): OpenMeteoRawResponse {
+  function generateSampleMeltemiRawData(baseSpeed: number, baseDirection: number): any {
     const times: string[] = [];
     const windSpeeds: number[] = [];
     const windDirs: number[] = [];

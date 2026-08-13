@@ -59,12 +59,26 @@ export class ObservationFusionEngine {
       };
     }
 
+    let evidenceProfiles: any[] = [];
+    if (regionId && regionId !== "unknown") {
+      try {
+        const { getRegion } = require("@/regions/registry");
+        const regionConfig = getRegion(regionId);
+        if (regionConfig && regionConfig.observationEvidenceProfiles) {
+          evidenceProfiles = regionConfig.observationEvidenceProfiles;
+        }
+      } catch (e) {
+        console.warn("Could not load regionConfig for evidence extraction:", e);
+      }
+    }
+
     const features = ObservationFeatureExtractor.extractFeatures(
       bindings,
       observations,
       forecastModelSpeedKt,
       forecastModelDirDeg,
-      referenceTime
+      referenceTime,
+      evidenceProfiles
     );
 
     const contributors: StationContribution[] = [];
@@ -175,6 +189,11 @@ export class ObservationFusionEngine {
         reasons.push("STATION_DIRECTION_MISMATCH");
       }
 
+      if (features.hasSpeedConflict || features.hasDirectionConflict) {
+        confidenceAdjustment -= 0.15 * features.observationCoverage;
+        reasons.push("OBSERVATION_SPEED_DISCREPANCY");
+      }
+
       // Regime / Thermal Confirmation
       if (features.thermalSupportEvidence >= 0.70) {
         reasons.push("THERMAL_ONSET_CONFIRMED");
@@ -212,6 +231,7 @@ export class ObservationFusionEngine {
       },
       contributors,
       reasons: reasons.length > 0 ? reasons : ["OBSERVATIONS_STANDBY"],
+      evidenceTypes: features.evidenceTypes,
     };
 
     if (requestId) {

@@ -21,4 +21,16 @@ export const GardaLakeRegion: RegionConfig = {
   regimes: GardaLakeRegimes,
   defaultSpotId: "pra-de-la-fam",
   explanationRules: GardaLakeExplanationRules,
+  observationEvidenceProfiles: [
+    {
+      id: "garda-ora-thermal",
+      evidenceType: "THERMAL_SUPPORT",
+      directionSectors: [{ fromDeg: 140, toDeg: 230 }],
+    },
+    {
+      id: "garda-peler-north",
+      evidenceType: "SYNOPTIC_SUPPORT",
+      directionSectors: [{ fromDeg: 330, toDeg: 40 }],
+    },
+  ],
 };
