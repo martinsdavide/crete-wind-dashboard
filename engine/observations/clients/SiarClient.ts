@@ -2,21 +2,24 @@ import { ObservationLogger } from "../ObservationLogger";
 import { ProviderFetchResult } from "./LombardiaClient";
 
 export interface SiarSensorRow {
+  schemaVersion?: string | number;
+  provider?: string;
+  retrievedAt?: string;
   station_code: string;
   timestamp: string;
   wind_speed_ms: number;
   wind_gust_ms: number;
   wind_direction_deg: number;
-  temperature_c: number;
-  precipitation_mm: number;
+  temperature_c?: number;
+  precipitation_mm?: number;
 }
 
 export class SiarClient {
   /**
-   * Fetches live sensor rows from the SIR Toscana (SIAR) open-data API.
+   * Fetches live sensor rows from the SIR Toscana / SIAR open-data API.
    *
    * FAIL-CLOSED CONTRACT:
-   *   - If SIAR_API_URL is not configured, returns { success: false } immediately.
+   *   - If SIR_TOSCANA_API_URL (or legacy SIAR_API_URL) is not configured, returns { success: false, errorCode: "PROVIDER_NOT_CONFIGURED" } immediately.
    *     No network call is attempted. No synthetic data is returned. No timestamp is generated.
    *   - If the request times out or the provider returns a non-2xx status, returns { success: false }.
    *   - Never returns fabricated rows. Any data in the result comes from the live API only.
@@ -26,7 +29,8 @@ export class SiarClient {
     timeoutMs = 3000,
     requestId: string = `req_${Date.now()}`
   ): Promise<ProviderFetchResult<SiarSensorRow[]>> {
-    const apiUrl = process.env.SIAR_API_URL;
+    const apiUrl = process.env.SIR_TOSCANA_API_URL || process.env.SIAR_API_URL;
+    const apiToken = process.env.SIR_TOSCANA_API_TOKEN;
 
     // Fail closed: if the integration is not configured, return immediately without any I/O.
     if (!apiUrl || apiUrl.trim() === "") {
@@ -34,12 +38,13 @@ export class SiarClient {
         success: false,
         httpStatus: 0,
         responseTimeMs: 0,
+        errorCode: "PROVIDER_NOT_CONFIGURED",
         error: "SIAR_NOT_CONFIGURED",
         data: null,
       };
     }
 
-    ObservationLogger.logRequest("siar-toscana", requestId);
+    ObservationLogger.logRequest("sir-toscana", requestId);
     const startTime = Date.now();
 
     const controller = new AbortController();
@@ -52,12 +57,17 @@ export class SiarClient {
         url.searchParams.append("station", id);
       }
 
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+        "User-Agent": "SpotPilot/1.0",
+      };
+      if (apiToken && apiToken.trim().length > 0) {
+        headers["Authorization"] = `Bearer ${apiToken.trim()}`;
+      }
+
       const response = await fetch(url.toString(), {
         method: "GET",
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "SpotPilot/1.0",
-        },
+        headers,
         signal: controller.signal,
       });
 

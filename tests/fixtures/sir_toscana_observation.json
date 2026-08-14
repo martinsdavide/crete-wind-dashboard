@@ -1,0 +1,26 @@
+[
+  {
+    "schemaVersion": "1",
+    "provider": "SIR Toscana / Settore Idrologico Regionale",
+    "retrievedAt": "2026-08-14T14:18:00.000Z",
+    "station_code": "TOS01_Grosseto",
+    "timestamp": "2026-08-14T16:15:00",
+    "wind_speed_ms": 7.2,
+    "wind_gust_ms": 9.8,
+    "wind_direction_deg": 240,
+    "temperature_c": 27.5,
+    "precipitation_mm": 0.0
+  },
+  {
+    "schemaVersion": "1",
+    "provider": "SIR Toscana / Settore Idrologico Regionale",
+    "retrievedAt": "2026-08-14T14:18:00.000Z",
+    "station_code": "TOS02_Talamone",
+    "timestamp": "2026-08-14T16:15:00",
+    "wind_speed_ms": 9.5,
+    "wind_gust_ms": 12.4,
+    "wind_direction_deg": 260,
+    "temperature_c": 26.8,
+    "precipitation_mm": 0.0
+  }
+]

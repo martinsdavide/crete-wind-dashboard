@@ -269,10 +269,11 @@ export class ProviderHealthMonitor {
     let siarObs: Record<string, WeatherObservation | null> = {};
 
     // Check configuration before attempting any network call
-    if (!process.env.SIAR_API_URL || process.env.SIAR_API_URL.trim() === "") {
+    const sirUrl = process.env.SIR_TOSCANA_API_URL || process.env.SIAR_API_URL;
+    if (!sirUrl || sirUrl.trim() === "") {
       siarStatus = "not_configured";
       siarErrorCode = "SIAR_NOT_CONFIGURED";
-      siarError = "SIAR_API_URL environment variable is not set";
+      siarError = "SIR_TOSCANA_API_URL environment variable is not set";
     } else {
       try {
         siarObs = await SiarAdapter.fetchLatestObservations(
