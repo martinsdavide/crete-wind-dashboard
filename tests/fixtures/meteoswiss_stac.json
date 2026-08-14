@@ -1,0 +1,20 @@
+{
+  "id": "ch.meteoschweiz.ogd-smn",
+  "type": "Collection",
+  "stac_version": "1.0.0",
+  "description": "Automatic weather stations standard measurements (SMN)",
+  "links": [
+    {
+      "rel": "item",
+      "type": "text/csv",
+      "href": "https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/ch.meteoschweiz.ogd-smn_en.csv"
+    }
+  ],
+  "assets": {
+    "data": {
+      "href": "https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/ch.meteoschweiz.ogd-smn_en.csv",
+      "type": "text/csv",
+      "title": "Current 10-min all stations SMN measurements CSV"
+    }
+  }
+}
