@@ -137,6 +137,8 @@ export interface RegionSpotConfig {
   idealDirections: WindDirection[];
   idealDirectionDegrees?: [number, number];
   minPlaningWind: number; // default 11 kt
+  minWindSpeedKt?: number;
+  maxWindSpeedKt?: number;
   idealWindMin: number;   // e.g. 18 kt
   idealWindMax: number;   // e.g. 26 kt
   comfortCeilingWind: number; // e.g. 30 kt

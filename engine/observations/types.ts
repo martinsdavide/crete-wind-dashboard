@@ -64,11 +64,31 @@ export interface WeatherObservation {
   rawReference?: string;
 }
 
+export type ObservationFreshness =
+  | "FRESH"
+  | "DELAYED"
+  | "STALE"
+  | "FUTURE_INVALID";
+
+export interface ObservationCoverageBreakdown {
+  overall: number;
+  windSpeed: number;
+  windGust: number;
+  windDirection: number;
+  currentCondition: number;
+  regimeDetection: number;
+  thermalContext: number;
+  rainContext: number;
+  confidence: number;
+}
+
 export interface SpotStationBinding {
   stationId: string;
   role: StationRole;
   baseWeight: number; // 0.0 to 1.0
   maxAgeMinutes: number;
+  delayedUseUntilMinutes?: number;
+  delayedUsePolicy?: "NONE" | "DECAYED_PERSISTENCE";
   /** If set, this binding is only active when the named environment variable is configured. */
   requiresEnv?: string;
   /** If set, this binding is active when ANY of the named environment variables are configured. */
@@ -102,7 +122,6 @@ export function isBindingConfigured(binding: SpotStationBinding): boolean {
   return true;
 }
 
-
 export interface StationContribution {
   stationId: string;
   stationName: string;
@@ -119,7 +138,13 @@ export interface StationContribution {
 
 export interface ObservationFusionResult {
   status: "available" | "partial" | "stale" | "unavailable" | "conflicting";
-  observationCoverage: number; // 0.0 to 1.0
+  observationCoverage: number; // 0.0 to 1.0 (compatibility alias for coverage.overall)
+  coverage: ObservationCoverageBreakdown;
+  windFusionStatus: "available" | "degraded" | "stale" | "unavailable";
+  contextFusionStatus: "available" | "partial" | "unavailable";
+  windObservationUsed: boolean;
+  directionObservationUsed: boolean;
+  regimeObservationUsed: boolean;
   latestObservedAt: string | null;
   correctedWindSpeedKt: number;
   correctedWindGustKt: number;
@@ -139,3 +164,4 @@ export interface ObservationFusionResult {
   reasons: string[];
   evidenceTypes?: string[];
 }
+

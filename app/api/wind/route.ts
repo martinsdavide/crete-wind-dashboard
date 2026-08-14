@@ -367,16 +367,42 @@ export async function GET(request: NextRequest) {
   regionConfig.spots.forEach((spot) => {
     const res = spotsResults[spot.id];
     if (res && res.status === "ok") {
-      const isFused =
-        !!res.data.observationFusion &&
-        (res.data.observationFusion.status === "available" || res.data.observationFusion.status === "partial");
+      const fusion = res.data.observationFusion;
+      let weatherInput: import("@/engine/observations/ObservationLogger").WeatherInputType = "forecast-only";
+
+      if (fusion) {
+        if (fusion.windObservationUsed && fusion.windFusionStatus === "available") {
+          weatherInput = "fresh-observation-adjusted";
+        } else if (fusion.windObservationUsed && fusion.windFusionStatus === "degraded") {
+          weatherInput = "delayed-observation-adjusted";
+        } else if (fusion.coverage.overall > 0 && !fusion.windObservationUsed) {
+          weatherInput = "observation-context-only";
+        } else if (fusion.status === "stale") {
+          weatherInput = "stale-observation-ignored";
+        }
+      }
+
+      const mainContrib = fusion?.contributors.find(
+        (c) => c.effectsApplied.includes("speed-bias") || c.effectsApplied.includes("current-condition")
+      );
+
       ObservationLogger.logRecommendation(
         regionConfig.id,
         spot.id,
-        isFused ? "observation-adjusted" : "forecast-only",
+        weatherInput,
         res.data.current.localWind,
-        res.data.observationFusion?.status || "unavailable",
-        requestId
+        fusion?.status || "unavailable",
+        requestId,
+        {
+          mode: recommendation.bestSpot === spot.id ? recommendation.mode : undefined,
+          forecastWindKt: preFusionCurrents[spot.id]?.localWind ?? res.data.current.localWind,
+          observedWindKt: mainContrib?.observedWindKt ?? undefined,
+          effectiveWindKt: res.data.current.localWind,
+          nowScore: res.data.current.sessionQualityScore,
+          forecastDailyScore: res.data.days?.[0]?.score ?? 0,
+          observationAgeMinutes: mainContrib?.ageMinutes,
+          validUntil: recommendation.bestSpot === spot.id ? recommendation.validUntil : undefined,
+        }
       );
     }
   });

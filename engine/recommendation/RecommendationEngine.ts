@@ -369,35 +369,163 @@ export class RecommendationEngine {
       bestWindow: BestWindow | null;
       hasEligibleSession: boolean;
       style: WaterState;
+      recommendationMode: "NOW" | "FORECAST_WINDOW" | "NONE";
+      evidence: import("@/types/weather").RecommendationEvidence | null;
+      observationAgeMinutes?: number;
+      observationFreshness?: import("@/engine/observations/types").ObservationFreshness;
+      validUntil?: string;
     }
 
     const candidates: SpotCandidate[] = [];
     const minWindowHours = SCORING_CONFIG.bestWindow?.minConsecutiveHours || 2;
 
     for (const spot of regionConfig.spots) {
+      const forecast = validForecasts[spot.id];
       const summary = summaries[spot.id];
-      if (!summary) continue;
+      if (!summary || !forecast) continue;
 
       const score = summary.score ?? 0;
       const bestWin = summary.bestWindow ?? null;
       const winDuration = bestWin?.durationHours ?? 0;
 
-      // A spot has an eligible session if its best window meets the minimum continuous window
-      // and quality score >= 60, regardless of the dominant daily state (e.g. even if morning was calm).
-      const hasEligibleSession =
+      // Evaluate NOW suitability
+      const current = forecast.current;
+      const fusion = forecast.observationFusion ?? forecast.current?.observationFusion;
+
+      let hasNowSession = false;
+      let nowEvidence: import("@/types/weather").RecommendationEvidence = "FORECAST_NOW";
+      let obsAgeMinutes: number | undefined = undefined;
+      let obsFreshness: import("@/engine/observations/types").ObservationFreshness | undefined = undefined;
+      let nowPersistenceMinutes = 60;
+
+      const spotMinWind = spot.minWindSpeedKt ?? 11;
+      const spotMaxWind = spot.maxWindSpeedKt ?? 40;
+
+      if (
+        current &&
+        current.eligibility !== "UNSUITABLE" &&
+        current.sessionQualityScore >= 60 &&
+        current.localWind >= spotMinWind &&
+        current.localWind <= spotMaxWind
+      ) {
+        if (fusion && fusion.windObservationUsed) {
+          const mainObsContrib = fusion.contributors.find(
+            (c) => c.effectsApplied.includes("speed-bias") || c.effectsApplied.includes("current-condition")
+          );
+          obsAgeMinutes = mainObsContrib?.ageMinutes ?? (fusion.latestObservedAt ? Math.round((referenceDate.getTime() - new Date(fusion.latestObservedAt).getTime()) / 60000) : 0);
+
+          if (fusion.windFusionStatus === "available") {
+            nowEvidence = "FRESH_OBSERVATION";
+            obsFreshness = "FRESH";
+            nowPersistenceMinutes = Math.max(30, Math.min(90, 90 - (obsAgeMinutes ?? 0)));
+          } else if (fusion.windFusionStatus === "degraded") {
+            nowEvidence = "DELAYED_OBSERVATION";
+            obsFreshness = "DELAYED";
+            nowPersistenceMinutes = Math.max(15, Math.min(45, 90 - (obsAgeMinutes ?? 0)));
+          } else {
+            nowEvidence = "FORECAST_NOW";
+          }
+          hasNowSession = true;
+        } else if (current.localWind >= spotMinWind) {
+          nowEvidence = "FORECAST_NOW";
+          hasNowSession = true;
+          nowPersistenceMinutes = 60;
+        }
+      }
+
+      let nowWindow: BestWindow | null = null;
+      let validUntilIso: string | undefined = undefined;
+
+      if (hasNowSession && current) {
+        const validUntilDate = new Date(referenceDate.getTime() + nowPersistenceMinutes * 60 * 1000);
+        validUntilIso = validUntilDate.toISOString();
+
+        const formatTime = (d: Date) => {
+          try {
+            return new Intl.DateTimeFormat("en-GB", {
+              timeZone: regionConfig.timezone || "Europe/Athens",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            }).format(d);
+          } catch {
+            return d.toISOString().substring(11, 16);
+          }
+        };
+
+        nowWindow = {
+          start: formatTime(referenceDate),
+          end: formatTime(validUntilDate),
+          startIso: referenceDate.toISOString(),
+          endIso: validUntilIso,
+          durationHours: Math.round((nowPersistenceMinutes / 60) * 100) / 100,
+          minWind: current.localWind,
+          maxWind: current.localGust,
+          dominantDirection: current.directionLabel,
+          dominantDirectionDegrees: current.directionDegrees,
+          meanScore: current.sessionQualityScore,
+          score: current.sessionQualityScore,
+          sailingStyle: current.waterState,
+          condition: current.condition,
+          evidence: nowEvidence,
+        };
+      }
+
+      // Populate todayCurrentOverlay on forecast
+      if (current) {
+        forecast.todayCurrentOverlay = {
+          currentScore: current.sessionQualityScore,
+          currentCondition: current.condition,
+          currentEligibility: current.eligibility,
+          currentWaterState: current.waterState,
+          currentWindow: nowWindow,
+          source: nowEvidence,
+        };
+      }
+
+      const hasForecastSession =
         score >= 60 &&
         bestWin !== null &&
         winDuration >= minWindowHours &&
         spotScores[spot.id] !== 0;
 
-      candidates.push({
-        id: spot.id,
-        name: spot.name,
-        score,
-        bestWindow: bestWin,
-        hasEligibleSession,
-        style: summary.dominantStyle ?? spot.defaultStyle,
-      });
+      if (hasNowSession) {
+        candidates.push({
+          id: spot.id,
+          name: spot.name,
+          score: current?.sessionQualityScore ?? score,
+          bestWindow: nowWindow,
+          hasEligibleSession: true,
+          style: current?.waterState ?? summary.dominantStyle ?? spot.defaultStyle,
+          recommendationMode: "NOW",
+          evidence: nowEvidence,
+          observationAgeMinutes: obsAgeMinutes,
+          observationFreshness: obsFreshness,
+          validUntil: validUntilIso,
+        });
+      } else if (hasForecastSession) {
+        candidates.push({
+          id: spot.id,
+          name: spot.name,
+          score,
+          bestWindow: bestWin,
+          hasEligibleSession: true,
+          style: summary.dominantStyle ?? spot.defaultStyle,
+          recommendationMode: "FORECAST_WINDOW",
+          evidence: "FORECAST_WINDOW",
+        });
+      } else {
+        candidates.push({
+          id: spot.id,
+          name: spot.name,
+          score,
+          bestWindow: bestWin,
+          hasEligibleSession: false,
+          style: summary.dominantStyle ?? spot.defaultStyle,
+          recommendationMode: "NONE",
+          evidence: null,
+        });
+      }
     }
 
     // Filter qualifying session candidates
@@ -406,8 +534,22 @@ export class RecommendationEngine {
     let winner: SpotCandidate | null = null;
 
     if (qualifyingCandidates.length > 0) {
-      // Sort by highest score, then continuous window duration
+      // Sort priority: NOW mode with live/delayed observation > NOW mode forecast > FORECAST_WINDOW mode
       qualifyingCandidates.sort((a, b) => {
+        const getPriority = (c: SpotCandidate) => {
+          if (c.recommendationMode === "NOW") {
+            if (c.evidence === "FRESH_OBSERVATION") return 4;
+            if (c.evidence === "DELAYED_OBSERVATION") return 3;
+            if (c.evidence === "FORECAST_NOW") return 2;
+          }
+          if (c.recommendationMode === "FORECAST_WINDOW") return 1;
+          return 0;
+        };
+
+        const prioA = getPriority(a);
+        const prioB = getPriority(b);
+
+        if (prioB !== prioA) return prioB - prioA;
         if (b.score !== a.score) return b.score - a.score;
         const durA = a.bestWindow?.durationHours ?? 0;
         const durB = b.bestWindow?.durationHours ?? 0;
@@ -434,6 +576,12 @@ export class RecommendationEngine {
       regimeLabel,
       sailingStyle: winner ? winner.style : "BUMP_AND_JUMP",
       explanation: explanations,
+      mode: winner ? winner.recommendationMode : "NONE",
+      evidence: winner ? winner.evidence : null,
+      observationAgeMinutes: winner?.observationAgeMinutes,
+      observationFreshness: winner?.observationFreshness,
+      validUntil: winner?.validUntil,
     };
   }
 }
+

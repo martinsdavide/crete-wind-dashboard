@@ -1,4 +1,4 @@
-import { WeatherObservation, SpotStationBinding, isBindingConfigured } from "./types";
+import { WeatherObservation, SpotStationBinding, ObservationCoverageBreakdown, isBindingConfigured } from "./types";
 import { msToKnots } from "./ObservationNormalizer";
 import { ObservationQualityControl } from "./ObservationQualityControl";
 
@@ -11,6 +11,7 @@ export interface ExtractedObservationFeatures {
   totalTrustedWeight: number;
   maxConfiguredWeight: number;
   observationCoverage: number;
+  coverage: ObservationCoverageBreakdown;
   rainOvernightMm: number;
   recentPrecipitation1hMm: number;
   thermalSupportEvidence: number; // 0.0 to 1.0
@@ -91,6 +92,29 @@ export class ObservationFeatureExtractor {
 
     let totalTrustedWeight = 0;
     let maxConfiguredWeight = 0;
+
+    // Category tracking for parameter-specific coverage
+    const catMaxWeight = {
+      windSpeed: 0,
+      windGust: 0,
+      windDirection: 0,
+      currentCondition: 0,
+      regimeDetection: 0,
+      thermalContext: 0,
+      rainContext: 0,
+      confidence: 0,
+    };
+    const catTrustedWeight = {
+      windSpeed: 0,
+      windGust: 0,
+      windDirection: 0,
+      currentCondition: 0,
+      regimeDetection: 0,
+      thermalContext: 0,
+      rainContext: 0,
+      confidence: 0,
+    };
+
     let rainOvernightMm = 0;
     let recentPrecipitation1hMm = 0;
     let thermalSupportEvidence = 0.5;
@@ -102,19 +126,40 @@ export class ObservationFeatureExtractor {
         continue;
       }
       maxConfiguredWeight += binding.baseWeight;
+
+      const allowsWind =
+        binding.allowedEffects.includes("speed-bias") ||
+        binding.allowedEffects.includes("current-condition");
+
+      if (allowsWind && binding.parameters.includes("wind_speed")) catMaxWeight.windSpeed += binding.baseWeight;
+      if (allowsWind && binding.parameters.includes("wind_gust")) catMaxWeight.windGust += binding.baseWeight;
+      if (allowsWind && binding.parameters.includes("wind_direction")) catMaxWeight.windDirection += binding.baseWeight;
+      if (binding.allowedEffects.includes("current-condition")) catMaxWeight.currentCondition += binding.baseWeight;
+      if (binding.allowedEffects.includes("regime-detection")) catMaxWeight.regimeDetection += binding.baseWeight;
+      if (binding.allowedEffects.includes("thermal-context")) catMaxWeight.thermalContext += binding.baseWeight;
+      if (binding.allowedEffects.includes("rain-context")) catMaxWeight.rainContext += binding.baseWeight;
+      if (binding.allowedEffects.includes("confidence")) catMaxWeight.confidence += binding.baseWeight;
+
       const obs = observations[binding.stationId];
       if (!obs || obs.quality.status === "invalid" || obs.quality.status === "missing") {
         continue;
       }
 
-      // Check per-binding maxAgeMinutes
+      // Check per-binding maxAgeMinutes and delayed policy
+      const freshUntil = binding.maxAgeMinutes;
+      const delayedUntil = binding.delayedUseUntilMinutes ?? 90;
+      const delayedPolicy = binding.delayedUsePolicy ?? "NONE";
+
       const { ageMinutes, freshnessFactor } = ObservationQualityControl.evaluateFreshness(
         obs.observedAt,
-        referenceTime
+        referenceTime,
+        freshUntil,
+        delayedUntil,
+        delayedPolicy
       );
 
-      if (ageMinutes > binding.maxAgeMinutes || freshnessFactor <= 0) {
-        continue; // Stale beyond binding limit
+      if (freshnessFactor <= 0) {
+        continue; // Stale beyond configured policy limit
       }
 
       activeObservations.push(obs);
@@ -143,12 +188,24 @@ export class ObservationFeatureExtractor {
 
       totalTrustedWeight += effectiveWeight;
 
-      // Direct Wind Speed/Gust Correction: strictly require allowedEffects to include "speed-bias" or "current-condition"
-      const allowsSpeedBias =
-        binding.allowedEffects.includes("speed-bias") ||
-        binding.allowedEffects.includes("current-condition");
+      // Populate parameter trusted weights
+      if (allowsWind && binding.parameters.includes("wind_speed") && obs.windSpeedMs !== null) {
+        catTrustedWeight.windSpeed += effectiveWeight;
+      }
+      if (allowsWind && binding.parameters.includes("wind_gust") && obs.windGustMs !== null) {
+        catTrustedWeight.windGust += effectiveWeight;
+      }
+      if (allowsWind && binding.parameters.includes("wind_direction") && obs.windDirectionDeg !== null) {
+        catTrustedWeight.windDirection += effectiveWeight;
+      }
+      if (binding.allowedEffects.includes("current-condition")) catTrustedWeight.currentCondition += effectiveWeight;
+      if (binding.allowedEffects.includes("regime-detection")) catTrustedWeight.regimeDetection += effectiveWeight;
+      if (binding.allowedEffects.includes("thermal-context")) catTrustedWeight.thermalContext += effectiveWeight;
+      if (binding.allowedEffects.includes("rain-context")) catTrustedWeight.rainContext += effectiveWeight;
+      if (binding.allowedEffects.includes("confidence")) catTrustedWeight.confidence += effectiveWeight;
 
-      if (allowsSpeedBias && obs.windSpeedMs !== null && obs.windDirectionDeg !== null) {
+      // Direct Wind Speed/Gust Correction: strictly require allowedEffects to include "speed-bias" or "current-condition"
+      if (allowsWind && obs.windSpeedMs !== null && obs.windDirectionDeg !== null) {
         const speedKt = msToKnots(obs.windSpeedMs)!;
         directWindSamples.push({
           speed: speedKt,
@@ -157,7 +214,7 @@ export class ObservationFeatureExtractor {
         });
       }
 
-      if (allowsSpeedBias && obs.windGustMs !== null) {
+      if (allowsWind && obs.windGustMs !== null) {
         const gustKt = msToKnots(obs.windGustMs)!;
         directGustSamples.push({ gust: gustKt, weight: effectiveWeight });
       }
@@ -168,7 +225,22 @@ export class ObservationFeatureExtractor {
       }
     }
 
-    const coverage = maxConfiguredWeight > 0 ? Math.min(1.0, totalTrustedWeight / maxConfiguredWeight) : 0;
+    const overallCoverage = maxConfiguredWeight > 0 ? Math.min(1.0, totalTrustedWeight / maxConfiguredWeight) : 0;
+
+    const calcCatCov = (trusted: number, maxW: number) =>
+      maxW > 0 ? Math.round(Math.min(1.0, trusted / maxW) * 100) / 100 : 0;
+
+    const coverageBreakdown: ObservationCoverageBreakdown = {
+      overall: Math.round(overallCoverage * 100) / 100,
+      windSpeed: calcCatCov(catTrustedWeight.windSpeed, catMaxWeight.windSpeed),
+      windGust: calcCatCov(catTrustedWeight.windGust, catMaxWeight.windGust),
+      windDirection: calcCatCov(catTrustedWeight.windDirection, catMaxWeight.windDirection),
+      currentCondition: calcCatCov(catTrustedWeight.currentCondition, catMaxWeight.currentCondition),
+      regimeDetection: calcCatCov(catTrustedWeight.regimeDetection, catMaxWeight.regimeDetection),
+      thermalContext: calcCatCov(catTrustedWeight.thermalContext, catMaxWeight.thermalContext),
+      rainContext: calcCatCov(catTrustedWeight.rainContext, catMaxWeight.rainContext),
+      confidence: calcCatCov(catTrustedWeight.confidence, catMaxWeight.confidence),
+    };
 
     let weightedWindSpeedKt: number | null = null;
     let circularMeanDirectionDeg: number | null = null;
@@ -352,7 +424,8 @@ export class ObservationFeatureExtractor {
       directionErrorDeg,
       totalTrustedWeight,
       maxConfiguredWeight,
-      observationCoverage: Math.round(coverage * 100) / 100,
+      observationCoverage: coverageBreakdown.overall,
+      coverage: coverageBreakdown,
       rainOvernightMm: Math.round(rainOvernightMm * 10) / 10,
       recentPrecipitation1hMm: Math.round(recentPrecipitation1hMm * 10) / 10,
       thermalSupportEvidence: Math.round(thermalSupportEvidence * 100) / 100,

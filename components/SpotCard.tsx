@@ -71,10 +71,16 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
 
   const isUnsuitable = current.eligibility === "UNSUITABLE";
 
-  const isStationFused =
-    !!forecast.observationFusion &&
-    (forecast.observationFusion.status === "available" || forecast.observationFusion.status === "partial") &&
-    (forecast.observationFusion.contributors?.length ?? 0) > 0;
+  const fusion = forecast.observationFusion;
+  const isWindFused = fusion?.windObservationUsed && fusion?.windFusionStatus === "available";
+  const isWindDelayed = fusion?.windObservationUsed && fusion?.windFusionStatus === "degraded";
+  const isContextOnly = fusion && fusion.coverage.overall > 0 && !fusion.windObservationUsed;
+  const isStale = fusion && fusion.status === "stale";
+  const isStationFused = isWindFused || isWindDelayed || isContextOnly;
+
+  const obsAgeMins = fusion?.contributors[0]?.observedAt
+    ? Math.max(0, Math.round((Date.now() - new Date(fusion.contributors[0].observedAt).getTime()) / 60000))
+    : null;
 
   return (
     <div
@@ -89,9 +95,9 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
             <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">
               NOW
             </span>
-            {isStationFused && (
+            {isWindFused && (
               <span
-                title={`Data fused from weather station: ${forecast.observationFusion?.contributors?.map((c) => c.stationName).join(", ")}`}
+                title={`Data fused from live station: ${fusion?.contributors?.map((c) => c.stationName).join(", ")}`}
                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-950/90 text-emerald-300 border border-emerald-500/40 shadow-sm"
               >
                 <span className="relative flex h-2 w-2">
@@ -100,6 +106,24 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
                 </span>
                 <Radio className="w-3 h-3 text-emerald-400" />
                 <span>LIVE STATION</span>
+              </span>
+            )}
+            {isWindDelayed && (
+              <span
+                title={`Station feed delayed (${obsAgeMins ?? 0}m old). Decayed persistence applied.`}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-950/90 text-amber-300 border border-amber-500/40 shadow-sm"
+              >
+                <Radio className="w-3 h-3 text-amber-400" />
+                <span>DELAYED STATION — {obsAgeMins ?? 0}M OLD</span>
+              </span>
+            )}
+            {isStale && (
+              <span
+                title="Station observation feed exceeds freshness threshold and was not used for wind scoring."
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-slate-900/90 text-slate-400 border border-slate-700/40 shadow-sm"
+              >
+                <Radio className="w-3 h-3 text-slate-500" />
+                <span>STALE STATION — NOT USED</span>
               </span>
             )}
           </div>
@@ -123,27 +147,31 @@ export const SpotCard: React.FC<SpotCardProps> = ({ result }) => {
       </div>
 
       {/* Live Station Callout Banner */}
-      {isStationFused && forecast.observationFusion && (
-        <div className="mb-3 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-200 shadow-sm">
+      {isStationFused && fusion && (
+        <div className={`mb-3 p-2.5 rounded-xl border flex items-center justify-between text-xs shadow-sm ${
+          isWindDelayed ? "bg-amber-950/40 border-amber-500/30 text-amber-200" : "bg-emerald-950/40 border-emerald-500/30 text-emerald-200"
+        }`}>
           <div className="flex items-center gap-2 overflow-hidden">
-            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse flex-shrink-0" />
+            <Radio className={`w-3.5 h-3.5 flex-shrink-0 ${isWindDelayed ? "text-amber-400" : "text-emerald-400 animate-pulse"}`} />
             <div className="truncate text-[11px]">
-              <span className="text-emerald-400 font-semibold uppercase tracking-wider text-[10px] mr-1">
-                LIVE OBS:
+              <span className={`font-semibold uppercase tracking-wider text-[10px] mr-1 ${isWindDelayed ? "text-amber-400" : "text-emerald-400"}`}>
+                {isWindDelayed ? "DELAYED OBS:" : "LIVE OBS:"}
               </span>
               <span className="font-semibold text-white">
-                {forecast.observationFusion.contributors.map((c) => c.stationName).join(", ")}
+                {fusion.contributors.map((c) => c.stationName).join(", ")}
               </span>
-              {forecast.observationFusion.contributors[0]?.observedAt && (
-                <span className="text-emerald-400/80 text-[10px] ml-1">
-                  ({Math.max(0, Math.round((Date.now() - new Date(forecast.observationFusion.contributors[0].observedAt).getTime()) / 60000))}m ago)
+              {obsAgeMins !== null && (
+                <span className={`text-[10px] ml-1 ${isWindDelayed ? "text-amber-400/80" : "text-emerald-400/80"}`}>
+                  ({obsAgeMins}m ago)
                 </span>
               )}
             </div>
           </div>
-          {forecast.observationFusion.contributors[0]?.observedWindKt !== null && forecast.observationFusion.contributors[0]?.observedWindKt !== undefined && (
-            <span className="text-[10px] font-mono text-emerald-300 bg-emerald-900/60 border border-emerald-500/30 px-2 py-0.5 rounded-md flex-shrink-0 ml-2 font-bold">
-              {Math.round(forecast.observationFusion.contributors[0].observedWindKt)} kt station
+          {fusion.contributors[0]?.observedWindKt !== null && fusion.contributors[0]?.observedWindKt !== undefined && (
+            <span className={`text-[10px] font-mono border px-2 py-0.5 rounded-md flex-shrink-0 ml-2 font-bold ${
+              isWindDelayed ? "text-amber-300 bg-amber-900/60 border-amber-500/30" : "text-emerald-300 bg-emerald-900/60 border-emerald-500/30"
+            }`}>
+              {Math.round(fusion.contributors[0].observedWindKt)} kt station
             </span>
           )}
         </div>

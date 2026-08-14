@@ -1,4 +1,4 @@
-import { WeatherObservation, ObservationQuality, ObservationQualityStatus } from "./types";
+import { WeatherObservation, ObservationQuality, ObservationQualityStatus, ObservationFreshness } from "./types";
 
 export interface QualityLimits {
   minWindSpeedMs: number;
@@ -32,37 +32,113 @@ export const DEFAULT_QUALITY_LIMITS: QualityLimits = {
 
 export class ObservationQualityControl {
   /**
+   * Classifies observation timestamp into explicit freshness categories.
+   */
+  static classifyFreshness(
+    ageMinutes: number,
+    freshUntilMinutes: number = 30,
+    delayedUntilMinutes: number = 90
+  ): ObservationFreshness {
+    if (ageMinutes < -2) return "FUTURE_INVALID";
+    if (ageMinutes <= freshUntilMinutes) return "FRESH";
+    if (ageMinutes <= delayedUntilMinutes) return "DELAYED";
+    return "STALE";
+  }
+
+  /**
+   * Calculates continuous freshness weight for observations based on freshness policy.
+   */
+  static calculateFreshnessWeight(
+    ageMinutes: number,
+    freshUntilMinutes: number = 30,
+    delayedUntilMinutes: number = 90,
+    policy: "NONE" | "DECAYED_PERSISTENCE" = "NONE"
+  ): number {
+    const category = this.classifyFreshness(ageMinutes, freshUntilMinutes, delayedUntilMinutes);
+    if (category === "FUTURE_INVALID" || category === "STALE") return 0.0;
+    if (category === "FRESH") return 1.0;
+
+    // DELAYED
+    if (policy === "DECAYED_PERSISTENCE") {
+      const range = Math.max(1, delayedUntilMinutes - freshUntilMinutes);
+      const factor = 1.0 - (ageMinutes - freshUntilMinutes) / range;
+      return Math.max(0.0, Math.min(1.0, factor));
+    }
+
+    return 0.0;
+  }
+
+  /**
    * Evaluates freshness factor (0.0 to 1.0) based on elapsed time since observation.
    */
   static evaluateFreshness(
     observedAt: string,
-    referenceTime: Date = new Date()
-  ): { ageMinutes: number; freshnessFactor: number; status: ObservationQualityStatus } {
+    referenceTime: Date = new Date(),
+    freshUntilMinutes: number = 30,
+    delayedUntilMinutes: number = 90,
+    policy: "NONE" | "DECAYED_PERSISTENCE" = "NONE"
+  ): {
+    ageMinutes: number;
+    freshnessFactor: number;
+    status: ObservationQualityStatus;
+    freshnessCategory: ObservationFreshness;
+  } {
     const obsTime = new Date(observedAt).getTime();
     const refTime = referenceTime.getTime();
 
     // Check for clock skew / future timestamps (allow max 2 min tolerance)
     if (obsTime > refTime + 2 * 60 * 1000) {
       const futureMinutes = Math.round(((obsTime - refTime) / (1000 * 60)) * 10) / 10;
-      return { ageMinutes: -futureMinutes, freshnessFactor: 0.0, status: "invalid" };
+      return {
+        ageMinutes: -futureMinutes,
+        freshnessFactor: 0.0,
+        status: "invalid",
+        freshnessCategory: "FUTURE_INVALID",
+      };
     }
 
     const ageMs = Math.max(0, refTime - obsTime);
     const ageMinutes = Math.round((ageMs / (1000 * 60)) * 10) / 10;
 
+    const freshnessCategory = this.classifyFreshness(ageMinutes, freshUntilMinutes, delayedUntilMinutes);
+
+    if (policy === "DECAYED_PERSISTENCE") {
+      const freshnessFactor = this.calculateFreshnessWeight(
+        ageMinutes,
+        freshUntilMinutes,
+        delayedUntilMinutes,
+        policy
+      );
+
+      let status: ObservationQualityStatus = "valid";
+      if (freshnessCategory === "FRESH") {
+        status = "valid";
+      } else if (freshnessCategory === "DELAYED") {
+        status = "suspect";
+      } else {
+        status = "missing";
+      }
+
+      return { ageMinutes, freshnessFactor, status, freshnessCategory };
+    }
+
+    // Standard / legacy tiered decay model when policy is NONE
+    if (ageMinutes > freshUntilMinutes) {
+      return {
+        ageMinutes,
+        freshnessFactor: 0.0,
+        status: ageMinutes <= 90 ? "stale" : "missing",
+        freshnessCategory: ageMinutes <= delayedUntilMinutes ? "DELAYED" : "STALE",
+      };
+    }
+
     if (ageMinutes <= 10) {
-      return { ageMinutes, freshnessFactor: 1.0, status: "valid" };
+      return { ageMinutes, freshnessFactor: 1.0, status: "valid", freshnessCategory: "FRESH" };
     }
     if (ageMinutes <= 20) {
-      return { ageMinutes, freshnessFactor: 0.7, status: "valid" };
+      return { ageMinutes, freshnessFactor: 0.7, status: "valid", freshnessCategory: "FRESH" };
     }
-    if (ageMinutes <= 45) {
-      return { ageMinutes, freshnessFactor: 0.35, status: "suspect" };
-    }
-    if (ageMinutes <= 90) {
-      return { ageMinutes, freshnessFactor: 0.05, status: "stale" };
-    }
-    return { ageMinutes, freshnessFactor: 0.0, status: "missing" };
+    return { ageMinutes, freshnessFactor: 0.35, status: "suspect", freshnessCategory: "FRESH" };
   }
 
   /**

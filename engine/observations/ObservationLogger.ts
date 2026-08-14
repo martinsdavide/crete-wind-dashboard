@@ -58,13 +58,28 @@ export interface LogFusionResult {
   requestId?: string;
 }
 
+export type WeatherInputType =
+  | "fresh-observation-adjusted"
+  | "delayed-observation-adjusted"
+  | "observation-context-only"
+  | "stale-observation-ignored"
+  | "forecast-only";
+
 export interface LogRecommendationEvaluated {
   event: "recommendation_evaluated";
   region: string;
   spotId: string;
-  weatherInput: "observation-adjusted" | "forecast-only";
-  windKtUsedForScore: number;
-  observationFusionStatus: string;
+  mode?: string;
+  weatherInput: WeatherInputType | "observation-adjusted" | "forecast-only";
+  forecastWindKt?: number;
+  observedWindKt?: number;
+  effectiveWindKt?: number;
+  nowScore?: number;
+  forecastDailyScore?: number;
+  observationAgeMinutes?: number;
+  validUntil?: string;
+  windKtUsedForScore?: number;
+  observationFusionStatus?: string;
   requestId?: string;
 }
 
@@ -195,10 +210,11 @@ export class ObservationLogger {
   static logRecommendation(
     region: string,
     spotId: string,
-    weatherInput: "observation-adjusted" | "forecast-only",
+    weatherInput: WeatherInputType | "observation-adjusted" | "forecast-only",
     windKtUsedForScore: number,
     observationFusionStatus: string,
-    requestId?: string
+    requestId?: string,
+    extra?: Partial<LogRecommendationEvaluated>
   ) {
     this.log({
       event: "recommendation_evaluated",
@@ -208,6 +224,7 @@ export class ObservationLogger {
       windKtUsedForScore,
       observationFusionStatus,
       requestId,
+      ...extra,
     });
   }
 }

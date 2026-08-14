@@ -152,6 +152,26 @@ export interface WindowStability {
   confidence: "LOW" | "MEDIUM" | "HIGH";
 }
 
+export type RecommendationMode =
+  | "NOW"
+  | "FORECAST_WINDOW"
+  | "NONE";
+
+export type RecommendationEvidence =
+  | "FRESH_OBSERVATION"
+  | "DELAYED_OBSERVATION"
+  | "FORECAST_NOW"
+  | "FORECAST_WINDOW";
+
+export interface TodayCurrentOverlay {
+  currentScore: number;
+  currentCondition: ConditionLabel;
+  currentEligibility: SpotEligibility;
+  currentWaterState: WaterState;
+  currentWindow: BestWindow | null;
+  source: RecommendationEvidence;
+}
+
 export interface BestWindow {
   start: string; // e.g. "14:00" in Europe/Athens
   end: string;   // e.g. "18:00" in Europe/Athens
@@ -168,6 +188,7 @@ export interface BestWindow {
   condition?: ConditionLabel;
   classification?: WindClassification | ConditionLabel;
   stability?: WindowStability | null;
+  evidence?: RecommendationEvidence;
 }
 
 export interface DailyWindSummary {
@@ -208,6 +229,7 @@ export interface SpotForecast {
   providerModel: string;
   observationFusion?: import("@/engine/observations/types").ObservationFusionResult;
   adjustedForecast?: HourlyWind;
+  todayCurrentOverlay?: TodayCurrentOverlay;
 }
 
 export type SpotResult =
@@ -231,6 +253,11 @@ export interface Recommendation {
   regimeLabel: string;
   sailingStyle: WaterState;
   explanation: string[];
+  mode?: RecommendationMode;
+  evidence?: RecommendationEvidence | null;
+  observationAgeMinutes?: number;
+  observationFreshness?: import("@/engine/observations/types").ObservationFreshness;
+  validUntil?: string;
 }
 
 export interface WindApiResponse {
@@ -254,3 +281,4 @@ export interface WindApiResponse {
   recommendation: Recommendation;
   tomorrowRecommendation?: Recommendation;
 }
+

@@ -242,30 +242,41 @@ export const BestSpot: React.FC<BestSpotProps> = ({
               <h2
                 id="best-today-heading"
                 className={`text-xs font-black tracking-wider uppercase ${
-                  isPostSunset ? "text-amber-400" : "text-sky-400"
+                  isPostSunset ? "text-amber-400" : recommendation?.mode === "NOW" ? "text-emerald-400" : "text-sky-400"
                 }`}
               >
-                {isPostSunset ? "SUN HAS SET • TAVERNA TIME 🍻" : "RECOMMENDED SPOT FOR TODAY"}
+                {isPostSunset
+                  ? "SUN HAS SET • TAVERNA TIME 🍻"
+                  : recommendation?.mode === "NOW"
+                  ? "RECOMMENDED NOW — LIVE SESSION ACTIVE 🏄‍♂️"
+                  : "RECOMMENDED SPOT FOR TODAY"}
               </h2>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {chosenForecast?.observationFusion &&
-              (chosenForecast.observationFusion.status === "available" || chosenForecast.observationFusion.status === "partial") &&
-              (chosenForecast.observationFusion.contributors?.length ?? 0) > 0 && (
-                <span
-                  title={`Live observation data fetched from station: ${chosenForecast.observationFusion.contributors.map((c) => c.stationName).join(", ")}`}
-                  className="px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm"
-                >
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  <Radio className="w-3 h-3 text-emerald-400" />
-                  <span>LIVE STATION DATA</span>
+            {chosenForecast?.observationFusion?.windObservationUsed && chosenForecast.observationFusion.windFusionStatus === "available" && (
+              <span
+                title={`Live observation data fetched from station: ${chosenForecast.observationFusion.contributors.map((c) => c.stationName).join(", ")}`}
+                className="px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-              )}
+                <Radio className="w-3 h-3 text-emerald-400" />
+                <span>LIVE STATION DATA</span>
+              </span>
+            )}
+            {chosenForecast?.observationFusion?.windObservationUsed && chosenForecast.observationFusion.windFusionStatus === "degraded" && (
+              <span
+                title="Station feed is delayed. Decayed persistence applied."
+                className="px-2.5 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-500/40 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm"
+              >
+                <Radio className="w-3 h-3 text-amber-400" />
+                <span>DELAYED STATION DATA</span>
+              </span>
+            )}
             {isPostSunset && (
               <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
                 <Sunset className="w-3 h-3" />

@@ -7,6 +7,8 @@ export const GARDA_LAKE_STATION_BINDINGS: Record<string, SpotStationBinding[]> =
       role: "spot-local",
       baseWeight: 0.95,
       maxAgeMinutes: 30,
+      delayedUseUntilMinutes: 90,
+      delayedUsePolicy: "DECAYED_PERSISTENCE",
       parameters: ["wind_speed", "wind_direction", "wind_gust", "temperature", "pressure", "precipitation"],
       allowedEffects: ["current-condition", "speed-bias", "timing-correction", "confidence", "regime-detection"],
     },
