@@ -162,6 +162,88 @@ export function classifyRegionalRegime(
   });
 }
 
+export interface PostFusionSpotPrimitive {
+  spotId: string;
+  effectiveWind: number; // fused local wind speed in kt (or pre-fusion model wind)
+  effectiveGust: number; // fused local gust speed in kt (or pre-fusion model gust)
+  effectiveDirection: number; // resolved bounded fused direction in degrees (0–359)
+  precipitation12hMm?: number;
+  precipitationPreviousHourMm?: number;
+}
+
+/**
+ * Dedicated post-fusion NOW regime classifier.
+ * Operates on prepared effective local observation/forecast primitives across the region.
+ */
+export function classifyPostFusionNowRegime(
+  regionConfig: RegionConfig,
+  primitives: PostFusionSpotPrimitive[],
+  referenceDate: Date = new Date()
+): { regimeId: string; regimeLabel: string } {
+  const fallbackRegime = {
+    regimeId: regionConfig.id === "maremma" ? "MAREMMA_OTHER" : "OTHER_FLOW",
+    regimeLabel: "Variable Airflow",
+  };
+
+  if (!primitives || primitives.length === 0) {
+    return fallbackRegime;
+  }
+
+  const winds: number[] = [];
+  const gusts: number[] = [];
+  const dirs: number[] = [];
+  const precip12hs: number[] = [];
+  const currPrecips: number[] = [];
+
+  for (const p of primitives) {
+    winds.push(p.effectiveWind);
+    dirs.push(p.effectiveDirection);
+    gusts.push(p.effectiveGust);
+    if (p.precipitation12hMm !== undefined) precip12hs.push(p.precipitation12hMm);
+    if (p.precipitationPreviousHourMm !== undefined) currPrecips.push(p.precipitationPreviousHourMm);
+  }
+
+  const meanEffectiveWind =
+    winds.length > 0 ? winds.reduce((a, b) => a + b, 0) / winds.length : 15;
+  const meanEffectiveGust =
+    gusts.length > 0 ? gusts.reduce((a, b) => a + b, 0) / gusts.length : meanEffectiveWind;
+  const gustFactor = meanEffectiveWind > 0 ? meanEffectiveGust / meanEffectiveWind : 1.0;
+
+  // Trigonometric vector averaging for direction (properly wraps around 0° / 360°)
+  let sinSum = 0;
+  let cosSum = 0;
+  for (const d of dirs) {
+    const rad = (d * Math.PI) / 180;
+    sinSum += Math.sin(rad);
+    cosSum += Math.cos(rad);
+  }
+  const meanDirDeg = (Math.atan2(sinSum, cosSum) * (180 / Math.PI) + 360) % 360;
+
+  const meanPrecip12h =
+    precip12hs.length > 0 ? precip12hs.reduce((a, b) => a + b, 0) / precip12hs.length : 0;
+  const meanCurrPrecip =
+    currPrecips.length > 0 ? currPrecips.reduce((a, b) => a + b, 0) / currPrecips.length : 0;
+
+  let localHour = 12;
+  try {
+    const hourStr = new Intl.DateTimeFormat("en-GB", {
+      timeZone: regionConfig.timezone || "Europe/Athens",
+      hour: "2-digit",
+      hour12: false,
+    }).format(referenceDate);
+    localHour = parseInt(hourStr, 10);
+  } catch {}
+
+  return classifyRegionalRegimeForHour(regionConfig, {
+    meanRawWind: meanEffectiveWind,
+    meanDirectionDegrees: meanDirDeg,
+    precipitation12hMm: meanPrecip12h,
+    currentPrecipitationMm: meanCurrPrecip,
+    localHour,
+    gustFactor,
+  });
+}
+
 
 export class RecommendationEngine {
   /**

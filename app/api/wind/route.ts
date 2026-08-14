@@ -150,8 +150,10 @@ export async function GET(request: NextRequest) {
 
   const spotsResults: Record<string, SpotResult> = {};
   const models: Record<string, string> = {};
+  const preFusionCurrents: Record<string, any> = {};
   let anyFulfilled = false;
 
+  // PASS 1: Normalize all spot forecasts & capture pre-fusion snapshots
   regionConfig.spots.forEach((spot, idx) => {
     const { weather, marine, weatherError } = settledResults[idx];
 
@@ -166,78 +168,9 @@ export async function GET(request: NextRequest) {
         marine
       );
 
-      // Apply Live Observation Fusion if station bindings exist
-      if (regionBindings && regionBindings[spot.id]) {
-        try {
-          const { ObservationFusionEngine } = require("@/engine/observations/ObservationFusionEngine");
-          const fusion = ObservationFusionEngine.fuseSpotForecast(
-            spot.id,
-            regionBindings[spot.id],
-            observations,
-            forecast.current.localWind,
-            forecast.current.localGust,
-            forecast.current.directionDegrees,
-            currentTime,
-            0,
-            regionConfig.id,
-            requestId
-          );
-          forecast.observationFusion = fusion;
-
-          if (fusion.status === "available" || fusion.status === "partial") {
-            // Preserve the pre-fusion snapshot for UI diff display
-            forecast.adjustedForecast = { ...forecast.current };
-
-            // Apply bounded direction correction (≤30°); larger discrepancies handled by
-            // confidence penalty in ObservationFusionEngine — direction is unchanged here.
-            const fusedDir =
-              fusion.directionCorrectionDeg !== null
-                ? (forecast.current.directionDegrees + fusion.directionCorrectionDeg + 360) % 360
-                : forecast.current.directionDegrees;
-
-            // Clamp confidence adjustment
-            const fusedConfidence = Math.min(
-              100,
-              Math.max(0, Math.round(forecast.current.confidence + fusion.confidenceAdjustment * 100))
-            );
-
-            // Resolve regime ID corresponding to currentTime (NOW), not the end of the forecast
-            let nowRegimeId: string | undefined = undefined;
-            if (Array.isArray(hourlyRegimes) && weather?.hourly?.time) {
-              const targetMs = currentTime.getTime();
-              let closestIdx = 0;
-              let minDiff = Infinity;
-              for (let i = 0; i < weather.hourly.time.length; i++) {
-                const diff = Math.abs(new Date(weather.hourly.time[i]).getTime() - targetMs);
-                if (diff < minDiff) {
-                  minDiff = diff;
-                  closestIdx = i;
-                }
-              }
-              nowRegimeId = hourlyRegimes[closestIdx];
-            } else if (typeof hourlyRegimes === "string") {
-              nowRegimeId = hourlyRegimes;
-            }
-
-            const renormalized = renormalizeHourWithObservation(
-              spot,
-              forecast.current,
-              fusion.correctedWindSpeedKt,
-              fusion.correctedWindGustKt,
-              fusedDir,
-              nowRegimeId,
-              regionConfig.timezone
-            );
-
-            forecast.current = {
-              ...renormalized,
-              confidence: fusedConfidence,
-            };
-          }
-        } catch (e) {
-          console.warn(`Observation fusion error on ${spot.id}:`, e);
-        }
-      }
+      // Preserve exact pre-fusion NOW snapshot for UI diff display & fallback classification
+      preFusionCurrents[spot.id] = { ...forecast.current };
+      forecast.adjustedForecast = { ...forecast.current };
 
       spotsResults[spot.id] = { status: "ok", data: forecast };
       models[spot.id] = forecast.providerModel || "ECMWF IFS HRES (via Open-Meteo)";
@@ -245,10 +178,7 @@ export async function GET(request: NextRequest) {
       console.error(`Forecast fetch failed for spot ${spot.id} (${spot.name}):`, weatherError);
       spotsResults[spot.id] = {
         status: "error",
-        message:
-          weatherError instanceof Error
-            ? weatherError.message
-            : "Weather data unavailable",
+        message: weatherError instanceof Error ? weatherError.message : "Failed to fetch weather data",
         spot: {
           id: spot.id,
           name: spot.name,
@@ -273,6 +203,154 @@ export async function GET(request: NextRequest) {
       { status: 503 }
     );
   }
+
+  // PASS 2: Execute Live Observation Fusion & Post-Fusion NOW Regime Resolution
+
+  // 1. Resolve original forecastNowRegimeId via timestamp-matching currentTime against forecast hours
+  let forecastNowRegimeId: string | undefined = undefined;
+  const firstWeather = settledResults.find((r) => r.weather)?.weather;
+  if (Array.isArray(hourlyRegimes) && firstWeather?.hourly?.time) {
+    const targetMs = currentTime.getTime();
+    let closestIdx = 0;
+    let minDiff = Infinity;
+    for (let i = 0; i < firstWeather.hourly.time.length; i++) {
+      const diff = Math.abs(new Date(firstWeather.hourly.time[i]).getTime() - targetMs);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = i;
+      }
+    }
+    forecastNowRegimeId = hourlyRegimes[closestIdx];
+  } else if (typeof hourlyRegimes === "string") {
+    forecastNowRegimeId = hourlyRegimes;
+  }
+
+  // 2. Perform observation fusion for each spot & collect primitives for post-fusion regime classification
+  let hasActiveRegimeDetectionEvidence = false;
+  const postFusionPrimitives: import("@/engine/recommendation/RecommendationEngine").PostFusionSpotPrimitive[] = [];
+
+  regionConfig.spots.forEach((spot) => {
+    const res = spotsResults[spot.id];
+    if (res && res.status === "ok") {
+      const forecast = res.data;
+      const baseSnapshot = preFusionCurrents[spot.id] || forecast.current;
+
+      if (regionBindings && regionBindings[spot.id]) {
+        try {
+          const { ObservationFusionEngine } = require("@/engine/observations/ObservationFusionEngine");
+          const fusion = ObservationFusionEngine.fuseSpotForecast(
+            spot.id,
+            regionBindings[spot.id],
+            observations,
+            baseSnapshot.localWind,
+            baseSnapshot.localGust,
+            baseSnapshot.directionDegrees,
+            currentTime,
+            0,
+            regionConfig.id,
+            requestId
+          );
+          forecast.observationFusion = fusion;
+
+          const isFused = fusion.status === "available" || fusion.status === "partial";
+          const fusedDir = isFused && fusion.directionCorrectionDeg !== null
+            ? (baseSnapshot.directionDegrees + fusion.directionCorrectionDeg + 360) % 360
+            : baseSnapshot.directionDegrees;
+
+          // Check if any contributor with positive weight actually applied "regime-detection" effect
+          const hasRegimeContributor = isFused && fusion.contributors.some((c: any) =>
+            c.weight > 0 &&
+            Array.isArray(c.effectsApplied) &&
+            c.effectsApplied.includes("regime-detection") &&
+            (c.observedWindKt !== null || c.observedDirectionDeg !== null)
+          );
+
+          if (hasRegimeContributor) {
+            hasActiveRegimeDetectionEvidence = true;
+            postFusionPrimitives.push({
+              spotId: spot.id,
+              effectiveWind: fusion.correctedWindSpeedKt,
+              effectiveGust: fusion.correctedWindGustKt,
+              effectiveDirection: fusedDir,
+              precipitation12hMm: baseSnapshot.precipitation12hMm,
+              precipitationPreviousHourMm: baseSnapshot.precipitationPreviousHourMm,
+            });
+          } else {
+            postFusionPrimitives.push({
+              spotId: spot.id,
+              effectiveWind: baseSnapshot.modelWind,
+              effectiveGust: baseSnapshot.modelGust,
+              effectiveDirection: baseSnapshot.directionDegrees,
+              precipitation12hMm: baseSnapshot.precipitation12hMm,
+              precipitationPreviousHourMm: baseSnapshot.precipitationPreviousHourMm,
+            });
+          }
+        } catch (e) {
+          console.warn(`Observation fusion error on ${spot.id}:`, e);
+          postFusionPrimitives.push({
+            spotId: spot.id,
+            effectiveWind: baseSnapshot.modelWind,
+            effectiveGust: baseSnapshot.modelGust,
+            effectiveDirection: baseSnapshot.directionDegrees,
+            precipitation12hMm: baseSnapshot.precipitation12hMm,
+            precipitationPreviousHourMm: baseSnapshot.precipitationPreviousHourMm,
+          });
+        }
+      } else {
+        postFusionPrimitives.push({
+          spotId: spot.id,
+          effectiveWind: baseSnapshot.modelWind,
+          effectiveGust: baseSnapshot.modelGust,
+          effectiveDirection: baseSnapshot.directionDegrees,
+          precipitation12hMm: baseSnapshot.precipitation12hMm,
+          precipitationPreviousHourMm: baseSnapshot.precipitationPreviousHourMm,
+        });
+      }
+    }
+  });
+
+  // 3. Resolve effectiveNowRegimeId: IF active regime detection evidence exists, reclassify; ELSE retain forecastNowRegimeId EXACTLY.
+  const { classifyPostFusionNowRegime } = require("@/engine/recommendation/RecommendationEngine");
+  const { regimeId: effectiveNowRegimeId } = hasActiveRegimeDetectionEvidence
+    ? classifyPostFusionNowRegime(regionConfig, postFusionPrimitives, currentTime)
+    : { regimeId: forecastNowRegimeId };
+
+  // 4. Renormalize fused spot NOW forecasts using effectiveNowRegimeId & resolved bounded fusedDir
+  regionConfig.spots.forEach((spot) => {
+    const res = spotsResults[spot.id];
+    if (res && res.status === "ok") {
+      const forecast = res.data;
+      const fusion = forecast.observationFusion;
+      const baseSnapshot = preFusionCurrents[spot.id] || forecast.current;
+
+      if (fusion && (fusion.status === "available" || fusion.status === "partial")) {
+        const fusedDir =
+          fusion.directionCorrectionDeg !== null
+            ? (baseSnapshot.directionDegrees + fusion.directionCorrectionDeg + 360) % 360
+            : baseSnapshot.directionDegrees;
+
+        const fusedConfidence = Math.min(
+          100,
+          Math.max(0, Math.round(baseSnapshot.confidence + fusion.confidenceAdjustment * 100))
+        );
+
+        const renormalized = renormalizeHourWithObservation(
+          spot,
+          baseSnapshot,
+          fusion.correctedWindSpeedKt,
+          fusion.correctedWindGustKt,
+          fusedDir,
+          effectiveNowRegimeId,
+          regionConfig.timezone
+        );
+
+        forecast.current = {
+          ...renormalized,
+          confidence: fusedConfidence,
+        };
+      }
+    }
+  });
 
   // Run decoupled Recommendation Engine for Today and Tomorrow
   const recommendation = RecommendationEngine.run(regionConfig, spotsResults, currentTime);
