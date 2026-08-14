@@ -7,9 +7,9 @@ export const MAREMMA_STATION_BINDINGS: Record<string, SpotStationBinding[]> = {
       role: "spot-local",
       baseWeight: 0.95,
       maxAgeMinutes: 45,
-      // Binding is only active when SIR_TOSCANA_API_URL (or SIAR_API_URL) is configured in the environment.
-      // Without the env var, SiarClient returns no data and this binding produces no effect.
-      requiresEnv: "SIR_TOSCANA_API_URL",
+      // Binding is active when either SIR_TOSCANA_API_URL or legacy SIAR_API_URL is configured in the environment.
+      // Without either env var, SiarClient returns no data and this binding produces no effect.
+      requiresAnyEnv: ["SIR_TOSCANA_API_URL", "SIAR_API_URL"],
       parameters: ["wind_speed", "wind_direction", "wind_gust", "temperature", "precipitation"],
       allowedEffects: ["current-condition", "speed-bias"],
     },
@@ -20,7 +20,7 @@ export const MAREMMA_STATION_BINDINGS: Record<string, SpotStationBinding[]> = {
       role: "spot-local",
       baseWeight: 0.95,
       maxAgeMinutes: 45,
-      requiresEnv: "SIR_TOSCANA_API_URL",
+      requiresAnyEnv: ["SIR_TOSCANA_API_URL", "SIAR_API_URL"],
       parameters: ["wind_speed", "wind_direction", "wind_gust", "temperature", "precipitation"],
       allowedEffects: ["current-condition", "speed-bias"],
     },

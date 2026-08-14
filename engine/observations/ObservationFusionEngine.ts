@@ -3,6 +3,7 @@ import {
   SpotStationBinding,
   ObservationFusionResult,
   StationContribution,
+  isBindingConfigured,
 } from "./types";
 import { StationRegistry } from "./StationRegistry";
 import { ObservationFeatureExtractor } from "./ObservationFeatureExtractor";
@@ -86,6 +87,7 @@ export class ObservationFusionEngine {
     let validStationCount = 0;
 
     for (const binding of bindings) {
+      if (!isBindingConfigured(binding)) continue;
       const obs = observations[binding.stationId];
       if (!obs) continue;
 

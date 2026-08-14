@@ -1,4 +1,4 @@
-import { WeatherObservation, SpotStationBinding } from "./types";
+import { WeatherObservation, SpotStationBinding, isBindingConfigured } from "./types";
 import { msToKnots } from "./ObservationNormalizer";
 import { ObservationQualityControl } from "./ObservationQualityControl";
 
@@ -98,6 +98,9 @@ export class ObservationFeatureExtractor {
     let rainBoostEvidence = 0.0;
 
     for (const binding of bindings) {
+      if (!isBindingConfigured(binding)) {
+        continue;
+      }
       maxConfiguredWeight += binding.baseWeight;
       const obs = observations[binding.stationId];
       if (!obs || obs.quality.status === "invalid" || obs.quality.status === "missing") {

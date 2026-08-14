@@ -1,4 +1,4 @@
-import { WeatherObservation } from "./types";
+import { WeatherObservation, isBindingConfigured } from "./types";
 import { StationRegistry } from "./StationRegistry";
 import { ObservationQualityControl } from "./ObservationQualityControl";
 import { COMO_LAKE_STATION_BINDINGS } from "./bindings/comoLakeBindings";
@@ -87,6 +87,7 @@ export class ProviderHealthMonitor {
     const stationBindingsMeta: Record<string, { spots: string[]; effects: Set<string>; minMaxAge: number }> = {};
     for (const [spotId, bList] of Object.entries(allBindings)) {
       for (const b of bList) {
+        if (!isBindingConfigured(b)) continue;
         if (!stationBindingsMeta[b.stationId]) {
           stationBindingsMeta[b.stationId] = {
             spots: [],

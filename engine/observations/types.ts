@@ -71,6 +71,8 @@ export interface SpotStationBinding {
   maxAgeMinutes: number;
   /** If set, this binding is only active when the named environment variable is configured. */
   requiresEnv?: string;
+  /** If set, this binding is active when ANY of the named environment variables are configured. */
+  requiresAnyEnv?: string[];
   compatibleDirections?: {
     fromDeg: number;
     toDeg: number;
@@ -86,6 +88,20 @@ export interface SpotStationBinding {
     | "regime-detection"
   >;
 }
+
+/**
+ * Checks whether an observation binding is enabled based on its environmental variable requirements.
+ */
+export function isBindingConfigured(binding: SpotStationBinding): boolean {
+  if (binding.requiresAnyEnv && binding.requiresAnyEnv.length > 0) {
+    return binding.requiresAnyEnv.some((key) => Boolean(process.env[key]?.trim()));
+  }
+  if (binding.requiresEnv) {
+    return Boolean(process.env[binding.requiresEnv]?.trim());
+  }
+  return true;
+}
+
 
 export interface StationContribution {
   stationId: string;

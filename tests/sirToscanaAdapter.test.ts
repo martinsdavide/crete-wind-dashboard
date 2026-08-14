@@ -14,6 +14,7 @@ import { SiarClient } from "@/engine/observations/clients/SiarClient";
 import { MAREMMA_STATION_BINDINGS } from "@/engine/observations/bindings/maremmaBindings";
 import { ObservationFusionEngine } from "@/engine/observations/ObservationFusionEngine";
 import { ProviderHealthMonitor } from "@/engine/observations/ProviderHealthMonitor";
+import { isBindingConfigured } from "@/engine/observations/types";
 
 describe("SiarAdapter / SIR Toscana — Configuration & Ingestion", () => {
   const refTime = new Date("2026-08-14T14:20:00.000Z"); // 16:20 CEST (obs at 16:15 CEST = 14:15 UTC)
@@ -139,6 +140,7 @@ describe("SiarAdapter / SIR Toscana — Configuration & Ingestion", () => {
   });
 
   it("Test 11: SIR Toscana observations fuse into Talamone forecast for current-condition and speed-bias without affecting regime", () => {
+    process.env.SIR_TOSCANA_API_URL = "https://sir.toscana.it/api";
     const rowTalamone = sirFixture.find((r: any) => r.station_code === "TOS02_Talamone");
     const obsTalamone = SiarAdapter.parseObservation("siar:talamone_sentinel", rowTalamone, refTime);
 
@@ -167,12 +169,91 @@ describe("SiarAdapter / SIR Toscana — Configuration & Ingestion", () => {
     expect(c.effectsApplied).not.toContain("regime-detection");
   });
 
-  it("Test 12: Legacy SIAR_API_URL fallback functions cleanly for backward compatibility", async () => {
+  it("Test 12: Legacy SIAR_API_URL fallback functions cleanly — bindings and fusion active when only SIAR_API_URL is set", async () => {
     delete process.env.SIR_TOSCANA_API_URL;
     process.env.SIAR_API_URL = "https://mock.sir.toscana.it/api";
 
-    // SiarClient sees process.env.SIAR_API_URL
-    const apiUrl = process.env.SIR_TOSCANA_API_URL || process.env.SIAR_API_URL;
-    expect(apiUrl).toBe("https://mock.sir.toscana.it/api");
+    const binding = MAREMMA_STATION_BINDINGS["talamone"][0];
+    expect(isBindingConfigured(binding)).toBe(true);
+
+    const rowTalamone = sirFixture.find((r: any) => r.station_code === "TOS02_Talamone");
+    const obsTalamone = SiarAdapter.parseObservation("siar:talamone_sentinel", rowTalamone, refTime);
+
+    const fusion = ObservationFusionEngine.fuseSpotForecast(
+      "talamone",
+      MAREMMA_STATION_BINDINGS["talamone"],
+      { "siar:talamone_sentinel": obsTalamone! },
+      12.0,
+      15.0,
+      260,
+      refTime,
+      0
+    );
+
+    expect(fusion.status).toBe("available");
+    expect(fusion.contributors.length).toBe(1);
+  });
+
+  it("Test 13: Current SIR_TOSCANA_API_URL enables bindings and fusion when only SIR_TOSCANA_API_URL is set", () => {
+    process.env.SIR_TOSCANA_API_URL = "https://sir.toscana.it/api/v1";
+    delete process.env.SIAR_API_URL;
+
+    const binding = MAREMMA_STATION_BINDINGS["talamone"][0];
+    expect(isBindingConfigured(binding)).toBe(true);
+
+    const rowTalamone = sirFixture.find((r: any) => r.station_code === "TOS02_Talamone");
+    const obsTalamone = SiarAdapter.parseObservation("siar:talamone_sentinel", rowTalamone, refTime);
+
+    const fusion = ObservationFusionEngine.fuseSpotForecast(
+      "talamone",
+      MAREMMA_STATION_BINDINGS["talamone"],
+      { "siar:talamone_sentinel": obsTalamone! },
+      12.0,
+      15.0,
+      260,
+      refTime,
+      0
+    );
+
+    expect(fusion.status).toBe("available");
+    expect(fusion.contributors.length).toBe(1);
+  });
+
+  it("Test 14: Precedence — SIR_TOSCANA_API_URL wins over SIAR_API_URL when both are set", () => {
+    process.env.SIR_TOSCANA_API_URL = "https://new.sir.toscana.it/api";
+    process.env.SIAR_API_URL = "https://legacy.siar.toscana.it/api";
+
+    const resolvedUrl = process.env.SIR_TOSCANA_API_URL || process.env.SIAR_API_URL;
+    expect(resolvedUrl).toBe("https://new.sir.toscana.it/api");
+
+    const binding = MAREMMA_STATION_BINDINGS["talamone"][0];
+    expect(isBindingConfigured(binding)).toBe(true);
+  });
+
+  it("Test 15: Neither variable set — bindings are inactive and fusion returns unavailable without contributors", () => {
+    delete process.env.SIR_TOSCANA_API_URL;
+    delete process.env.SIAR_API_URL;
+
+    const binding = MAREMMA_STATION_BINDINGS["talamone"][0];
+    expect(isBindingConfigured(binding)).toBe(false);
+
+    const rowTalamone = sirFixture.find((r: any) => r.station_code === "TOS02_Talamone");
+    const obsTalamone = SiarAdapter.parseObservation("siar:talamone_sentinel", rowTalamone, refTime);
+
+    const fusion = ObservationFusionEngine.fuseSpotForecast(
+      "talamone",
+      MAREMMA_STATION_BINDINGS["talamone"],
+      { "siar:talamone_sentinel": obsTalamone! },
+      12.0,
+      15.0,
+      260,
+      refTime,
+      0
+    );
+
+    // Unconfigured binding is skipped, so 0 contributors are produced
+    expect(fusion.contributors.length).toBe(0);
+    expect(fusion.observationCoverage).toBe(0);
   });
 });
+
