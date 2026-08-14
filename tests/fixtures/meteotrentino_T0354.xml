@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<stazione_dati xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <codice>T0354</codice>
+  <nome>Arco</nome>
+  <lat>45.9175</lat>
+  <lon>10.8864</lon>
+  <quota>91</quota>
+  <venti>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-08-14T14:15:00</data>
+      <v>6.4</v>
+      <vmax>8.9</vmax>
+      <d>190</d>
+    </vento_al_suolo>
+  </venti>
+  <temperatura_aria>
+    <temperatura UM="°C">
+      <data>2026-08-14T14:15:00</data>
+      <t>28.0</t>
+    </temperatura>
+  </temperatura_aria>
+</stazione_dati>

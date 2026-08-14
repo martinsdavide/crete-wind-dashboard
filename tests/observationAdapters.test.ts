@@ -90,7 +90,8 @@ describe("Observation Adapters Contract Tests", () => {
   <umidita>58</umidita>
 </DatiStazione>`;
 
-      const obs = MeteotrentinoAdapter.parseXmlPayload("meteotrentino:T0193", sampleXml, refTime);
+      const refTimeFresh = new Date("2026-08-12T07:55:00.000Z"); // 09:55 CEST (5 min after 09:50 CEST obs)
+      const obs = MeteotrentinoAdapter.parseXmlPayload("meteotrentino:T0193", sampleXml, refTimeFresh);
 
       expect(obs).not.toBeNull();
       expect(obs?.stationId).toBe("meteotrentino:T0193");

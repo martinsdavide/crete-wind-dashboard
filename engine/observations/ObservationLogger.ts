@@ -67,10 +67,28 @@ export interface LogRecommendationEvaluated {
   requestId?: string;
 }
 
+export interface LogProviderResult {
+  event: "weather_provider_result";
+  provider: string;
+  stationId: string;
+  status: string;
+  httpStatus: number;
+  recordsReceived?: number;
+  selectedObservedAt: string | null;
+  ageMinutes: number | null;
+  hasWindSpeed: boolean;
+  hasWindGust: boolean;
+  hasDirection: boolean;
+  responseTimeMs: number;
+  errorCode?: string;
+  requestId?: string;
+}
+
 export type StructuredWeatherLog =
   | LogProviderRequest
   | LogProviderSuccess
   | LogProviderFailure
+  | LogProviderResult
   | LogFusionResult
   | LogRecommendationEvaluated;
 
@@ -82,6 +100,10 @@ export class ObservationLogger {
     if (!this.isTestEnv) {
       console.log(jsonStr);
     }
+  }
+
+  static logEvent(data: LogProviderResult) {
+    this.log(data);
   }
 
   static logRequest(provider: string, requestId: string, stationId?: string) {
