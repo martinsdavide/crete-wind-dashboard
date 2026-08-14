@@ -106,9 +106,9 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
 
   describe("Scenario A: Moderate NW / Maestrale", () => {
     it("evaluates Maestrale flow producing valid recommendations across Maremma spots", () => {
-      // 20 kt NW (315°) flow
+      // 20 kt NW (315°) flow — morning (outside thermal window) to test pure synoptic
       const raw = generateMaremmaRawData(20, 315);
-      const refDate = new Date("2026-08-10T12:00:00.000Z"); // 14:00 Rome time
+      const refDate = new Date("2026-08-10T06:00:00.000Z"); // 08:00 Rome time (outside thermal window [12-18])
 
       const spotsResults: Record<string, SpotResult> = {};
       for (const spot of MaremmaRegion.spots) {
@@ -127,9 +127,9 @@ describe("Maremma Edition: Multi-Region Plugin & Scenarios", () => {
 
   describe("Scenario B: Moderate SW / Libeccio", () => {
     it("evaluates Libeccio flow activating open-coast spots", () => {
-      // 22 kt SW (225°) flow
+      // 22 kt SW (225°) flow — morning (outside thermal window) to test pure synoptic
       const raw = generateMaremmaRawData(22, 225);
-      const refDate = new Date("2026-08-10T11:00:00.000Z"); // 13:00 Rome time
+      const refDate = new Date("2026-08-10T06:00:00.000Z"); // 08:00 Rome time (outside thermal window [12-18])
 
       const spotsResults: Record<string, SpotResult> = {};
       for (const spot of MaremmaRegion.spots) {

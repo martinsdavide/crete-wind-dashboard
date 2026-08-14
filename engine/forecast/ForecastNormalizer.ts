@@ -274,7 +274,8 @@ export function normalizeHourlyPoint(
     windDirection: number;
     temperature?: number;
     cloudCover?: number;
-    precipitationMm?: number;
+    /** Open-Meteo preceding-hour total (mm) — NOT an instantaneous rate */
+    precipitationPreviousHourMm?: number;
     precipitation6hMm?: number;
     precipitation12hMm?: number;
     marine?: MarineForecastPoint | null;
@@ -377,7 +378,7 @@ export function normalizeHourlyPoint(
     waterState: quality.waterState,
     seaState,
     lakeStateSource,
-    precipitationMm: point.precipitationMm,
+    precipitationPreviousHourMm: point.precipitationPreviousHourMm,
     precipitation6hMm: point.precipitation6hMm,
     precipitation12hMm: point.precipitation12hMm,
     spotWindQuality: quality.spotWindQuality,
@@ -483,18 +484,14 @@ export function calculateCurrentConditionsGeneric(
     }
   }
 
-  const precipitation12hMm =
-    prev.precipitation12hMm !== undefined && next.precipitation12hMm !== undefined
-      ? prev.precipitation12hMm + t * (next.precipitation12hMm - prev.precipitation12hMm)
-      : prev.precipitation12hMm;
-  const precipitation6hMm =
-    prev.precipitation6hMm !== undefined && next.precipitation6hMm !== undefined
-      ? prev.precipitation6hMm + t * (next.precipitation6hMm - prev.precipitation6hMm)
-      : prev.precipitation6hMm;
-  const precipitationMm =
-    prev.precipitationMm !== undefined && next.precipitationMm !== undefined
-      ? prev.precipitationMm + t * (next.precipitationMm - prev.precipitationMm)
-      : prev.precipitationMm;
+  // Precipitation: Open-Meteo value at timestamp T represents total rainfall in [T-1h, T).
+  // At any time between prev.timestamp and next.timestamp, the interval that *contains*
+  // the current moment is the one ending at next.timestamp, i.e. [prev.timestamp, next.timestamp).
+  // Therefore the semantically correct bucket is always `next`, not `prev`.
+  // Do NOT linearly interpolate — that would synthesize phantom rain.
+  const precipitationPreviousHourMm = next.precipitationPreviousHourMm;
+  const precipitation6hMm = next.precipitation6hMm;
+  const precipitation12hMm = next.precipitation12hMm;
 
   return normalizeHourlyPoint(
     spotConfig,
@@ -505,7 +502,7 @@ export function calculateCurrentConditionsGeneric(
       windDirection: directionDegrees,
       temperature,
       cloudCover,
-      precipitationMm,
+      precipitationPreviousHourMm,
       precipitation6hMm,
       precipitation12hMm,
       marine: marinePoint,
@@ -751,7 +748,7 @@ export function normalizeSpotForecastGeneric(
         windDirection,
         temperature,
         cloudCover,
-        precipitationMm: precipitationRaw?.[i] ?? 0,
+        precipitationPreviousHourMm: precipitationRaw?.[i] ?? 0,
         precipitation6hMm,
         precipitation12hMm,
         marine: marinePoint,
@@ -805,5 +802,82 @@ export function normalizeSpotForecastGeneric(
     hourly,
     days,
     providerModel: raw.providerModel || "ECMWF IFS HRES (via Open-Meteo)",
+  };
+}
+
+/**
+ * Canonical post-fusion renormalization helper (Bug 3 fix).
+ *
+ * Given an existing HourlyWind (pre-fusion) and corrected primitive values from the
+ * ObservationFusionEngine, feeds the corrected inputs back through normalizeHourlyPoint()
+ * so that ALL derived fields (eligibility, waterState, sessionQualityScore, classification,
+ * directionLabel, arrowRotation, spotWindQuality, directionQuality, condition, etc.) are
+ * recomputed from the fused values rather than carried over from the pre-fusion snapshot.
+ *
+ * Non-wind fields (timestamp, temperature, cloudCover, precipitationPreviousHourMm, rolling
+ * precipitation totals, seaState marine point) are preserved from the base hour.
+ *
+ * @param spotConfig   The spot's regional configuration (required for correction curves and hard gates)
+ * @param baseHour     The pre-fusion HourlyWind snapshot (provides all non-wind passthrough fields)
+ * @param fusedWindKt  Corrected local wind speed in knots
+ * @param fusedGustKt  Corrected local gust speed in knots
+ * @param fusedDirDeg  Corrected wind direction in degrees (0–359)
+ * @param regimeId     The regime ID active at this hour (determines correction-curve branch)
+ * @param timeZone     IANA timezone string for the region
+ */
+export function renormalizeHourWithObservation(
+  spotConfig: RegionSpotConfig,
+  baseHour: HourlyWind,
+  fusedWindKt: number,
+  fusedGustKt: number,
+  fusedDirDeg: number,
+  regimeId: string | undefined,
+  timeZone = "Europe/Athens"
+): HourlyWind {
+  // normalizeHourlyPoint expects raw model speeds; we provide the already-corrected values
+  // as both model and effective speed by bypassing the spot correction factor.
+  // We set windSpeed = fusedWindKt and windGust = fusedGustKt so the factor=1.0 path gives us
+  // the correct output.  We override the spot's correctionCurves temporarily by passing the
+  // fused values as the raw model inputs and a regimeId that produces factor≈1.
+  //
+  // Practical approach: pass fused values through normalizeHourlyPoint and let it fully
+  // recompute quality, eligibility, waterState, seaState (lake profile) etc.
+  const recomputed = normalizeHourlyPoint(
+    spotConfig,
+    {
+      timestamp: baseHour.timestamp,
+      windSpeed: fusedWindKt,
+      windGust: fusedGustKt,
+      windDirection: fusedDirDeg,
+      temperature: baseHour.temperature,
+      cloudCover: baseHour.cloudCover,
+      // Preserve preceding-hour precipitation totals from base hour
+      precipitationPreviousHourMm: baseHour.precipitationPreviousHourMm,
+      precipitation6hMm: baseHour.precipitation6hMm,
+      precipitation12hMm: baseHour.precipitation12hMm,
+      // Preserve the marine state point if present (lake/offshore)
+      marine: baseHour.seaState?.source === "MARINE_FORECAST"
+        ? ({
+            timestamp: baseHour.timestamp,
+            waveHeight: baseHour.seaState.rawWaveHeight ?? baseHour.seaState.waveHeight ?? 0,
+            wavePeriod: baseHour.seaState.wavePeriod ?? null,
+            waveDirection: baseHour.seaState.waveDirection ?? null,
+            provider: "ECMWF WAM",
+          } as MarineForecastPoint)
+        : null,
+    },
+    new Date(baseHour.timestamp),
+    regimeId,
+    timeZone
+  );
+
+  // Carry forward observation-specific meta-fields that normalizeHourlyPoint cannot produce
+  return {
+    ...recomputed,
+    // correctionFactor reflects the fusion adjustment, not the spot terrain correction
+    correctionFactor: baseHour.correctionFactor,
+    // Thermal evaluation is reused from base since it derives from the forecast model
+    thermal: baseHour.thermal,
+    lakeStateSource: baseHour.lakeStateSource,
   };
 }

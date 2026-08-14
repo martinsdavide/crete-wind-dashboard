@@ -102,9 +102,9 @@ export interface HourlyWind {
 
   temperature?: number; // °C
   cloudCover?: number; // %
-  precipitationMm?: number; // current hourly precipitation (mm)
-  precipitation6hMm?: number; // rolling 6h precipitation (mm)
-  precipitation12hMm?: number; // rolling 12h precipitation (mm)
+  precipitationPreviousHourMm?: number; // Open-Meteo preceding-hour total (mm) — NOT an instantaneous rate
+  precipitation6hMm?: number; // rolling 6h precipitation (mm) — sum of preceding-hour intervals
+  precipitation12hMm?: number; // rolling 12h precipitation (mm) — sum of preceding-hour intervals
   lakeStateSource?: "LAKE_WIND_DERIVED" | "LOCAL_OBSERVATION" | "MANUAL_CALIBRATION";
   thermal?: {
     state: "ABSENT" | "BUILDING" | "ACTIVE" | "DECAYING" | "UNKNOWN";

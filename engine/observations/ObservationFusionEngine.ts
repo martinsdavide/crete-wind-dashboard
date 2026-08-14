@@ -150,9 +150,11 @@ export class ObservationFusionEngine {
     let confidenceAdjustment = 0;
     let timingCorrectionMinutes = 0;
 
-    if (features.speedBiasKt !== null && features.observationCoverage > 0.2) {
+      if (features.speedBiasKt !== null && features.observationCoverage > 0.2) {
       // Check if spot has any binding allowing speed-bias
       const allowsSpeedBias = bindings.some((b) => b.allowedEffects.includes("speed-bias"));
+      // Direction correction requires current-condition permission
+      const allowsCurrentCondition = bindings.some((b) => b.allowedEffects.includes("current-condition"));
 
       if (allowsSpeedBias) {
         // Cap raw bias
@@ -184,9 +186,24 @@ export class ObservationFusionEngine {
         reasons.push("OBSERVATION_SPEED_DISCREPANCY");
       }
 
-      if (features.directionErrorDeg !== null && Math.abs(features.directionErrorDeg) > 50) {
-        confidenceAdjustment -= 0.12 * features.observationCoverage;
-        reasons.push("STATION_DIRECTION_MISMATCH");
+      // Direction correction with tiered thresholds (Bug 3 fix — 30°/45° cap)
+      if (features.directionErrorDeg !== null && allowsCurrentCondition) {
+        const absErr = Math.abs(features.directionErrorDeg);
+        if (absErr <= 30) {
+          // ≤30°: apply bounded correction. directionErrorDeg is angularDiff(observed, forecast),
+          // so adding it to the forecast direction steers toward the observation.
+          directionCorrectionDeg = Math.round(features.directionErrorDeg);
+        } else if (absErr <= 45) {
+          // 30°–45°: retain forecast direction, moderate confidence penalty
+          directionCorrectionDeg = null;
+          confidenceAdjustment -= 0.08 * features.observationCoverage;
+          reasons.push("STATION_DIRECTION_MISMATCH");
+        } else {
+          // >45°: strong mismatch — no direction adjustment, stronger penalty
+          directionCorrectionDeg = null;
+          confidenceAdjustment -= 0.12 * features.observationCoverage;
+          reasons.push("STATION_DIRECTION_MISMATCH");
+        }
       }
 
       if (features.hasSpeedConflict || features.hasDirectionConflict) {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRegion } from "@/regions/registry";
 import { fetchSpotWeather } from "@/lib/weather/openMeteo";
 import { defaultMarineProvider } from "@/lib/marine/openMeteoMarine";
-import { normalizeSpotForecastGeneric } from "@/engine/forecast/ForecastNormalizer";
+import { normalizeSpotForecastGeneric, renormalizeHourWithObservation } from "@/engine/forecast/ForecastNormalizer";
 import {
   RecommendationEngine,
   classifyRegionalRegimeForHour,
@@ -183,20 +183,43 @@ export async function GET(request: NextRequest) {
             requestId
           );
           forecast.observationFusion = fusion;
+
           if (fusion.status === "available" || fusion.status === "partial") {
-            const adjustedHourly = {
-              ...forecast.current,
-              localWind: fusion.correctedWindSpeedKt,
-              localGust: fusion.correctedWindGustKt,
-              directionDegrees: fusion.correctedWindDirectionDeg ?? forecast.current.directionDegrees,
-              confidence: Math.min(
-                100,
-                Math.max(0, Math.round(forecast.current.confidence + fusion.confidenceAdjustment * 100))
-              ),
+            // Preserve the pre-fusion snapshot for UI diff display
+            forecast.adjustedForecast = { ...forecast.current };
+
+            // Apply bounded direction correction (≤30°); larger discrepancies handled by
+            // confidence penalty in ObservationFusionEngine — direction is unchanged here.
+            const fusedDir =
+              fusion.directionCorrectionDeg !== null
+                ? (forecast.current.directionDegrees + fusion.directionCorrectionDeg + 360) % 360
+                : forecast.current.directionDegrees;
+
+            // Clamp confidence adjustment
+            const fusedConfidence = Math.min(
+              100,
+              Math.max(0, Math.round(forecast.current.confidence + fusion.confidenceAdjustment * 100))
+            );
+
+            // Bug 3 fix: fully recompute all derived fields from fused primitives
+            const currentRegimeId =
+              Array.isArray(hourlyRegimes)
+                ? hourlyRegimes[Math.max(0, hourlyRegimes.length - 1)]
+                : undefined;
+            const renormalized = renormalizeHourWithObservation(
+              spot,
+              forecast.current,
+              fusion.correctedWindSpeedKt,
+              fusion.correctedWindGustKt,
+              fusedDir,
+              currentRegimeId,
+              regionConfig.timezone
+            );
+
+            forecast.current = {
+              ...renormalized,
+              confidence: fusedConfidence,
             };
-            forecast.adjustedForecast = adjustedHourly;
-            // Update forecast.current directly so recommendation engine and spot cards evaluate the fused conditions
-            forecast.current = adjustedHourly;
           }
         } catch (e) {
           console.warn(`Observation fusion error on ${spot.id}:`, e);

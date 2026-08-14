@@ -9,6 +9,30 @@ export const MaremmaRegimes: RegimeDefinition[] = [
       convectiveThresholdGustRatio: 1.45,
     },
   },
+  // THERMAL_REINFORCED must come before MAESTRALE/PONENTE/LIBECCIO — all three regimes
+  // share its direction range and would absorb it with first-match-wins ordering.
+  {
+    id: "MAREMMA_THERMAL_REINFORCED",
+    label: "Maremma Thermal Reinforced",
+    description: "Thermally reinforced Maestrale or Ponente afternoon breeze exceeding 16 knots.",
+    criteria: {
+      directions: ["NW", "WNW", "W", "SW", "WSW"],
+      minRawWind: 16,
+      maxRawWind: 25,
+      allowedHours: [12, 18],
+    },
+  },
+  {
+    id: "MAREMMA_THERMAL",
+    label: "Maremma Thermal",
+    description: "Typical summer afternoon sea breeze (NW/W/SW) activated by inland heating.",
+    criteria: {
+      directions: ["NW", "WNW", "W", "SW", "WSW"],
+      minRawWind: 8,
+      maxRawWind: 15, // 16 kt and above belongs exclusively to MAREMMA_THERMAL_REINFORCED
+      allowedHours: [12, 18],
+    },
+  },
   {
     id: "MAREMMA_MAESTRALE",
     label: "Maremma Maestrale",
@@ -55,28 +79,6 @@ export const MaremmaRegimes: RegimeDefinition[] = [
     },
   },
   {
-    id: "MAREMMA_THERMAL",
-    label: "Maremma Thermal",
-    description: "Typical summer afternoon sea breeze (NW/W/SW) activated by inland heating.",
-    criteria: {
-      directions: ["NW", "WNW", "W", "SW", "WSW"],
-      minRawWind: 8,
-      maxRawWind: 16,
-      allowedHours: [12, 18],
-    },
-  },
-  {
-    id: "MAREMMA_THERMAL_REINFORCED",
-    label: "Maremma Thermal Reinforced",
-    description: "Thermally reinforced Maestrale or Ponente afternoon breeze exceeding 16 knots.",
-    criteria: {
-      directions: ["NW", "WNW", "W", "SW", "WSW"],
-      minRawWind: 16,
-      maxRawWind: 25,
-      allowedHours: [12, 18],
-    },
-  },
-  {
     id: "MAREMMA_WEAK_VARIABLE",
     label: "Maremma Weak Variable",
     description: "Light and variable atmospheric conditions under 8 knots.",
@@ -91,3 +93,4 @@ export const MaremmaRegimes: RegimeDefinition[] = [
     criteria: {},
   },
 ];
+

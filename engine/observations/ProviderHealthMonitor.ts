@@ -47,7 +47,7 @@ export interface ProviderHealthReport {
   displayName: string;
   status: OverallHealthStatus;
   responseTimeMs: number;
-  lastAttemptAt: string;
+  lastAttemptAt: string | null;
   lastSuccessAt: string | null;
   errorCode?: string;
   errorMessage?: string;
@@ -263,21 +263,28 @@ export class ProviderHealthMonitor {
 
     // --- 4. SIAR Toscana ---
     const siarStart = Date.now();
-    let siarStatus: OverallHealthStatus = "unavailable";
+    let siarStatus: OverallHealthStatus | "not_configured" = "unavailable";
     let siarError: string | undefined;
     let siarErrorCode: string | undefined;
     let siarObs: Record<string, WeatherObservation | null> = {};
 
-    try {
-      siarObs = await SiarAdapter.fetchLatestObservations(
-        { TOS01_Grosseto: "siar:marina_grosseto", TOS02_Talamone: "siar:talamone_sentinel" },
-        referenceTime,
-        3000,
-        requestId
-      );
-    } catch (e: any) {
-      siarError = e?.message || "Connection failed";
-      siarErrorCode = "PROVIDER_HTTP_ERROR";
+    // Check configuration before attempting any network call
+    if (!process.env.SIAR_API_URL || process.env.SIAR_API_URL.trim() === "") {
+      siarStatus = "not_configured";
+      siarErrorCode = "SIAR_NOT_CONFIGURED";
+      siarError = "SIAR_API_URL environment variable is not set";
+    } else {
+      try {
+        siarObs = await SiarAdapter.fetchLatestObservations(
+          { TOS01_Grosseto: "siar:marina_grosseto", TOS02_Talamone: "siar:talamone_sentinel" },
+          referenceTime,
+          3000,
+          requestId
+        );
+      } catch (e: any) {
+        siarError = e?.message || "Connection failed";
+        siarErrorCode = "PROVIDER_HTTP_ERROR";
+      }
     }
     const siarDuration = Date.now() - siarStart;
 
@@ -286,27 +293,29 @@ export class ProviderHealthMonitor {
       this.evaluateStationHealth(stId, siarObs[stId] || null, stationBindingsMeta[stId], referenceTime)
     );
 
-    const siarAnySuccess = siarStationReports.some((s) => s.testLevels.level1_connectivity);
-    const siarAllFresh = siarStationReports.every((s) => s.status === "fresh");
+    if (siarStatus !== "not_configured") {
+      const siarAnySuccess = siarStationReports.some((s) => s.testLevels.level1_connectivity);
+      const siarAllFresh = siarStationReports.every((s) => s.status === "fresh");
 
-    if (siarAllFresh) {
-      siarStatus = "healthy";
-      this.lastSuccessMap.set("siar-toscana", referenceTime.toISOString());
-    } else if (siarAnySuccess) {
-      siarStatus = "degraded";
-      this.lastSuccessMap.set("siar-toscana", referenceTime.toISOString());
-    } else {
-      siarStatus = "unavailable";
-      siarErrorCode = siarErrorCode || "PROVIDER_TIMEOUT";
-      siarError = siarError || "No station observations retrieved";
+      if (siarAllFresh) {
+        siarStatus = "healthy";
+        this.lastSuccessMap.set("siar-toscana", referenceTime.toISOString());
+      } else if (siarAnySuccess) {
+        siarStatus = "degraded";
+        this.lastSuccessMap.set("siar-toscana", referenceTime.toISOString());
+      } else {
+        siarStatus = "unavailable";
+        siarErrorCode = siarErrorCode || "PROVIDER_TIMEOUT";
+        siarError = siarError || "No station observations retrieved";
+      }
     }
 
     providersReport.push({
       provider: "siar-toscana",
       displayName: "SIR Toscana Open Data",
-      status: siarStatus,
+      status: siarStatus as OverallHealthStatus,
       responseTimeMs: siarDuration,
-      lastAttemptAt: referenceTime.toISOString(),
+      lastAttemptAt: siarStatus !== "not_configured" ? referenceTime.toISOString() : null,
       lastSuccessAt: this.lastSuccessMap.get("siar-toscana") || null,
       errorCode: siarStatus === "healthy" ? undefined : siarErrorCode,
       errorMessage: siarStatus === "healthy" ? undefined : siarError,

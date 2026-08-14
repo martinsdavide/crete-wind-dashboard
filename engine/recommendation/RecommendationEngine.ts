@@ -91,6 +91,7 @@ export function classifyRegionalRegime(
   }
 
   const rawWinds: number[] = [];
+  const rawGusts: number[] = [];
   const rawDirs: number[] = [];
   const precip12hs: number[] = [];
   const currPrecips: number[] = [];
@@ -99,11 +100,13 @@ export function classifyRegionalRegime(
     if (fc.current) {
       rawWinds.push(fc.current.modelWind);
       rawDirs.push(fc.current.directionDegrees);
+      if (fc.current.modelGust) rawGusts.push(fc.current.modelGust);
       if (fc.current.precipitation12hMm !== undefined) {
         precip12hs.push(fc.current.precipitation12hMm);
       }
-      if (fc.current.precipitationMm !== undefined) {
-        currPrecips.push(fc.current.precipitationMm);
+      // Bug 5: field renamed from precipitationMm → precipitationPreviousHourMm
+      if (fc.current.precipitationPreviousHourMm !== undefined) {
+        currPrecips.push(fc.current.precipitationPreviousHourMm);
       }
     }
   }
@@ -112,6 +115,13 @@ export function classifyRegionalRegime(
     rawWinds.length > 0
       ? rawWinds.reduce((a, b) => a + b, 0) / rawWinds.length
       : 15;
+
+  // Bug 4: compute mean gust and gustFactor so convective regimes can fire
+  const meanRawGust =
+    rawGusts.length > 0
+      ? rawGusts.reduce((a, b) => a + b, 0) / rawGusts.length
+      : meanRawWind;
+  const gustFactor = meanRawWind > 0 ? meanRawGust / meanRawWind : 1.0;
 
   let sinSum = 0;
   let cosSum = 0;
@@ -148,8 +158,10 @@ export function classifyRegionalRegime(
     precipitation12hMm: meanPrecip12h,
     currentPrecipitationMm: meanCurrPrecip,
     localHour,
+    gustFactor, // Bug 4: now passed so convectiveThresholdGustRatio criteria can match
   });
 }
+
 
 export class RecommendationEngine {
   /**

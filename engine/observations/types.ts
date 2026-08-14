@@ -69,6 +69,8 @@ export interface SpotStationBinding {
   role: StationRole;
   baseWeight: number; // 0.0 to 1.0
   maxAgeMinutes: number;
+  /** If set, this binding is only active when the named environment variable is configured. */
+  requiresEnv?: string;
   compatibleDirections?: {
     fromDeg: number;
     toDeg: number;
