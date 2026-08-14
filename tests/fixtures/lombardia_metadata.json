@@ -1,0 +1,82 @@
+[
+  {
+    "idsensore": "2501",
+    "idstazione": "573",
+    "nomestazione": "Colico Lido",
+    "nometiposensore": "Velocità Vento",
+    "unitamisura": "m/s",
+    "lat": "46.141",
+    "lng": "9.370",
+    "storico": "N"
+  },
+  {
+    "idsensore": "2502",
+    "idstazione": "573",
+    "nomestazione": "Colico Lido",
+    "nometiposensore": "Raffica Vento",
+    "unitamisura": "m/s",
+    "lat": "46.141",
+    "lng": "9.370",
+    "storico": "N"
+  },
+  {
+    "idsensore": "2503",
+    "idstazione": "573",
+    "nomestazione": "Colico Lido",
+    "nometiposensore": "Direzione Vento",
+    "unitamisura": "gN",
+    "lat": "46.141",
+    "lng": "9.370",
+    "storico": "N"
+  },
+  {
+    "idsensore": "2504",
+    "idstazione": "573",
+    "nomestazione": "Colico Lido",
+    "nometiposensore": "Temperatura",
+    "unitamisura": "°C",
+    "lat": "46.141",
+    "lng": "9.370",
+    "storico": "N"
+  },
+  {
+    "idsensore": "3601",
+    "idstazione": "679",
+    "nomestazione": "Valmadrera Porto",
+    "nometiposensore": "Velocità Vento",
+    "unitamisura": "km/h",
+    "lat": "45.849",
+    "lng": "9.408",
+    "storico": "N"
+  },
+  {
+    "idsensore": "3602",
+    "idstazione": "679",
+    "nomestazione": "Valmadrera Porto",
+    "nometiposensore": "Raffica Vento",
+    "unitamisura": "km/h",
+    "lat": "45.849",
+    "lng": "9.408",
+    "storico": "N"
+  },
+  {
+    "idsensore": "3603",
+    "idstazione": "679",
+    "nomestazione": "Valmadrera Porto",
+    "nometiposensore": "Direzione Vento",
+    "unitamisura": "gN",
+    "lat": "45.849",
+    "lng": "9.408",
+    "storico": "N"
+  },
+  {
+    "idsensore": "3604",
+    "idstazione": "679",
+    "nomestazione": "Valmadrera Porto",
+    "nometiposensore": "Temperatura",
+    "unitamisura": "°C",
+    "lat": "45.849",
+    "lng": "9.408",
+    "storico": "N"
+  }
+]

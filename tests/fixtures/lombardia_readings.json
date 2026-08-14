@@ -1,0 +1,50 @@
+[
+  {
+    "idsensore": "2501",
+    "data": "2026-08-14T14:15:00",
+    "valore": "9.5",
+    "stato": "VA"
+  },
+  {
+    "idsensore": "2502",
+    "data": "2026-08-14T14:15:00",
+    "valore": "12.8",
+    "stato": "VA"
+  },
+  {
+    "idsensore": "2503",
+    "data": "2026-08-14T14:15:00",
+    "valore": "190",
+    "stato": "VA"
+  },
+  {
+    "idsensore": "2504",
+    "data": "2026-08-14T14:15:00",
+    "valore": "25.2",
+    "stato": "VA"
+  },
+  {
+    "idsensore": "3601",
+    "data": "2026-08-14T14:15:00",
+    "valore": "28.8",
+    "stato": "VA"
+  },
+  {
+    "idsensore": "3602",
+    "data": "2026-08-14T14:15:00",
+    "valore": "38.5",
+    "stato": "VA"
+  },
+  {
+    "idsensore": "3603",
+    "data": "2026-08-14T14:15:00",
+    "valore": "185",
+    "stato": "VA"
+  },
+  {
+    "idsensore": "3604",
+    "data": "2026-08-14T14:15:00",
+    "valore": "26.0",
+    "stato": "VA"
+  }
+]
