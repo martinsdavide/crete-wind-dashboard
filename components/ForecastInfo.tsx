@@ -36,7 +36,7 @@ export const ForecastInfo: React.FC<ForecastInfoProps> = ({
       <div className="p-3.5 rounded-xl bg-surf-card/60 border border-surf-border/60 flex items-start gap-2.5">
         <Info className="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5" />
         <p className="text-[11px] leading-relaxed text-slate-400">
-          <strong className="text-slate-300">Methodology & Disclaimer:</strong> ECMWF data is numerical model output, not real-time anemometer measurements. Local estimates are derived using spot-specific empirical direction, thermal, and orographic acceleration factors. Always assess real on-water conditions before launching.
+          <strong className="text-slate-300">Methodology & Disclaimer:</strong> Numerical forecasts use ECMWF IFS model data enhanced by spot-specific empirical terrain, thermal, and orographic transformation curves. When open-data weather station observations (e.g. Meteotrentino, SIR Toscana, ARPA Lombardia, MeteoSwiss) are available, SpotPilot performs real-time observation fusion to validate local onset, adjust speed bias, and enhance forecast confidence.
         </p>
       </div>
     </footer>
