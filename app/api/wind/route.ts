@@ -201,18 +201,31 @@ export async function GET(request: NextRequest) {
               Math.max(0, Math.round(forecast.current.confidence + fusion.confidenceAdjustment * 100))
             );
 
-            // Bug 3 fix: fully recompute all derived fields from fused primitives
-            const currentRegimeId =
-              Array.isArray(hourlyRegimes)
-                ? hourlyRegimes[Math.max(0, hourlyRegimes.length - 1)]
-                : undefined;
+            // Resolve regime ID corresponding to currentTime (NOW), not the end of the forecast
+            let nowRegimeId: string | undefined = undefined;
+            if (Array.isArray(hourlyRegimes) && weather?.hourly?.time) {
+              const targetMs = currentTime.getTime();
+              let closestIdx = 0;
+              let minDiff = Infinity;
+              for (let i = 0; i < weather.hourly.time.length; i++) {
+                const diff = Math.abs(new Date(weather.hourly.time[i]).getTime() - targetMs);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  closestIdx = i;
+                }
+              }
+              nowRegimeId = hourlyRegimes[closestIdx];
+            } else if (typeof hourlyRegimes === "string") {
+              nowRegimeId = hourlyRegimes;
+            }
+
             const renormalized = renormalizeHourWithObservation(
               spot,
               forecast.current,
               fusion.correctedWindSpeedKt,
               fusion.correctedWindGustKt,
               fusedDir,
-              currentRegimeId,
+              nowRegimeId,
               regionConfig.timezone
             );
 
