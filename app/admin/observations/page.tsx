@@ -5,34 +5,32 @@ import React, { useState, useEffect } from "react";
 export default function AdminObservationsPage() {
   const [passcode, setPasscode] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [activeSecret, setActiveSecret] = useState(""); // Retained in-memory only (no sessionStorage to avoid XSS exposure)
   const [healthData, setHealthData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem("spotpilot_admin_passcode");
-    if (saved) {
-      setIsAuthorized(true);
-      fetchHealth(saved);
-    }
-  }, []);
 
   const fetchHealth = async (code: string) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/weather-health?secret=${encodeURIComponent(code)}`);
+      // Security: Passcode is sent strictly via Authorization header to prevent leakage in URLs
+      const res = await fetch("/api/admin/weather-health", {
+        headers: {
+          Authorization: `Bearer ${code}`,
+        },
+      });
       if (res.status === 401) {
         setError("Invalid passcode. Access Denied.");
         setIsAuthorized(false);
-        sessionStorage.removeItem("spotpilot_admin_passcode");
+        setActiveSecret("");
       } else if (!res.ok) {
         setError("Failed to fetch system health status.");
       } else {
         const data = await res.json();
         setHealthData(data);
         setIsAuthorized(true);
-        sessionStorage.setItem("spotpilot_admin_passcode", code);
+        setActiveSecret(code);
       }
     } catch (e: any) {
       setError(e.message || "An unexpected error occurred.");
@@ -48,10 +46,10 @@ export default function AdminObservationsPage() {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem("spotpilot_admin_passcode");
     setIsAuthorized(false);
     setHealthData(null);
     setPasscode("");
+    setActiveSecret("");
   };
 
   if (!isAuthorized) {
@@ -129,7 +127,7 @@ export default function AdminObservationsPage() {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => fetchHealth(sessionStorage.getItem("spotpilot_admin_passcode") || "")}
+            onClick={() => fetchHealth(activeSecret)}
             disabled={loading}
             className="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-xl text-sm font-semibold transition"
           >
