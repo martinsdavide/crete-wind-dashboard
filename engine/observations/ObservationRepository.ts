@@ -126,7 +126,7 @@ export class ObservationRepository {
           try {
             const fetched = await SiarAdapter.fetchLatestObservations(
               {
-                TOS01_Grosseto: "siar:marina_grosseto",
+                TOS11000103: "siar:marina_grosseto",
                 TOS02_Talamone: "siar:talamone_sentinel",
               },
               referenceTime,

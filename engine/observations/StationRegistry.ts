@@ -105,8 +105,8 @@ export const WEATHER_STATIONS: Record<string, WeatherStation> = {
   "siar:marina_grosseto": {
     id: "siar:marina_grosseto",
     provider: "SIR Toscana / Settore Idrologico Regionale",
-    providerStationId: "TOS01_Grosseto",
-    name: "Marina di Grosseto – Port",
+    providerStationId: "TOS11000103",
+    name: "Alberese – Marina di Grosseto",
     latitude: 42.718,
     longitude: 10.985,
     elevationM: 2,

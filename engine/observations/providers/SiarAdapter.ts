@@ -11,6 +11,8 @@ export class SiarAdapter {
    * Expected station mapping for identity verification.
    */
   static readonly EXPECTED_STATIONS: Record<string, string> = {
+    TOS11000103: "siar:marina_grosseto",
+    TOS11000103_Alberese: "siar:marina_grosseto",
     TOS01_Grosseto: "siar:marina_grosseto",
     TOS01: "siar:marina_grosseto",
     TOS02_Talamone: "siar:talamone_sentinel",
@@ -22,7 +24,7 @@ export class SiarAdapter {
    */
   static async fetchLatestObservations(
     stationMapping: Record<string, string> = {
-      TOS01_Grosseto: "siar:marina_grosseto",
+      TOS11000103: "siar:marina_grosseto",
       TOS02_Talamone: "siar:talamone_sentinel",
     },
     referenceTime: Date = new Date(),

@@ -3,7 +3,7 @@
     "schemaVersion": "1",
     "provider": "SIR Toscana / Settore Idrologico Regionale",
     "retrievedAt": "2026-08-14T14:18:00.000Z",
-    "station_code": "TOS01_Grosseto",
+    "station_code": "TOS11000103",
     "timestamp": "2026-08-14T16:15:00",
     "wind_speed_ms": 7.2,
     "wind_gust_ms": 9.8,

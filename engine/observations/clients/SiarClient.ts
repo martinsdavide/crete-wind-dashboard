@@ -25,7 +25,7 @@ export class SiarClient {
    *   - Never returns fabricated rows. Any data in the result comes from the live API only.
    */
   static async fetchSensorRows(
-    stationIds: string[] = ["TOS01_Grosseto", "TOS02_Talamone"],
+    stationIds: string[] = ["TOS11000103", "TOS02_Talamone"],
     timeoutMs = 3000,
     requestId: string = `req_${Date.now()}`
   ): Promise<ProviderFetchResult<SiarSensorRow[]>> {

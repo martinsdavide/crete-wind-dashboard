@@ -43,7 +43,7 @@ describe("SiarAdapter / SIR Toscana — Configuration & Ingestion", () => {
     delete process.env.SIR_TOSCANA_API_URL;
     delete process.env.SIAR_API_URL;
 
-    const res = await SiarClient.fetchSensorRows(["TOS01_Grosseto"]);
+    const res = await SiarClient.fetchSensorRows(["TOS11000103"]);
 
     expect(res.success).toBe(false);
     expect(res.errorCode).toBe("PROVIDER_NOT_CONFIGURED");
@@ -63,7 +63,7 @@ describe("SiarAdapter / SIR Toscana — Configuration & Ingestion", () => {
   });
 
   it("Test 3: Parses real SIR Toscana payload fixture correctly", () => {
-    const rowGrosseto = sirFixture.find((r: any) => r.station_code === "TOS01_Grosseto");
+    const rowGrosseto = sirFixture.find((r: any) => r.station_code === "TOS11000103" || r.station_code === "TOS01_Grosseto");
     const obs = SiarAdapter.parseObservation("siar:marina_grosseto", rowGrosseto, refTime);
 
     expect(obs).not.toBeNull();
@@ -87,7 +87,7 @@ describe("SiarAdapter / SIR Toscana — Configuration & Ingestion", () => {
     expect(invalidSchemaRow.schemaVersion).toBe("99");
   });
 
-  it("Test 5: Resolves canonical station IDs for TOS01_Grosseto and TOS02_Talamone", () => {
+  it("Test 5: Resolves canonical station IDs for TOS11000103 and TOS02_Talamone", () => {
     const rowTalamone = sirFixture.find((r: any) => r.station_code === "TOS02_Talamone");
     const obs = SiarAdapter.parseObservation("siar:talamone_sentinel", rowTalamone, refTime);
 

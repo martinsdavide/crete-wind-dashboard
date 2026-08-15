@@ -31,7 +31,7 @@ describe("SIAR fail-closed guard — no SIAR_API_URL configured", () => {
 
   it("SiarClient returns success=false immediately without calling fetch", async () => {
     const result = await SiarClient.fetchSensorRows(
-      ["TOS01_Grosseto", "TOS02_Talamone"],
+      ["TOS11000103", "TOS02_Talamone"],
       3000,
       "test-guard-req"
     );
@@ -76,7 +76,7 @@ describe("SIAR with SIAR_API_URL configured — real fetch, no synthetic fallbac
   it("SiarClient calls fetch when URL is configured and returns failure on HTTP error", async () => {
     fetchSpy.mockResolvedValueOnce(new Response(null, { status: 503 }));
 
-    const result = await SiarClient.fetchSensorRows(["TOS01_Grosseto"], 3000, "test-http-fail");
+    const result = await SiarClient.fetchSensorRows(["TOS11000103"], 3000, "test-http-fail");
 
     expect(result.success).toBe(false);
     expect(result.httpStatus).toBe(503);
@@ -88,7 +88,7 @@ describe("SIAR with SIAR_API_URL configured — real fetch, no synthetic fallbac
     // Simulate a network error (DNS failure, connection refused, etc.)
     fetchSpy.mockRejectedValueOnce(new Error("fetch failed"));
 
-    const result = await SiarClient.fetchSensorRows(["TOS01_Grosseto"], 5000, "test-net-error");
+    const result = await SiarClient.fetchSensorRows(["TOS11000103"], 5000, "test-net-error");
 
     expect(result.success).toBe(false);
     expect(result.data).toBeNull();
@@ -99,7 +99,7 @@ describe("SIAR with SIAR_API_URL configured — real fetch, no synthetic fallbac
   it("SiarClient parses valid JSON response with correct schema", async () => {
     const mockResponse = [
       {
-        station_code: "TOS01_Grosseto",
+        station_code: "TOS11000103",
         timestamp: "2026-08-12T14:00:00Z",
         wind_speed_ms: 9.5,
         wind_gust_ms: 12.0,
@@ -112,12 +112,12 @@ describe("SIAR with SIAR_API_URL configured — real fetch, no synthetic fallbac
       new Response(JSON.stringify(mockResponse), { status: 200 })
     );
 
-    const result = await SiarClient.fetchSensorRows(["TOS01_Grosseto"], 3000, "test-parse");
+    const result = await SiarClient.fetchSensorRows(["TOS11000103"], 3000, "test-parse");
 
     expect(result.success).toBe(true);
     expect(result.httpStatus).toBe(200);
     expect(result.data).toHaveLength(1);
-    expect(result.data![0].station_code).toBe("TOS01_Grosseto");
+    expect(result.data![0].station_code).toBe("TOS11000103");
     expect(result.data![0].wind_speed_ms).toBe(9.5);
   });
 
@@ -126,7 +126,7 @@ describe("SIAR with SIAR_API_URL configured — real fetch, no synthetic fallbac
       new Response(JSON.stringify([]), { status: 200 })
     );
 
-    const result = await SiarClient.fetchSensorRows(["TOS01_Grosseto"], 3000, "test-empty");
+    const result = await SiarClient.fetchSensorRows(["TOS11000103"], 3000, "test-empty");
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("EMPTY_RESPONSE");
