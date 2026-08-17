@@ -91,6 +91,19 @@ export function classifyRegionalRegime(
     return fallbackRegime;
   }
 
+  // Resolve target local date string
+  let targetDateStr = "";
+  try {
+    targetDateStr = new Intl.DateTimeFormat("en-CA", {
+      timeZone: regionConfig.timezone || "Europe/Athens",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(referenceDate);
+  } catch {
+    targetDateStr = referenceDate.toISOString().split("T")[0];
+  }
+
   const rawWinds: number[] = [];
   const rawGusts: number[] = [];
   const rawDirs: number[] = [];
@@ -98,17 +111,101 @@ export function classifyRegionalRegime(
   const currPrecips: number[] = [];
 
   for (const fc of referenceForecasts) {
-    if (fc.current) {
+    let currentTargetDateStr = "";
+    if (fc.current?.timestamp) {
+      try {
+        currentTargetDateStr = new Intl.DateTimeFormat("en-CA", {
+          timeZone: regionConfig.timezone || "Europe/Athens",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date(fc.current.timestamp));
+      } catch {
+        currentTargetDateStr = fc.current.timestamp.split("T")[0];
+      }
+    }
+
+    const isCurrentDay = currentTargetDateStr === targetDateStr;
+
+    if (isCurrentDay && fc.current) {
       rawWinds.push(fc.current.modelWind);
       rawDirs.push(fc.current.directionDegrees);
       if (fc.current.modelGust) rawGusts.push(fc.current.modelGust);
       if (fc.current.precipitation12hMm !== undefined) {
         precip12hs.push(fc.current.precipitation12hMm);
       }
-      // Bug 5: field renamed from precipitationMm → precipitationPreviousHourMm
       if (fc.current.precipitationPreviousHourMm !== undefined) {
         currPrecips.push(fc.current.precipitationPreviousHourMm);
       }
+    } else if (fc.hourly && fc.hourly.length > 0) {
+      // Find hourly points on the target date
+      const targetHours = fc.hourly.filter((h) => {
+        let hDateStr = "";
+        try {
+          hDateStr = new Intl.DateTimeFormat("en-CA", {
+            timeZone: regionConfig.timezone || "Europe/Athens",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }).format(new Date(h.timestamp));
+        } catch {
+          hDateStr = h.timestamp.split("T")[0];
+        }
+        return hDateStr === targetDateStr;
+      });
+
+      // Filter to daytime / operating hours (10:00 to 18:00 local time)
+      const daytimeHours = targetHours.filter((h) => {
+        try {
+          const hStr = new Intl.DateTimeFormat("en-GB", {
+            timeZone: regionConfig.timezone || "Europe/Athens",
+            hour: "2-digit",
+            hour12: false,
+          }).format(new Date(h.timestamp));
+          const hour = parseInt(hStr, 10);
+          return hour >= 10 && hour <= 18;
+        } catch {
+          return true;
+        }
+      });
+
+      const relevantHours = daytimeHours.length > 0 ? daytimeHours : targetHours;
+
+      if (relevantHours.length > 0) {
+        const spotMeanWind =
+          relevantHours.reduce((sum, h) => sum + h.modelWind, 0) / relevantHours.length;
+        const spotMeanGust =
+          relevantHours.reduce((sum, h) => sum + (h.modelGust ?? h.modelWind), 0) /
+          relevantHours.length;
+
+        let sSin = 0;
+        let sCos = 0;
+        for (const h of relevantHours) {
+          const rad = (h.directionDegrees * Math.PI) / 180;
+          sSin += Math.sin(rad);
+          sCos += Math.cos(rad);
+        }
+        const spotMeanDir = (Math.atan2(sSin, sCos) * (180 / Math.PI) + 360) % 360;
+
+        rawWinds.push(spotMeanWind);
+        rawGusts.push(spotMeanGust);
+        rawDirs.push(spotMeanDir);
+
+        const maxPrecip12h = Math.max(...relevantHours.map((h) => h.precipitation12hMm ?? 0));
+        const maxCurrPrecip = Math.max(
+          ...relevantHours.map((h) => h.precipitationPreviousHourMm ?? 0)
+        );
+        precip12hs.push(maxPrecip12h);
+        currPrecips.push(maxCurrPrecip);
+      } else if (fc.current) {
+        rawWinds.push(fc.current.modelWind);
+        rawDirs.push(fc.current.directionDegrees);
+        if (fc.current.modelGust) rawGusts.push(fc.current.modelGust);
+      }
+    } else if (fc.current) {
+      rawWinds.push(fc.current.modelWind);
+      rawDirs.push(fc.current.directionDegrees);
+      if (fc.current.modelGust) rawGusts.push(fc.current.modelGust);
     }
   }
 
@@ -117,7 +214,6 @@ export function classifyRegionalRegime(
       ? rawWinds.reduce((a, b) => a + b, 0) / rawWinds.length
       : 15;
 
-  // Bug 4: compute mean gust and gustFactor so convective regimes can fire
   const meanRawGust =
     rawGusts.length > 0
       ? rawGusts.reduce((a, b) => a + b, 0) / rawGusts.length
@@ -159,7 +255,7 @@ export function classifyRegionalRegime(
     precipitation12hMm: meanPrecip12h,
     currentPrecipitationMm: meanCurrPrecip,
     localHour,
-    gustFactor, // Bug 4: now passed so convectiveThresholdGustRatio criteria can match
+    gustFactor,
   });
 }
 
@@ -389,9 +485,25 @@ export class RecommendationEngine {
       const bestWin = summary.bestWindow ?? null;
       const winDuration = bestWin?.durationHours ?? 0;
 
-      // Evaluate NOW suitability
+      // Evaluate NOW suitability ONLY if referenceDate is the current local day
       const current = forecast.current;
       const fusion = forecast.observationFusion ?? forecast.current?.observationFusion;
+
+      let currentLocalDayStr = "";
+      if (current?.timestamp) {
+        try {
+          currentLocalDayStr = new Intl.DateTimeFormat("en-CA", {
+            timeZone: regionConfig.timezone || "Europe/Athens",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }).format(new Date(current.timestamp));
+        } catch {
+          currentLocalDayStr = current.timestamp.split("T")[0];
+        }
+      }
+
+      const isCurrentDay = currentLocalDayStr === todayDateStr;
 
       let hasNowSession = false;
       let nowEvidence: import("@/types/weather").RecommendationEvidence = "FORECAST_NOW";
@@ -403,6 +515,7 @@ export class RecommendationEngine {
       const spotMaxWind = spot.maxWindSpeedKt ?? 40;
 
       if (
+        isCurrentDay &&
         current &&
         current.eligibility !== "UNSUITABLE" &&
         current.sessionQualityScore >= 60 &&
@@ -472,8 +585,8 @@ export class RecommendationEngine {
         };
       }
 
-      // Populate todayCurrentOverlay on forecast
-      if (current) {
+      // Populate todayCurrentOverlay on forecast ONLY if evaluating current day
+      if (isCurrentDay && current) {
         forecast.todayCurrentOverlay = {
           currentScore: current.sessionQualityScore,
           currentCondition: current.condition,

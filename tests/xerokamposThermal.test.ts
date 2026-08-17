@@ -2,11 +2,12 @@ import { describe, it, expect } from "vitest";
 import { EasternCreteSpots } from "../regions/eastern-crete/spots";
 import { EasternCreteRegion } from "../regions/eastern-crete";
 import { ThermalEffectEvaluator } from "../engine/forecast/ThermalEffectEvaluator";
-import { normalizeHourlyPoint, renormalizeHourWithObservation } from "../engine/forecast/ForecastNormalizer";
+import { normalizeHourlyPoint, renormalizeHourWithObservation, normalizeSpotForecastGeneric } from "../engine/forecast/ForecastNormalizer";
 import { resolveMinimumPlaningWind } from "../lib/windThresholds";
 import { ObservationBindingRegistry } from "../engine/observations/ObservationBindingRegistry";
 import { generateRecommendationExplanation } from "../engine/explanation/ExplanationEngine";
-import { HourlyWind } from "../types/weather";
+import { RecommendationEngine } from "../engine/recommendation/RecommendationEngine";
+import { HourlyWind, SpotResult } from "../types/weather";
 
 describe("Xerokampos Summer Thermal Reinforcement Specification", () => {
   const xerokampos = EasternCreteSpots.find((s) => s.id === "xerokampos")!;
@@ -667,5 +668,91 @@ describe("Xerokampos Summer Thermal Reinforcement Specification", () => {
     );
 
     expect(explanations.some((e) => e.includes("Local weather station observations confirm active W/SW thermal breeze"))).toBe(true);
+  });
+
+  it("Case 19: Tomorrow's Call Recommendation -> accurately evaluates tomorrow's thermal reinforcement and selects Xerokampos over Kouremenos under Westerly conditions", () => {
+    // Generate 48 hours of forecast
+    // Day 1 (0-23h): Light North wind (10 kt, 340°), weak/no thermal
+    // Day 2 (24-47h): SW flow (11 kt, 225°) activating Xerokampos summer thermal reinforcement
+    const time: string[] = [];
+    const wind_speed_10m: number[] = [];
+    const wind_direction_10m: number[] = [];
+    const wind_gusts_10m: number[] = [];
+    const temperature_2m: number[] = [];
+    const cloud_cover: number[] = [];
+    const precipitation: number[] = [];
+
+    const baseDate = new Date("2026-07-15T00:00:00.000Z");
+
+    for (let i = 0; i < 48; i++) {
+      const d = new Date(baseDate.getTime() + i * 3600 * 1000);
+      time.push(d.toISOString());
+      if (i < 24) {
+        // Today: light north breeze
+        wind_speed_10m.push(10);
+        wind_direction_10m.push(340);
+        wind_gusts_10m.push(12);
+      } else {
+        // Tomorrow: SW airflow (ideal for Xerokampos thermal reinforcement)
+        wind_speed_10m.push(11);
+        wind_direction_10m.push(225);
+        wind_gusts_10m.push(14);
+      }
+      temperature_2m.push(28);
+      cloud_cover.push(0);
+      precipitation.push(0);
+    }
+
+    const rawWeather = {
+      latitude: 35.19,
+      longitude: 26.27,
+      generationtime_ms: 10,
+      utc_offset_seconds: 10800,
+      timezone: "Europe/Athens",
+      timezone_abbreviation: "EEST",
+      elevation: 10,
+      providerModel: "ECMWF IFS HRES",
+      hourly: {
+        time,
+        wind_speed_10m,
+        wind_direction_10m,
+        wind_gusts_10m,
+        temperature_2m,
+        cloud_cover,
+        precipitation,
+      },
+    };
+
+    const todayDate = new Date("2026-07-15T12:00:00.000Z");
+    const tomorrowDate = new Date("2026-07-16T12:00:00.000Z");
+
+    const spotsResults: Record<string, SpotResult> = {};
+    for (const spot of EasternCreteRegion.spots) {
+      const fc = normalizeSpotForecastGeneric(
+        spot,
+        rawWeather,
+        todayDate,
+        "Europe/Athens"
+      );
+      spotsResults[spot.id] = { status: "ok", data: fc };
+    }
+
+    const tomorrowRec = RecommendationEngine.run(
+      EasternCreteRegion,
+      spotsResults,
+      tomorrowDate
+    );
+
+    // Tomorrow's regime is classified as WESTERLY from tomorrow's daytime conditions
+    expect(tomorrowRec.regime).toBe("WESTERLY");
+
+    // Xerokampos is the winner for tomorrow's call with a high score and best window
+    expect(tomorrowRec.bestSpot).toBe("xerokampos");
+    expect(tomorrowRec.bestSpotName).toBe("Xerokampos");
+    expect(tomorrowRec.score).toBeGreaterThanOrEqual(85);
+    expect(tomorrowRec.spotScores["xerokampos"]).toBeGreaterThanOrEqual(85);
+    expect(tomorrowRec.spotScores["kouremenos"]).toBeLessThan(70);
+    expect(tomorrowRec.bestWindow).not.toBeNull();
+    expect(tomorrowRec.mode).toBe("FORECAST_WINDOW");
   });
 });
