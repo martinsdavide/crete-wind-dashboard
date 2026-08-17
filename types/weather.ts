@@ -51,6 +51,23 @@ export type SpotEligibilityReason =
   | "WRONG_DIRECTION"
   | "OFFSHORE_MELTEMI";
 
+export type DiagnosticReasonCode =
+  | "THERMAL_SEASON_SUPPORT"
+  | "THERMAL_TIME_SUPPORT"
+  | "THERMAL_DIRECTION_SUPPORT"
+  | "THERMAL_ACTIVE"
+  | "THERMAL_BUILDING"
+  | "THERMAL_DECAYING"
+  | "THERMAL_CLOUD_SUPPRESSION"
+  | "THERMAL_SYNOPTIC_SUPPRESSION"
+  | "THERMAL_DIRECTION_SUPPRESSION"
+  | "THERMAL_OBSERVATION_SUPPORT"
+  | "THERMAL_OBSERVATION_CONTRADICTION"
+  | "OBSERVATION_STALE"
+  | "OBSERVATION_LOW_CONFIDENCE"
+  | "XEROKAMPOS_WESTERLY_SUPPORT"
+  | "OFFSHORE_MELTEMI";
+
 export type WaterState =
   | "FLAT"
   | "CHOP"
@@ -79,12 +96,15 @@ export interface HourlyWind {
   localGust: number; // knots
 
   correctionFactor: number;
+  baseCorrectedWindKt?: number;
+  preObservationLocalWindKt?: number;
   confidence: number; // 0-100
   confidenceLevel: ForecastConfidenceLevel;
 
   // Domain V2: Eligibility, Water State & Session Quality
   eligibility: SpotEligibility;
   eligibilityReason?: SpotEligibilityReason;
+  hardGateReason?: string;
   waterState: WaterState;
   seaState?: import("./marine").SeaStateEvaluation;
   spotWindQuality: number; // 0-100 (spot specific non-monotonic quality)
@@ -112,7 +132,11 @@ export interface HourlyWind {
     confidence: number;
     additiveBoostKt: number;
     multiplicativeBoost: number;
+    contributingFactors?: string[];
+    limitingFactors?: string[];
+    reasonCodes?: DiagnosticReasonCode[];
   };
+  reasonCodes?: DiagnosticReasonCode[];
   observationFusion?: import("@/engine/observations/types").ObservationFusionResult;
 }
 
@@ -217,6 +241,7 @@ export interface DailyWindSummary {
   bestSeaQuality?: number;
   waveHeightRange?: { min: number; max: number };
   dominantWaveDirection?: string;
+  reasonCodes?: DiagnosticReasonCode[];
 }
 
 export interface WindSpot extends SpotConfig {}

@@ -8,7 +8,8 @@ export function generateRecommendationExplanation(
   regionConfig: RegionConfig,
   bestSpotId: string | null,
   regimeId: string,
-  summaries: Record<string, DailyWindSummary | null | undefined>
+  summaries: Record<string, DailyWindSummary | null | undefined>,
+  currentReasonCodes?: import("@/types/weather").DiagnosticReasonCode[]
 ): string[] {
   if (!bestSpotId) {
     const allWinds = Object.values(summaries).map((s) => s?.maxWind ?? 0);
@@ -24,6 +25,7 @@ export function generateRecommendationExplanation(
   const bestSummary = summaries[bestSpotId];
   const bestScore = bestSummary?.score ?? 0;
   const bestWind = bestSummary?.daytimeMaxWind ?? bestSummary?.maxWind ?? 0;
+  const activeCodes = currentReasonCodes || bestSummary?.reasonCodes || [];
 
   // 1. Evaluate region rules matching the conditions
   for (const rule of regionConfig.explanationRules) {
@@ -32,7 +34,21 @@ export function generateRecommendationExplanation(
     const matchMinScore = rule.condition.minScore === undefined || bestScore >= rule.condition.minScore;
     const matchMinWind = rule.condition.minWind === undefined || bestWind >= rule.condition.minWind;
 
-    if (matchSpot && matchRegime && matchMinScore && matchMinWind) {
+    const matchReasonCodesAny =
+      !rule.condition.reasonCodesAny ||
+      rule.condition.reasonCodesAny.some((code) => activeCodes.includes(code));
+    const matchReasonCodesAll =
+      !rule.condition.reasonCodesAll ||
+      rule.condition.reasonCodesAll.every((code) => activeCodes.includes(code));
+
+    if (
+      matchSpot &&
+      matchRegime &&
+      matchMinScore &&
+      matchMinWind &&
+      matchReasonCodesAny &&
+      matchReasonCodesAll
+    ) {
       explanations.push(rule.explanation);
     }
   }

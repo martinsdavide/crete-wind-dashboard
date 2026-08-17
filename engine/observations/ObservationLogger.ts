@@ -100,13 +100,35 @@ export interface LogProviderResult {
   requestId?: string;
 }
 
+export interface LogThermalEvaluation {
+  event: "thermal_evaluation";
+  requestId?: string;
+  regionId?: string;
+  spotId: string;
+  timestamp: string;
+  regimeId?: string;
+  modelWindKt: number;
+  baseCorrectedWindKt: number;
+  requestedThermalBoostKt?: number;
+  appliedThermalBoostKt?: number;
+  thermalState: "ABSENT" | "BUILDING" | "ACTIVE" | "DECAYING" | "UNKNOWN";
+  thermalStrength: number;
+  thermalConfidence: number;
+  preObservationLocalWindKt?: number;
+  observationConfidenceAdjustment?: number;
+  finalLocalWindKt: number;
+  limitingFactors?: string[];
+  reasonCodes?: string[];
+}
+
 export type StructuredWeatherLog =
   | LogProviderRequest
   | LogProviderSuccess
   | LogProviderFailure
   | LogProviderResult
   | LogFusionResult
-  | LogRecommendationEvaluated;
+  | LogRecommendationEvaluated
+  | LogThermalEvaluation;
 
 export class ObservationLogger {
   private static isTestEnv = process.env.NODE_ENV === "test";
@@ -116,6 +138,13 @@ export class ObservationLogger {
     if (!this.isTestEnv) {
       console.log(jsonStr);
     }
+  }
+
+  static logThermalEvaluation(data: Omit<LogThermalEvaluation, "event">) {
+    this.log({
+      event: "thermal_evaluation",
+      ...data,
+    });
   }
 
   static logEvent(data: LogProviderResult) {

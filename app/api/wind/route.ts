@@ -126,14 +126,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Fetch live weather observations for region if configured
-  const regionBindings =
-    regionConfig.id === "como-lake"
-      ? (await import("@/engine/observations/bindings/comoLakeBindings")).COMO_LAKE_STATION_BINDINGS
-      : regionConfig.id === "garda-lake"
-      ? (await import("@/engine/observations/bindings/gardaLakeBindings")).GARDA_LAKE_STATION_BINDINGS
-      : regionConfig.id === "maremma"
-      ? (await import("@/engine/observations/bindings/maremmaBindings")).MAREMMA_STATION_BINDINGS
-      : null;
+  const { ObservationBindingRegistry } = await import("@/engine/observations/ObservationBindingRegistry");
+  const regionBindings = ObservationBindingRegistry.getBindingsForRegion(regionConfig.id);
 
   let observations: Record<string, any> = {};
   if (regionBindings) {

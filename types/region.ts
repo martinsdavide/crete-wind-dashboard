@@ -54,6 +54,9 @@ export interface DynamicThermalBoostConfig {
   correctionMode?: "MULTIPLICATIVE" | "ADDITIVE" | "HYBRID";
   maxMultiplicativeBoost?: number;
   maxAdditiveBoostKt?: number;
+  maxThermalCorrectedWindKt?: number;
+  buildRateLimitKtPerHour?: number;
+  decayRateLimitKtPerHour?: number;
   minimumConfidenceForCorrection?: number;
 }
 
@@ -186,6 +189,8 @@ export interface ExplanationTemplateRule {
     minWind?: number;
     minWaveHeight?: number;
     minSeaQuality?: number;
+    reasonCodesAny?: import("./weather").DiagnosticReasonCode[];
+    reasonCodesAll?: import("./weather").DiagnosticReasonCode[];
   };
   explanation: string;
 }

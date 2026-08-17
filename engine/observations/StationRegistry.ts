@@ -132,6 +132,23 @@ export const WEATHER_STATIONS: Record<string, WeatherStation> = {
     attribution: "Dati meteorologici forniti da SIR Toscana Open Data",
     sourceUrl: "http://www.sir.toscana.it/",
   },
+
+  // --- Eastern Crete Stations ---
+  "greece:XEROKAMPOS": {
+    id: "greece:XEROKAMPOS",
+    provider: "HNMS / Hellenic National Meteorological Service",
+    providerStationId: "XEROKAMPOS_01",
+    name: "Xerokampos – Thermal Sentinel",
+    latitude: 35.035,
+    longitude: 26.218,
+    elevationM: 15,
+    timezone: "Europe/Athens",
+    status: "inactive", // Inactive/validation-only pending stable open-data confirmation
+    roles: ["regional-reference", "thermal-sentinel"],
+    capabilities: ["wind_speed", "wind_direction", "wind_gust", "temperature", "precipitation"],
+    attribution: "Hellenic National Meteorological Service (HNMS)",
+    sourceUrl: "http://www.hnms.gr/",
+  },
 };
 
 export class StationRegistry {
@@ -152,6 +169,9 @@ export class StationRegistry {
     }
     if (regionId === "maremma") {
       return Object.values(WEATHER_STATIONS).filter((s) => s.id.startsWith("siar:"));
+    }
+    if (regionId === "eastern-crete") {
+      return Object.values(WEATHER_STATIONS).filter((s) => s.id.startsWith("greece:"));
     }
     return [];
   }

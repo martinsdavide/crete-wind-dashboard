@@ -14,4 +14,16 @@ export const EasternCreteRegion: RegionConfig = {
   defaultSpotId: "kouremenos",
   explanationRules: EasternCreteExplanationRules,
   defaultRiderPreferences: DEFAULT_RIDER_PREFERENCES,
+  observationEvidenceProfiles: [
+    {
+      id: "crete-thermal-profile",
+      evidenceType: "THERMAL_SUPPORT",
+      directionSectors: [
+        { fromDeg: 200, toDeg: 270 }, // WSW, SW, W, SSW
+      ],
+      localTimeWindow: { startHour: 11, endHour: 19 },
+      applicableRegimeIds: ["WESTERLY", "SOUTHERLY", "SOUTHWESTERLY"],
+      minimumMeanWind: 10,
+    },
+  ],
 };

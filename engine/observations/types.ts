@@ -7,7 +7,9 @@ export type StationRole =
   | "mountain"
   | "gradient"
   | "precipitation-context"
-  | "validation-only";
+  | "validation-only"
+  | "regional-reference"
+  | "thermal-sentinel";
 
 export type ObservationParameter =
   | "wind_speed"

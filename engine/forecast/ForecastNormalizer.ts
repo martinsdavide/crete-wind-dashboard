@@ -1,6 +1,7 @@
 import { RegionSpotConfig, ThermalEvaluation } from "@/types/region";
 import {
   DailyWindSummary,
+  DiagnosticReasonCode,
   HourlyWind,
   SpotEligibility,
   SpotForecast,
@@ -31,6 +32,78 @@ import { OpenMeteoRawResponse } from "@/lib/weather/openMeteo";
 import { evaluateSeaState } from "../marine/SeaStateEvaluator";
 import { evaluateLakeState } from "../marine/LakeStateEvaluator";
 import { MarineForecast, MarineForecastPoint, SeaStateEvaluation } from "@/types/marine";
+
+/**
+ * Derives structured diagnostic reason codes for an hourly point.
+ */
+export function deriveHourlyReasonCodes(
+  spotConfig: RegionSpotConfig,
+  eligibilityReason: string | undefined,
+  thermal: {
+    state?: "ABSENT" | "BUILDING" | "ACTIVE" | "DECAYING" | "UNKNOWN";
+    strength?: number;
+    additiveBoostKt?: number;
+    multiplicativeBoost?: number;
+    contributingFactors?: string[];
+    limitingFactors?: string[];
+    reasonCodes?: DiagnosticReasonCode[];
+  } | ThermalEvaluation | undefined,
+  regimeId: string | undefined,
+  fusion?: import("@/engine/observations/types").ObservationFusionResult
+): DiagnosticReasonCode[] {
+  const codes: DiagnosticReasonCode[] = [];
+
+  if (eligibilityReason === "OFFSHORE_MELTEMI") {
+    codes.push("OFFSHORE_MELTEMI");
+  }
+
+  if (spotConfig.id === "xerokampos" && (regimeId === "WESTERLY" || regimeId === "SOUTHERLY")) {
+    codes.push("XEROKAMPOS_WESTERLY_SUPPORT");
+  }
+
+  if (thermal) {
+    if (thermal.state === "ACTIVE") {
+      codes.push("THERMAL_ACTIVE");
+    } else if (thermal.state === "BUILDING") {
+      codes.push("THERMAL_BUILDING");
+    } else if (thermal.state === "DECAYING") {
+      codes.push("THERMAL_DECAYING");
+    }
+
+    if (thermal.limitingFactors?.includes("THERMAL_CLOUD_SUPPRESSION")) {
+      codes.push("THERMAL_CLOUD_SUPPRESSION");
+    }
+    if (thermal.limitingFactors?.includes("THERMAL_SYNOPTIC_SUPPRESSION")) {
+      codes.push("THERMAL_SYNOPTIC_SUPPRESSION");
+    }
+    if (thermal.limitingFactors?.includes("THERMAL_DIRECTION_LIMITATION")) {
+      codes.push("THERMAL_DIRECTION_SUPPRESSION");
+    }
+    if (thermal.contributingFactors?.includes("THERMAL_SEASON_SUPPORT")) {
+      codes.push("THERMAL_SEASON_SUPPORT");
+    }
+    if (thermal.contributingFactors?.includes("THERMAL_TIME_SUPPORT")) {
+      codes.push("THERMAL_TIME_SUPPORT");
+    }
+    if (thermal.contributingFactors?.includes("THERMAL_DIRECTION_SUPPORT")) {
+      codes.push("THERMAL_DIRECTION_SUPPORT");
+    }
+  }
+
+  if (fusion) {
+    if (fusion.status === "stale") {
+      codes.push("OBSERVATION_STALE");
+    } else if (fusion.status === "available" || fusion.status === "partial") {
+      if (fusion.confidenceAdjustment > 0) {
+        codes.push("THERMAL_OBSERVATION_SUPPORT");
+      } else if (fusion.confidenceAdjustment < 0) {
+        codes.push("THERMAL_OBSERVATION_CONTRADICTION");
+      }
+    }
+  }
+
+  return Array.from(new Set(codes));
+}
 
 /**
  * Linear interpolation helper across a numeric sequence.
@@ -97,7 +170,11 @@ export function calculateThermalStrength(
   directionLabel: WindDirection,
   modelWind = 12,
   cloudCover = 0,
-  timeZone = "Europe/Athens"
+  timeZone = "Europe/Athens",
+  solarRadiation?: number,
+  regimeId?: string,
+  previousEvaluation?: { additiveBoostKt?: number } | ThermalEvaluation,
+  deltaHours?: number
 ): ThermalEvaluation {
   return ThermalEffectEvaluator.evaluate(
     spotConfig,
@@ -105,7 +182,11 @@ export function calculateThermalStrength(
     directionLabel,
     modelWind,
     cloudCover,
-    timeZone
+    timeZone,
+    solarRadiation,
+    regimeId,
+    previousEvaluation,
+    deltaHours
   );
 }
 
@@ -121,7 +202,10 @@ export function calculateLocalCorrectionFactor(
   cloudCover = 0,
   timeZone = "Europe/Athens",
   regimeId?: string,
-  precipitation12hMm?: number
+  precipitation12hMm?: number,
+  solarRadiation?: number,
+  previousEvaluation?: { additiveBoostKt?: number } | ThermalEvaluation,
+  deltaHours?: number
 ): {
   factor: number;
   effectiveDirection: WindDirection;
@@ -145,14 +229,18 @@ export function calculateLocalCorrectionFactor(
     factor += cfg.summerBoostAmount ?? 0.10;
   }
 
-  // 2. Diurnal Thermal Boost
+  // 2. Diurnal Thermal Boost (evaluated strictly from raw model wind)
   const thermal = calculateThermalStrength(
     spotConfig,
     timestamp,
     directionLabel,
     modelWind,
     cloudCover,
-    timeZone
+    timeZone,
+    solarRadiation,
+    regimeId,
+    previousEvaluation,
+    deltaHours
   );
 
   // Exclude additive/hybrid adjustments from factor calculations
@@ -282,7 +370,9 @@ export function normalizeHourlyPoint(
   },
   referenceDate: Date = new Date(),
   regimeId?: string,
-  timeZone = "Europe/Athens"
+  timeZone = "Europe/Athens",
+  previousPoint?: HourlyWind,
+  deltaHours?: number
 ): HourlyWind {
   const rawDirectionLabel = degreesToCompass(point.windDirection);
 
@@ -296,18 +386,34 @@ export function normalizeHourlyPoint(
       point.cloudCover,
       timeZone,
       regimeId,
-      point.precipitation12hMm
+      point.precipitation12hMm,
+      undefined,
+      previousPoint?.thermal,
+      deltaHours
     );
 
-  let localWind = Math.max(0, point.windSpeed * factor);
+  const baseCorrectedWindKt = Math.round(point.windSpeed * factor * 10) / 10;
+  let preObservationLocalWindKt = baseCorrectedWindKt;
   if (thermal && thermal.active && (thermal.correctionMode === "ADDITIVE" || thermal.correctionMode === "HYBRID")) {
-    localWind += thermal.additiveBoostKt || 0;
+    preObservationLocalWindKt += thermal.additiveBoostKt || 0;
   }
 
+  // Apply maxThermalCorrectedWindKt (thermal plausibility cap) before observation fusion
+  const maxThermalCap = (spotConfig.localCorrection.diurnalThermalBoost as any)?.maxThermalCorrectedWindKt;
+  if (maxThermalCap !== undefined && maxThermalCap > 0) {
+    preObservationLocalWindKt = Math.min(preObservationLocalWindKt, maxThermalCap);
+  }
+  preObservationLocalWindKt = Math.round(preObservationLocalWindKt * 10) / 10;
+
+  let localWind = Math.max(0, preObservationLocalWindKt);
   let localGust = Math.max(localWind, (point.windGust || point.windSpeed * 1.25) * factor);
   if (thermal && thermal.active && (thermal.correctionMode === "ADDITIVE" || thermal.correctionMode === "HYBRID")) {
     localGust += thermal.additiveBoostKt || 0;
   }
+  if (maxThermalCap !== undefined && maxThermalCap > 0) {
+    localGust = Math.min(localGust, Math.max(localWind, maxThermalCap * 1.25));
+  }
+  localGust = Math.round(localGust * 10) / 10;
 
   const directionScore = evaluateDirectionScore(spotConfig, effectiveDirection);
 
@@ -361,6 +467,13 @@ export function normalizeHourlyPoint(
   const classification = getWindClassification(localWind);
   const condition = getConditionLabel(quality.sessionQualityScore);
 
+  const reasonCodes = deriveHourlyReasonCodes(
+    spotConfig,
+    quality.eligibilityReason,
+    thermal,
+    regimeId
+  );
+
   return {
     timestamp: point.timestamp,
     modelWind: point.windSpeed,
@@ -368,6 +481,8 @@ export function normalizeHourlyPoint(
     localWind,
     localGust,
     correctionFactor: factor,
+    baseCorrectedWindKt,
+    preObservationLocalWindKt,
     directionDegrees: effectiveDegrees,
     directionLabel: effectiveDirection,
     arrowRotation: compassToArrowRotation(effectiveDegrees),
@@ -375,6 +490,8 @@ export function normalizeHourlyPoint(
     confidenceLevel,
     eligibility: quality.eligibility,
     eligibilityReason: quality.eligibilityReason as any,
+    hardGateReason: quality.eligibility === "UNSUITABLE" ? quality.eligibilityReason : undefined,
+    reasonCodes,
     waterState: quality.waterState,
     seaState,
     lakeStateSource,
@@ -399,6 +516,9 @@ export function normalizeHourlyPoint(
           confidence: thermal.confidence || 1.0,
           additiveBoostKt: thermal.additiveBoostKt || 0,
           multiplicativeBoost: thermal.multiplicativeBoost || 0,
+          contributingFactors: thermal.contributingFactors,
+          limitingFactors: thermal.limitingFactors,
+          reasonCodes,
         }
       : undefined,
   };
@@ -662,6 +782,19 @@ export function calculateDailySummariesGeneric(
       spotConfig.operatingWindow
     );
 
+    let bestWindowReasonCodes: DiagnosticReasonCode[] | undefined = undefined;
+    if (bestWindow && bestWindow.startIso && bestWindow.endIso) {
+      const startMs = new Date(bestWindow.startIso).getTime();
+      const endMs = new Date(bestWindow.endIso).getTime();
+      const windowHours = hours.filter((h) => {
+        const hMs = new Date(h.timestamp).getTime();
+        return hMs >= startMs && hMs <= endMs;
+      });
+      bestWindowReasonCodes = Array.from(
+        new Set(windowHours.flatMap((h) => h.reasonCodes || []))
+      );
+    }
+
     summaries.push({
       date: dateStr,
       minWind,
@@ -679,6 +812,7 @@ export function calculateDailySummariesGeneric(
       bestSeaQuality,
       waveHeightRange,
       bestWindow,
+      reasonCodes: bestWindowReasonCodes,
     });
   }
 
@@ -739,6 +873,15 @@ export function normalizeSpotForecastGeneric(
       ? regimeIdOrHourlyRegimes[i]
       : regimeIdOrHourlyRegimes;
 
+    let deltaHours = 1.0;
+    const previousPoint = i > 0 ? hourly[i - 1] : undefined;
+    if (previousPoint) {
+      const diffMs = new Date(timestamp).getTime() - new Date(previousPoint.timestamp).getTime();
+      if (diffMs > 0 && !isNaN(diffMs)) {
+        deltaHours = diffMs / 3600000;
+      }
+    }
+
     const normalizedPoint = normalizeHourlyPoint(
       spotConfig,
       {
@@ -755,7 +898,9 @@ export function normalizeSpotForecastGeneric(
       },
       currentTime,
       pointRegimeId,
-      timeZone
+      timeZone,
+      previousPoint,
+      deltaHours
     );
 
     hourly.push(normalizedPoint);
@@ -901,6 +1046,23 @@ export function renormalizeHourWithObservation(
   const classification = getWindClassification(localWind);
   const condition = getConditionLabel(quality.sessionQualityScore);
 
+  let updatedThermal = baseHour.thermal ? { ...baseHour.thermal } : undefined;
+  if (updatedThermal && baseHour.observationFusion) {
+    const fusion = baseHour.observationFusion;
+    const fusionAdj = fusion.confidenceAdjustment || 0;
+    const cov = fusion.coverage?.thermalContext ?? fusion.observationCoverage ?? 0;
+    const combinedConf = Math.min(1.0, Math.max(0.0, updatedThermal.confidence + fusionAdj * cov));
+    updatedThermal.confidence = Math.round(combinedConf * 100) / 100;
+  }
+
+  const reasonCodes = deriveHourlyReasonCodes(
+    spotConfig,
+    quality.eligibilityReason,
+    updatedThermal,
+    regimeId,
+    baseHour.observationFusion
+  );
+
   return {
     timestamp: baseHour.timestamp,
     modelWind: baseHour.modelWind,
@@ -908,6 +1070,8 @@ export function renormalizeHourWithObservation(
     localWind,
     localGust,
     correctionFactor: baseHour.correctionFactor,
+    baseCorrectedWindKt: baseHour.baseCorrectedWindKt,
+    preObservationLocalWindKt: baseHour.preObservationLocalWindKt,
     directionDegrees: effectiveDegrees,
     directionLabel: effectiveDirection,
     arrowRotation: compassToArrowRotation(effectiveDegrees),
@@ -915,6 +1079,8 @@ export function renormalizeHourWithObservation(
     confidenceLevel: baseHour.confidenceLevel || confidenceLevel,
     eligibility: quality.eligibility,
     eligibilityReason: quality.eligibilityReason as any,
+    hardGateReason: quality.eligibility === "UNSUITABLE" ? quality.eligibilityReason : undefined,
+    reasonCodes,
     waterState: quality.waterState,
     seaState,
     lakeStateSource,
@@ -932,7 +1098,7 @@ export function renormalizeHourWithObservation(
     condition,
     temperature: baseHour.temperature,
     cloudCover: baseHour.cloudCover,
-    thermal: baseHour.thermal,
+    thermal: updatedThermal,
     observationFusion: baseHour.observationFusion,
   };
 }

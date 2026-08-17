@@ -35,8 +35,8 @@ export const GardaLakeSpots: RegionSpotConfig[] = [
     regimeQualityCurves: {
       GARDA_PELER: [
         { wind: 0, score: 0 },
-        { wind: 13, score: 30 },
-        { wind: 17, score: 75 },
+        { wind: 13, score: 35 },
+        { wind: 17, score: 82 },
         { wind: 22, score: 98 },
         { wind: 28, score: 100 },
         { wind: 33, score: 85 },

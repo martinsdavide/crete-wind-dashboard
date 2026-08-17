@@ -12,6 +12,7 @@ import {
 import { generateRecommendationExplanation } from "../explanation/ExplanationEngine";
 import { degreesToCompass } from "@/lib/windDirection";
 import { SCORING_CONFIG } from "@/config/windProfiles";
+import { resolveMinimumPlaningWind } from "@/lib/windThresholds";
 
 /**
  * Classifies regional wind regime for a specific hour/timestamp context.
@@ -398,7 +399,7 @@ export class RecommendationEngine {
       let obsFreshness: import("@/engine/observations/types").ObservationFreshness | undefined = undefined;
       let nowPersistenceMinutes = 60;
 
-      const spotMinWind = spot.minWindSpeedKt ?? 11;
+      const spotMinWind = resolveMinimumPlaningWind(spot);
       const spotMaxWind = spot.maxWindSpeedKt ?? 40;
 
       if (
@@ -559,11 +560,17 @@ export class RecommendationEngine {
     }
 
     // 6. Generate rule-based explanations from region rulebook
+    const currentReasonCodes =
+      winner && winner.recommendationMode === "NOW" && winner.id && validForecasts[winner.id]?.current?.reasonCodes
+        ? validForecasts[winner.id]?.current?.reasonCodes
+        : undefined;
+
     const explanations = generateRecommendationExplanation(
       regionConfig,
       winner ? winner.id : null,
       regimeId,
-      summaries
+      summaries,
+      currentReasonCodes
     );
 
     return {

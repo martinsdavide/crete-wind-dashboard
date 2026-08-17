@@ -6,6 +6,7 @@ import { evaluateQualityCurve } from "./CurveEvaluator";
 import { evaluateWaterStateQuality, evaluatePreferenceScore } from "./PreferenceEvaluator";
 import { RiderPreferences } from "@/config/riderPreferences";
 import { evaluateFallbackSeaState } from "../marine/SeaStateEvaluator";
+import { resolveMinimumPlaningWind } from "@/lib/windThresholds";
 
 export interface EvaluatedHourQuality {
   eligibility: SpotEligibility;
@@ -75,7 +76,7 @@ export function evaluateSpotEligibility(
   }
 
   // 2. Minimum planing threshold
-  const minPlaning = spotConfig.minPlaningWind ?? 11;
+  const minPlaning = resolveMinimumPlaningWind(spotConfig);
   if (localWind < minPlaning) {
     return { eligibility: "UNSUITABLE", reason: "TOO_LIGHT" };
   }

@@ -47,6 +47,42 @@ export const EasternCreteExplanationRules: ExplanationTemplateRule[] = [
       "Meltemi is absent and flow has shifted W/SW. Xerokampos is the prime alternative spot, receiving clean side-onshore thermal breeze.",
   },
   {
+    id: "xerokampos-thermal-observed",
+    condition: {
+      spotId: "xerokampos",
+      reasonCodesAll: ["THERMAL_ACTIVE", "THERMAL_OBSERVATION_SUPPORT"],
+    },
+    explanation:
+      "Local weather station observations confirm active W/SW thermal breeze development at Xerokampos.",
+  },
+  {
+    id: "xerokampos-thermal-active",
+    condition: {
+      spotId: "xerokampos",
+      reasonCodesAll: ["THERMAL_ACTIVE"],
+    },
+    explanation:
+      "Active summer thermal reinforcement is boosting W/SW breeze into full planing conditions at Xerokampos.",
+  },
+  {
+    id: "xerokampos-thermal-building",
+    condition: {
+      spotId: "xerokampos",
+      reasonCodesAll: ["THERMAL_BUILDING"],
+    },
+    explanation:
+      "W/SW thermal circulation is building towards afternoon peak at Xerokampos.",
+  },
+  {
+    id: "xerokampos-cloud-suppressed",
+    condition: {
+      spotId: "xerokampos",
+      reasonCodesAny: ["THERMAL_CLOUD_SUPPRESSION"],
+    },
+    explanation:
+      "Cloud cover is suppressing thermal circulation at Xerokampos.",
+  },
+  {
     id: "xerokampos-southerly-prime",
     condition: {
       spotId: "xerokampos",

@@ -5,7 +5,7 @@ import { interpolateCurve } from "./ForecastNormalizer";
 
 export class ThermalEffectEvaluator {
   /**
-   * Evaluates dynamic thermal circulation strength, state, confidence, and boosts.
+   * Evaluates dynamic thermal circulation strength, state, confidence, and boosts from raw synoptic inputs.
    */
   static evaluate(
     spotConfig: RegionSpotConfig,
@@ -14,7 +14,10 @@ export class ThermalEffectEvaluator {
     modelWind = 12,
     cloudCover = 0,
     timeZone = "Europe/Rome",
-    solarRadiation?: number
+    solarRadiation?: number,
+    regimeId?: string,
+    previousEvaluation?: { additiveBoostKt?: number } | ThermalEvaluation,
+    deltaHours?: number
   ): ThermalEvaluation {
     const cfg = spotConfig.localCorrection.diurnalThermalBoost;
 
@@ -107,7 +110,7 @@ export class ThermalEffectEvaluator {
     // 3. Direction Factor
     let directionFactor = 1.0;
     if (cfg.directionFactors) {
-      directionFactor = cfg.directionFactors[directionLabel] ?? cfg.defaultDirectionFactor ?? 0.10;
+      directionFactor = cfg.directionFactors[directionLabel] ?? cfg.defaultDirectionFactor ?? 0.0;
       if (directionFactor >= 0.8) {
         contributingFactors.push("THERMAL_DIRECTION_SUPPORT");
       } else {
@@ -115,7 +118,7 @@ export class ThermalEffectEvaluator {
       }
     }
 
-    // 4. Synoptic Wind Factor
+    // 4. Synoptic Wind Factor (evaluated strictly from raw model wind)
     let synopticWindFactor = 1.0;
     if (cfg.synopticWindCurve && cfg.synopticWindCurve.length > 0) {
       synopticWindFactor = interpolateCurve(
@@ -212,6 +215,25 @@ export class ThermalEffectEvaluator {
       limitingFactors.push("LOW_CONFIDENCE_SUPPRESSION");
     }
 
+    // Rate Limiting on Additive Boost (scaled by elapsed hours)
+    if (
+      previousEvaluation &&
+      deltaHours !== undefined &&
+      deltaHours > 0 &&
+      !isNaN(deltaHours) &&
+      cfg.buildRateLimitKtPerHour !== undefined
+    ) {
+      const prevAdditive = previousEvaluation.additiveBoostKt ?? 0;
+      const buildLimit = cfg.buildRateLimitKtPerHour * deltaHours;
+      const decayLimit = (cfg.decayRateLimitKtPerHour ?? cfg.buildRateLimitKtPerHour) * deltaHours;
+
+      if (additiveBoostKt > prevAdditive) {
+        additiveBoostKt = Math.min(additiveBoostKt, prevAdditive + buildLimit);
+      } else if (additiveBoostKt < prevAdditive) {
+        additiveBoostKt = Math.max(additiveBoostKt, prevAdditive - decayLimit);
+      }
+    }
+
     return {
       strength: Math.round(strength * 100) / 100,
       boost,
@@ -233,3 +255,4 @@ export class ThermalEffectEvaluator {
     };
   }
 }
+
