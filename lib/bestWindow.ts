@@ -200,6 +200,22 @@ export function findBestWindow(
     stylesCount[a] >= stylesCount[b] ? a : b
   );
 
+  // Dominant regime ID during window
+  const regimeCounts: Record<string, number> = {};
+  seq.forEach((h) => {
+    if (h.regimeId) {
+      regimeCounts[h.regimeId] = (regimeCounts[h.regimeId] || 0) + 1;
+    }
+  });
+  let dominantRegimeId: string | undefined = undefined;
+  let maxRegimeCount = 0;
+  for (const [rId, count] of Object.entries(regimeCounts)) {
+    if (count > maxRegimeCount) {
+      maxRegimeCount = count;
+      dominantRegimeId = rId;
+    }
+  }
+
   const roundedMeanScore = Math.round(best.meanScore);
   const stability = calculateWindowStability(seq);
 
@@ -218,5 +234,6 @@ export function findBestWindow(
     classification: getConditionLabel(roundedMeanScore),
     sailingStyle: dominantStyle,
     stability,
+    dominantRegimeId,
   };
 }

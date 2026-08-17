@@ -521,6 +521,8 @@ export function normalizeHourlyPoint(
           reasonCodes,
         }
       : undefined,
+    regimeId,
+    observationFusion: undefined,
   };
 }
 
@@ -1099,6 +1101,7 @@ export function renormalizeHourWithObservation(
     temperature: baseHour.temperature,
     cloudCover: baseHour.cloudCover,
     thermal: updatedThermal,
+    regimeId: regimeId ?? baseHour.regimeId,
     observationFusion: baseHour.observationFusion,
   };
 }

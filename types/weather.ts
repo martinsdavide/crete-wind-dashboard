@@ -136,6 +136,7 @@ export interface HourlyWind {
     limitingFactors?: string[];
     reasonCodes?: DiagnosticReasonCode[];
   };
+  regimeId?: string;
   reasonCodes?: DiagnosticReasonCode[];
   observationFusion?: import("@/engine/observations/types").ObservationFusionResult;
 }
@@ -213,6 +214,7 @@ export interface BestWindow {
   classification?: WindClassification | ConditionLabel;
   stability?: WindowStability | null;
   evidence?: RecommendationEvidence;
+  dominantRegimeId?: string;
 }
 
 export interface DailyWindSummary {

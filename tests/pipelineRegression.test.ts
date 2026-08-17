@@ -134,9 +134,9 @@ describe("Regression Validation: Generic Normalization & Recommendation Pipeline
 
     const refDate = new Date("2026-08-10T10:00:00.000Z");
 
-    const kForecast = normalizeSpotForecastGeneric(kouremenosConfig, kRaw, refDate, "Europe/Athens");
-    const tForecast = normalizeSpotForecastGeneric(tendaConfig, tRaw, refDate, "Europe/Athens");
-    const xForecast = normalizeSpotForecastGeneric(xerokamposConfig, xRaw, refDate, "Europe/Athens");
+    const kForecast = normalizeSpotForecastGeneric(kouremenosConfig, kRaw, refDate, "Europe/Athens", "MELTEMI_STRONG");
+    const tForecast = normalizeSpotForecastGeneric(tendaConfig, tRaw, refDate, "Europe/Athens", "MELTEMI_STRONG");
+    const xForecast = normalizeSpotForecastGeneric(xerokamposConfig, xRaw, refDate, "Europe/Athens", "MELTEMI_STRONG");
 
     const spotsResults: Record<string, SpotResult> = {
       kouremenos: { status: "ok", data: kForecast },

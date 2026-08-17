@@ -13,6 +13,7 @@ import { generateRecommendationExplanation } from "../explanation/ExplanationEng
 import { degreesToCompass } from "@/lib/windDirection";
 import { SCORING_CONFIG } from "@/config/windProfiles";
 import { resolveMinimumPlaningWind } from "@/lib/windThresholds";
+import { isSpotOperatingHour } from "@/lib/solar";
 
 /**
  * Classifies regional wind regime for a specific hour/timestamp context.
@@ -154,22 +155,16 @@ export function classifyRegionalRegime(
         return hDateStr === targetDateStr;
       });
 
-      // Filter to daytime / operating hours (10:00 to 18:00 local time)
-      const daytimeHours = targetHours.filter((h) => {
-        try {
-          const hStr = new Intl.DateTimeFormat("en-GB", {
-            timeZone: regionConfig.timezone || "Europe/Athens",
-            hour: "2-digit",
-            hour12: false,
-          }).format(new Date(h.timestamp));
-          const hour = parseInt(hStr, 10);
-          return hour >= 10 && hour <= 18;
-        } catch {
-          return true;
+      // Filter to spot configured operating hours
+      const spotConfig = regionConfig.spots.find((s) => s.id === fc.spot?.id);
+      const operatingHours = targetHours.filter((h) => {
+        if (spotConfig) {
+          return isSpotOperatingHour(h.timestamp, spotConfig, regionConfig.timezone);
         }
+        return true;
       });
 
-      const relevantHours = daytimeHours.length > 0 ? daytimeHours : targetHours;
+      const relevantHours = operatingHours.length > 0 ? operatingHours : targetHours;
 
       if (relevantHours.length > 0) {
         const spotMeanWind =
@@ -359,14 +354,14 @@ export class RecommendationEngine {
       }
     }
 
-    // 2. Classify regional regime
-    const { regimeId, regimeLabel } = classifyRegionalRegime(
+    // 2. Classify residual regional regime (used as fallback when no spot qualifies)
+    const { regimeId: residualRegimeId, regimeLabel: residualRegimeLabel } = classifyRegionalRegime(
       regionConfig,
       validForecasts,
       referenceDate
     );
 
-    // 3. Resolve today's date in the region's configured timezone (e.g. "YYYY-MM-DD")
+    // 3. Resolve target date in the region's configured timezone (e.g. "YYYY-MM-DD")
     let todayDateStr = "";
     try {
       todayDateStr = new Intl.DateTimeFormat("en-CA", {
@@ -379,78 +374,22 @@ export class RecommendationEngine {
       todayDateStr = referenceDate.toISOString().split("T")[0];
     }
 
-    // 4. Extract today summaries explicitly using regional local date & evaluate hard gates
+    // 4. Extract target day summaries strictly (no silent fallback to days[0])
     const summaries: Record<string, DailyWindSummary | null> = {};
     const spotScores: Record<string, number | null> = {};
 
     for (const spot of regionConfig.spots) {
       const forecast = validForecasts[spot.id];
       if (forecast && forecast.days && forecast.days.length > 0) {
-        const todaySummary =
-          forecast.days.find((d) => d.date === todayDateStr) || forecast.days[0];
+        const todaySummary = forecast.days.find((d) => d.date === todayDateStr) ?? null;
+        summaries[spot.id] = todaySummary;
 
-        // Check if any hard gate excludes this spot under the classified regional regime
-        const isHardGated = spot.hardGates?.some((gate) => {
-          const matchesRegime = !gate.regimes || (regimeId && gate.regimes.includes(regimeId));
-          const dominantDir = todaySummary.dominantDirectionDegrees;
-          let matchesDir = false;
-
-          if (gate.directionRange) {
-            const [minD, maxD] = gate.directionRange;
-            if (minD <= maxD) {
-              matchesDir = dominantDir >= minD && dominantDir <= maxD;
-            } else {
-              matchesDir = dominantDir >= minD || dominantDir <= maxD;
-            }
-          }
-
-          let matchesWind = false;
-          if (gate.minWind !== undefined && todaySummary.daytimeMaxWind >= gate.minWind) {
-            matchesWind = true;
-          }
-          if (gate.maxWind !== undefined && todaySummary.daytimeMinWind <= gate.maxWind) {
-            matchesWind = true;
-          }
-
-          let matchesMarine = false;
-          if (gate.minWaveHeight !== undefined) {
-            const maxWave = todaySummary.waveHeightRange?.max ?? 0;
-            if (maxWave >= gate.minWaveHeight) matchesMarine = true;
-          }
-          if (gate.maxWaveHeight !== undefined) {
-            const minWave = todaySummary.waveHeightRange?.min ?? 0;
-            if (minWave <= gate.maxWaveHeight) matchesMarine = true;
-          }
-
-          const hasCriteria =
-            gate.regimes !== undefined ||
-            gate.directionRange !== undefined ||
-            gate.minWind !== undefined ||
-            gate.maxWind !== undefined ||
-            gate.minWaveHeight !== undefined ||
-            gate.maxWaveHeight !== undefined;
-
-          const triggered =
-            matchesRegime &&
-            (gate.directionRange ? matchesDir : true) &&
-            (gate.minWind !== undefined || gate.maxWind !== undefined ? matchesWind : true) &&
-            (gate.minWaveHeight !== undefined || gate.maxWaveHeight !== undefined ? matchesMarine : true) &&
-            hasCriteria;
-
-          return triggered && gate.eligibility === "UNSUITABLE";
-        });
-
-        if (isHardGated) {
-          summaries[spot.id] = {
-            ...todaySummary,
-            score: 0,
-            dominantEligibility: "UNSUITABLE",
-            bestWindow: null,
-          };
-          spotScores[spot.id] = 0;
+        if (todaySummary) {
+          const bestWin = todaySummary.bestWindow ?? null;
+          const bestWinScore = bestWin ? (bestWin.score ?? bestWin.meanScore ?? 0) : 0;
+          spotScores[spot.id] = bestWin ? Math.round(bestWinScore) : 0;
         } else {
-          summaries[spot.id] = todaySummary;
-          spotScores[spot.id] = todaySummary.score ?? null;
+          spotScores[spot.id] = null;
         }
       } else {
         summaries[spot.id] = null;
@@ -458,7 +397,7 @@ export class RecommendationEngine {
       }
     }
 
-    // 5. Rank spot candidates based on session quality and Best Window availability
+    // 5. Rank spot candidates based on Best Window quality and availability
     interface SpotCandidate {
       id: string;
       name: string;
@@ -471,18 +410,20 @@ export class RecommendationEngine {
       observationAgeMinutes?: number;
       observationFreshness?: import("@/engine/observations/types").ObservationFreshness;
       validUntil?: string;
+      spotIndex: number;
     }
 
     const candidates: SpotCandidate[] = [];
     const minWindowHours = SCORING_CONFIG.bestWindow?.minConsecutiveHours || 2;
 
-    for (const spot of regionConfig.spots) {
+    for (let sIdx = 0; sIdx < regionConfig.spots.length; sIdx++) {
+      const spot = regionConfig.spots[sIdx];
       const forecast = validForecasts[spot.id];
       const summary = summaries[spot.id];
       if (!summary || !forecast) continue;
 
-      const score = summary.score ?? 0;
       const bestWin = summary.bestWindow ?? null;
+      const bestWinScore = bestWin ? (bestWin.score ?? bestWin.meanScore ?? 0) : 0;
       const winDuration = bestWin?.durationHours ?? 0;
 
       // Evaluate NOW suitability ONLY if referenceDate is the current local day
@@ -504,6 +445,11 @@ export class RecommendationEngine {
       }
 
       const isCurrentDay = currentLocalDayStr === todayDateStr;
+      const isOperating = isSpotOperatingHour(
+        current?.timestamp || referenceDate.toISOString(),
+        spot,
+        regionConfig.timezone
+      );
 
       let hasNowSession = false;
       let nowEvidence: import("@/types/weather").RecommendationEvidence = "FORECAST_NOW";
@@ -516,6 +462,7 @@ export class RecommendationEngine {
 
       if (
         isCurrentDay &&
+        isOperating &&
         current &&
         current.eligibility !== "UNSUITABLE" &&
         current.sessionQualityScore >= 60 &&
@@ -582,6 +529,7 @@ export class RecommendationEngine {
           sailingStyle: current.waterState,
           condition: current.condition,
           evidence: nowEvidence,
+          dominantRegimeId: current.regimeId,
         };
       }
 
@@ -598,16 +546,15 @@ export class RecommendationEngine {
       }
 
       const hasForecastSession =
-        score >= 60 &&
         bestWin !== null &&
         winDuration >= minWindowHours &&
-        spotScores[spot.id] !== 0;
+        bestWinScore >= 60;
 
       if (hasNowSession) {
         candidates.push({
           id: spot.id,
           name: spot.name,
-          score: current?.sessionQualityScore ?? score,
+          score: current?.sessionQualityScore ?? bestWinScore,
           bestWindow: nowWindow,
           hasEligibleSession: true,
           style: current?.waterState ?? summary.dominantStyle ?? spot.defaultStyle,
@@ -616,28 +563,31 @@ export class RecommendationEngine {
           observationAgeMinutes: obsAgeMinutes,
           observationFreshness: obsFreshness,
           validUntil: validUntilIso,
+          spotIndex: sIdx,
         });
       } else if (hasForecastSession) {
         candidates.push({
           id: spot.id,
           name: spot.name,
-          score,
+          score: bestWinScore,
           bestWindow: bestWin,
           hasEligibleSession: true,
           style: summary.dominantStyle ?? spot.defaultStyle,
           recommendationMode: "FORECAST_WINDOW",
           evidence: "FORECAST_WINDOW",
+          spotIndex: sIdx,
         });
       } else {
         candidates.push({
           id: spot.id,
           name: spot.name,
-          score,
+          score: bestWinScore,
           bestWindow: bestWin,
           hasEligibleSession: false,
           style: summary.dominantStyle ?? spot.defaultStyle,
           recommendationMode: "NONE",
           evidence: null,
+          spotIndex: sIdx,
         });
       }
     }
@@ -664,15 +614,40 @@ export class RecommendationEngine {
         const prioB = getPriority(b);
 
         if (prioB !== prioA) return prioB - prioA;
+
+        // 1. Best Window Score (or NOW score)
         if (b.score !== a.score) return b.score - a.score;
+
+        // 2. Best Window Duration
         const durA = a.bestWindow?.durationHours ?? 0;
         const durB = b.bestWindow?.durationHours ?? 0;
-        return durB - durA;
+        if (durB !== durA) return durB - durA;
+
+        // 3. Stability Score
+        const stabA = a.bestWindow?.stability?.stabilityScore ?? 0;
+        const stabB = b.bestWindow?.stability?.stabilityScore ?? 0;
+        if (stabB !== stabA) return stabB - stabA;
+
+        // 4. Configured spot order index (final tie-breaker)
+        return a.spotIndex - b.spotIndex;
       });
       winner = qualifyingCandidates[0];
     }
 
-    // 6. Generate rule-based explanations from region rulebook
+    // 6. Derive displayed recommendation regime
+    let finalRegimeId: string = residualRegimeId;
+    if (winner && winner.recommendationMode === "NOW") {
+      finalRegimeId = validForecasts[winner.id]?.current?.regimeId ?? residualRegimeId;
+    } else if (winner && winner.recommendationMode === "FORECAST_WINDOW") {
+      finalRegimeId = winner.bestWindow?.dominantRegimeId ?? residualRegimeId;
+    } else {
+      finalRegimeId = residualRegimeId;
+    }
+
+    const finalRegimeDef = regionConfig.regimes.find((r) => r.id === finalRegimeId);
+    const finalRegimeLabel = finalRegimeDef?.label ?? residualRegimeLabel;
+
+    // 7. Generate rule-based explanations from region rulebook
     const currentReasonCodes =
       winner && winner.recommendationMode === "NOW" && winner.id && validForecasts[winner.id]?.current?.reasonCodes
         ? validForecasts[winner.id]?.current?.reasonCodes
@@ -681,7 +656,7 @@ export class RecommendationEngine {
     const explanations = generateRecommendationExplanation(
       regionConfig,
       winner ? winner.id : null,
-      regimeId,
+      finalRegimeId,
       summaries,
       currentReasonCodes
     );
@@ -692,8 +667,8 @@ export class RecommendationEngine {
       bestWindow: winner ? winner.bestWindow : null,
       score: winner ? winner.score : 0,
       spotScores,
-      regime: regimeId as WindRegime,
-      regimeLabel,
+      regime: finalRegimeId as WindRegime,
+      regimeLabel: finalRegimeLabel,
       sailingStyle: winner ? winner.style : "BUMP_AND_JUMP",
       explanation: explanations,
       mode: winner ? winner.recommendationMode : "NONE",
@@ -704,4 +679,3 @@ export class RecommendationEngine {
     };
   }
 }
-
