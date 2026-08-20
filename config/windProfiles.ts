@@ -137,7 +137,7 @@ export const SCORING_CONFIG = {
     windUnder10kt: -10,
   },
   bestWindow: {
-    minScoreThreshold: 70,
+    minScoreThreshold: 60,
     minConsecutiveHours: 2,
   },
   daytime: {

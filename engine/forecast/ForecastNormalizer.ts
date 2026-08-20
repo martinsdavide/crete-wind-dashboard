@@ -776,7 +776,7 @@ export function calculateDailySummariesGeneric(
     // Find Best Window
     const bestWindow = findBestWindow(
       hours,
-      SCORING_CONFIG.bestWindow?.minScoreThreshold ?? 70,
+      SCORING_CONFIG.bestWindow?.minScoreThreshold ?? 60,
       SCORING_CONFIG.bestWindow?.minConsecutiveHours ?? 2,
       timeZone,
       spotConfig.latitude,
