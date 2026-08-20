@@ -91,8 +91,26 @@ export const BestSpot: React.FC<BestSpotProps> = ({
 
   const tomorrowWinnerForecast =
     tomorrowWinnerResult?.status === "ok" ? tomorrowWinnerResult.data : chosenForecast;
+
+  const tomorrowDateStr = useMemo(() => {
+    try {
+      const now = new Date();
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(tomorrow);
+    } catch {
+      return "";
+    }
+  }, [timezone]);
+
   const tomorrowSummary =
-    tomorrowWinnerForecast?.days?.[1] || tomorrowWinnerForecast?.days?.[0];
+    tomorrowWinnerForecast?.days?.find((d) => d.date === tomorrowDateStr) ||
+    tomorrowWinnerForecast?.days?.[1] ||
+    tomorrowWinnerForecast?.days?.[0];
   const tomorrowScore = tomorrowRecommendation?.score ?? tomorrowSummary?.score ?? null;
   const tomorrowBestWindow =
     tomorrowRecommendation?.bestWindow ?? tomorrowSummary?.bestWindow ?? null;
@@ -103,8 +121,9 @@ export const BestSpot: React.FC<BestSpotProps> = ({
   const isPostSunset = useMemo(() => {
     try {
       const now = new Date();
-      const lat = chosenForecast?.spot.latitude ?? 35.19;
-      const lon = chosenForecast?.spot.longitude ?? 26.27;
+      const firstSpot = spotResults[0]?.status === "ok" ? spotResults[0].data.spot : (spotResults[0] as any)?.spot;
+      const lat = chosenForecast?.spot.latitude ?? tomorrowWinnerForecast?.spot.latitude ?? firstSpot?.latitude ?? 35.19;
+      const lon = chosenForecast?.spot.longitude ?? tomorrowWinnerForecast?.spot.longitude ?? firstSpot?.longitude ?? 26.27;
       const solar = getSolarWindow(now, lat, lon, timezone);
       const localHourStr = new Intl.DateTimeFormat("en-GB", {
         timeZone: timezone,
@@ -116,7 +135,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
     } catch {
       return false;
     }
-  }, [chosenForecast, timezone]);
+  }, [chosenForecast, tomorrowWinnerForecast, spotResults, timezone]);
 
   const conditionGradients: Record<string, string> = {
     EXCELLENT: "from-sky-500/20 via-cyan-500/10 to-transparent border-sky-500/40 text-sky-200",
@@ -127,7 +146,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
   };
 
   const currentCondition = todaySummary?.condition || (score !== null && score >= 75 ? "VERY GOOD" : "OK");
-  const gradientClass = bestSpotName
+  const gradientClass = bestSpotName || (isPostSunset && tomorrowWinnerName)
     ? isPostSunset
       ? "from-amber-500/15 via-orange-500/5 to-transparent border-amber-500/30 text-amber-200"
       : conditionGradients[currentCondition] || conditionGradients.OK
@@ -300,7 +319,7 @@ export const BestSpot: React.FC<BestSpotProps> = ({
         </div>
 
         {/* POST-SUNSET / TAVERNA TIME MODE */}
-        {isPostSunset && bestSpot && bestSpotName ? (
+        {isPostSunset && (bestSpot || tomorrowWinnerId) ? (
           <div className="space-y-4">
             {/* Witty Banner */}
             <div className="p-3.5 rounded-xl bg-amber-950/40 [data-theme='daylight']_:bg-amber-100/80 border border-amber-500/30 text-amber-200 [data-theme='daylight']_:text-amber-900 text-xs flex items-start gap-3 shadow-inner">
@@ -398,11 +417,11 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                       <span>DIRECTION</span>
                     </div>
                     <div>
-                      <span className="text-lg sm:text-2xl font-black font-mono text-white block">
+                      <span className="text-lg sm:text-2xl font-black font-mono text-sky-300 block">
                         {tomorrowSummary.dominantDirection}
                       </span>
                       <span className="text-[10px] sm:text-[11px] text-slate-300 mt-0.5 block truncate">
-                        Favorable angle
+                        {Math.round(tomorrowSummary.dominantDirectionDegrees)}° dominant
                       </span>
                     </div>
                   </div>
@@ -410,19 +429,17 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                   {/* 3. Best Window */}
                   <div className="p-2.5 sm:p-3 rounded-xl bg-surf-dark/60 border border-surf-border/60 flex flex-col justify-between">
                     <div className="flex items-center gap-1.5 text-slate-400 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1">
-                      <Clock className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
+                      <Clock className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                       <span>BEST WINDOW</span>
                     </div>
                     <div>
-                      <span className="text-[13px] xs:text-sm sm:text-lg md:text-xl lg:text-2xl font-black font-mono text-white block tracking-tight whitespace-nowrap">
+                      <span className="text-lg sm:text-2xl font-black font-mono text-emerald-300 block">
                         {tomorrowBestWindow
-                          ? `${tomorrowBestWindow.start} – ${tomorrowBestWindow.end}`
-                          : "11:00 – 17:00"}
+                          ? `${tomorrowBestWindow.start}–${tomorrowBestWindow.end}`
+                          : "Afternoon"}
                       </span>
-                      <span className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 block truncate">
-                        {tomorrowBestWindow
-                          ? `${tomorrowBestWindow.durationHours}h window`
-                          : "Daylight window"}
+                      <span className="text-[10px] sm:text-[11px] text-slate-300 mt-0.5 block truncate">
+                        {tomorrowBestWindow ? `${tomorrowBestWindow.durationHours}h continuous` : "Thermal breeze"}
                       </span>
                     </div>
                   </div>
@@ -449,26 +466,46 @@ export const BestSpot: React.FC<BestSpotProps> = ({
             {/* TODAY'S RECAP TAB */}
             {nightViewTab === "today" && (
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block mb-0.5">
-                      TODAY&apos;S WINNING SPOT
-                    </span>
-                    <h3 className="text-2xl font-extrabold text-white tracking-tight uppercase">
-                      {bestSpotName}
-                    </h3>
-                  </div>
-                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs">
-                    Score {score}/100
-                  </span>
-                </div>
-                {explanation && explanation.length > 0 && (
-                  <div className="p-3 rounded-xl bg-surf-dark/70 border border-surf-border/60 text-xs text-slate-300 space-y-1">
-                    {explanation.map((item, idx) => (
-                      <p key={idx} className="leading-relaxed text-[11px]">
-                        • {item}
-                      </p>
-                    ))}
+                {bestSpotName ? (
+                  <>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block mb-0.5">
+                          TODAY&apos;S WINNING SPOT
+                        </span>
+                        <h3 className="text-2xl font-extrabold text-white tracking-tight uppercase">
+                          {bestSpotName}
+                        </h3>
+                      </div>
+                      <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs">
+                        Score {score}/100
+                      </span>
+                    </div>
+                    {explanation && explanation.length > 0 && (
+                      <div className="p-3 rounded-xl bg-surf-dark/70 border border-surf-border/60 text-xs text-slate-300 space-y-1">
+                        {explanation.map((item, idx) => (
+                          <p key={idx} className="leading-relaxed text-[11px]">
+                            • {item}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="py-3 space-y-2">
+                    <div className="flex items-center gap-2 text-slate-300 text-xs">
+                      <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <span>No spot met the required &ge;60 session quality criteria today.</span>
+                    </div>
+                    {explanation && explanation.length > 0 && (
+                      <div className="p-3 rounded-xl bg-surf-dark/70 border border-surf-border/60 text-xs text-slate-300 space-y-1">
+                        {explanation.map((item, idx) => (
+                          <p key={idx} className="leading-relaxed text-[11px]">
+                            • {item}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -736,6 +773,25 @@ export const BestSpot: React.FC<BestSpotProps> = ({
                 {explanation.map((item, idx) => (
                   <p key={idx} className="leading-relaxed text-[12px]">{item}</p>
                 ))}
+              </div>
+            )}
+
+            {tomorrowWinnerId && tomorrowWinnerName && tomorrowScore !== null && tomorrowScore >= 60 && (
+              <div className="p-3.5 rounded-xl bg-sky-950/40 [data-theme='daylight']_:bg-sky-100/80 border border-sky-500/40 text-sky-200 [data-theme='daylight']_:text-sky-900 flex items-center justify-between gap-3 shadow-inner">
+                <div className="flex items-center gap-2.5">
+                  <Sun className="w-5 h-5 text-sky-400 flex-shrink-0" />
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-sky-400 block">
+                      Early Outlook for Tomorrow
+                    </span>
+                    <p className="font-extrabold text-sm text-white [data-theme='daylight']_:text-sky-950">
+                      {tomorrowWinnerName} {tomorrowBestWindow ? `(${tomorrowBestWindow.start}–${tomorrowBestWindow.end})` : ""}
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 font-mono font-bold text-xs">
+                  Quality {tomorrowScore}/100
+                </span>
               </div>
             )}
 
