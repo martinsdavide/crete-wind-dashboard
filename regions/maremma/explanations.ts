@@ -5,19 +5,28 @@ export const MaremmaExplanationRules: ExplanationTemplateRule[] = [
     id: "talamone-thermal-winner",
     condition: {
       spotId: "talamone",
-      regimeId: "THERMAL",
+      regimeId: "MAREMMA_THERMAL",
     },
     explanation:
       "Talamone benefits from the classic afternoon thermal reinforcement, providing reliable planing breeze in a sheltered bay while other spots remain light.",
   },
   {
+    id: "talamone-thermal-reinforced-winner",
+    condition: {
+      spotId: "talamone",
+      regimeId: "MAREMMA_THERMAL_REINFORCED",
+    },
+    explanation:
+      "Talamone delivers high-quality flat-to-chop freeride conditions with strong thermal acceleration into the bay.",
+  },
+  {
     id: "talamone-maestrale-winner",
     condition: {
       spotId: "talamone",
-      regimeId: "MAESTRALE",
+      regimeId: "MAREMMA_MAESTRALE",
     },
     explanation:
-      "Talamone delivers optimal flat-to-chop freeride conditions today with clean side-shore NW airflow and thermal boost.",
+      "Talamone delivers optimal flat-to-chop freeride conditions today with clean side-shore NW airflow.",
   },
   {
     id: "punta-ala-wave-winner",
@@ -28,13 +37,22 @@ export const MaremmaExplanationRules: ExplanationTemplateRule[] = [
       "Punta Ala is preferred because the exposed W/NW flow provides stronger wave-oriented conditions and jump ramps matching your preferences.",
   },
   {
-    id: "marina-grosseto-libeccio-winner",
+    id: "marina-grosseto-maestrale-winner",
     condition: {
       spotId: "marina-di-grosseto",
-      regimeId: "LIBECCIO",
+      regimeId: "MAREMMA_MAESTRALE",
     },
     explanation:
-      "Marina di Grosseto receives direct side-onshore Libeccio airflow with rolling swell across its open sandy beach.",
+      "Marina di Grosseto delivers optimal bump & jump conditions with clean side-on NW Maestrale thermal breeze and easy exit through the beach.",
+  },
+  {
+    id: "marina-grosseto-thermal-winner",
+    condition: {
+      spotId: "marina-di-grosseto",
+      regimeId: "MAREMMA_THERMAL_REINFORCED",
+    },
+    explanation:
+      "Marina di Grosseto offers a prime afternoon session with steady side-on NW thermal reinforcement along the central sandy coast.",
   },
   {
     id: "marina-grosseto-winner",
@@ -42,7 +60,7 @@ export const MaremmaExplanationRules: ExplanationTemplateRule[] = [
       spotId: "marina-di-grosseto",
     },
     explanation:
-      "Marina di Grosseto offers a balanced open-coast session with steady side-shore breeze and comfortable bump & jump conditions.",
+      "Marina di Grosseto offers a balanced open-coast session with steady side-on breeze and comfortable bump & jump conditions.",
   },
   {
     id: "giannella-flat-winner",
